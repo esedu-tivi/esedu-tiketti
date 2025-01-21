@@ -1,6 +1,6 @@
 # Changelog
 
-## 21.01.2024
+## 21.01.2025
 
 ### Lisätty
 - Projektin perusrakenne
@@ -21,4 +21,3 @@
 - Kehitysympäristön konfiguraatio
 - API proxy konfiguroitu
 - TypeScript konfiguraatio
-- Git-repositorio alustettu

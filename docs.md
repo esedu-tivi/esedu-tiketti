@@ -39,7 +39,6 @@ Frontend käynnistyy oletuksena porttiin 3000.
 ```bash
 cd backend
 npm install
-cp .env.example .env  # Kopioi ja muokkaa ympäristömuuttujat
 npm run dev
 ```
 
