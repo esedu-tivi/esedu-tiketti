@@ -1,12 +1,79 @@
 <!DOCTYPE html>
 <html lang="fi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tikettijärjestelmä</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html> 
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="main.css">
+</head>
+<body>
+    <header>
+        <img src="esedu-logo.jpg" alt="Esedu logo">
+        <h1>Esedu-tiketti</h1>
+        <nav>
+            <button class="new-ticket" aria-label="Luo uusi tiketti">Uusi tiketti</button>
+            <button class="login" aria-label="Kirjaudu sisään">Kirjaudu ulos</button>
+        </nav>
+    </header>
+
+    <main>
+        <div id="filter-menu">
+            <h2 id="filter-menu-heading">Suodatinvalikko</h2>
+            <div class="filter-content">
+                <div class="filter-row">
+                    <div class="filter-item">
+                        <label for="status-filter">Tila:</label>
+                        <select id="status-filter">
+                            <option value="all">Kaikki</option>
+                            <option value="open">Avoin</option>
+                            <option value="closed">Suljettu</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="priority-filter">Prioriteetti:</label>
+                        <select id="priority-filter">
+                            <option value="all">Kaikki</option>
+                            <option value="high">Korkea</option>
+                            <option value="normal">Normaali</option>
+                            <option value="low">Matala</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <div class="filter-item">
+                            <label for="subject-filter">Aihe:</label>
+                            <input type="text" id="subject-filter" placeholder="Kirjoita aihe">
+                        </div>
+                        <div class="filter-item">
+                            <label for="user-filter">Käyttäjä:</label>
+                            <input type="text" id="user-filter" placeholder="Kirjoita käyttäjän nimi">
+                        </div>
+                        <div class="filter-item">
+                            <label for="device-filter">Laite:</label>
+                            <input type="text" id="device-filter" placeholder="Kirjoita laitteen nimi">
+                        </div>
+                        <div class="filter-item">
+                            <label>Päivämäärä:</label>
+                            <div class="date-filter">
+                                <label for="start-date">Alkaen:</label>
+                                <input type="date" id="start-date">
+                                <label for="end-date">Päättyen:</label>
+                                <input type="date" id="end-date">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button id="clear-filters" class="clear-filters-btn">Tyhjennä suodattimet</button>
+            </div>
+        </div>
+        <div id="ticket-list">
+            <p id="no-tickets">Ei tikettejä näytettävänä.<br> Luo uusi tiketti painamalla <strong>Uusi tiketti</strong> yläpalkista</p>
+            <ul id="tickets" aria-live="polite"></ul>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Esedu.</p>
+    </footer>
+</body>
+</html>
