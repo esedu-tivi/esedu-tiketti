@@ -9,16 +9,10 @@ function Tickets() {
     queryFn: fetchTickets
   })
 
-  const handleNewTicket = () => {
-    // TODO: Implement new ticket creation
-    console.log('New ticket button clicked')
-  }
-
   return (
     <div className="tickets-page">
       <div className="tickets-header">
         <h2>Tiketit</h2>
-        <NewTicketButton onClick={handleNewTicket} />
       </div>
       
       <TicketList 
