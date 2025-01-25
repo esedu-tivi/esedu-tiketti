@@ -8,6 +8,7 @@ function Header() {
         <nav>
           <ul>
             <li><Link to="/">Tiketit</Link></li>
+            <li><Link to="/new-ticket">Luo tiketti</Link></li>
             <li><Link to="/login">Kirjaudu</Link></li>
           </ul>
         </nav>

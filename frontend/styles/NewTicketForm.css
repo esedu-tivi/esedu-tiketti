@@ -1,0 +1,86 @@
+.new-ticket-form-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid  rgb(196, 194, 194);
+    background-color: rgb(255, 253, 253);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
+  }
+  
+  .new-ticket-form-container h5 {
+    font-weight: bold;
+    color: #333;
+    text-align: center;
+    font-family: "Days One", serif;
+    
+  }
+  
+  .new-ticket-form-container .form-field {
+    margin-bottom: 1rem;
+    background-color: white;
+    
+  }
+  
+  .new-ticket-form-container .form-field input,
+  .new-ticket-form-container .form-field textarea
+{
+    border-radius: 12px;
+    background-color: white;
+    
+   
+  }
+
+  #slider {
+    background-color: transparent;
+    padding: 16px;
+    border-radius: 8px;
+   
+  
+ 
+  }
+  #slider .MuiTypography-root {
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  
+  #slider .MuiSlider-root {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    margin-bottom: 50px;
+  }
+  
+  .new-ticket-form-container .form-actions {
+    display: flex;
+    justify-content: space-between;
+   
+  }
+  
+  .new-ticket-form-container .form-actions button {
+    border-radius: 12px;
+    padding: 0.5rem 1.5rem;
+    font-family: "Days One", serif;
+    
+  }
+  
+  .submit-button {
+    background: linear-gradient(45deg, #0721c9, #5b086c)!important;
+    color: white;
+    border: none;
+    transition: opacity 0.3s ease!important;
+  }
+
+  .submit-button:hover {
+    opacity: 0.7;
+  }
+  
+  .cancel-button {
+    background-color: transparent;
+    border: 1px solid rgb(211, 211, 211)!important;
+    color: black!important;
+    transition: opacity 0.3s ease!important;
+  }
+

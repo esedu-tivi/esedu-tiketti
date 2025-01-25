@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Header from './components/Layout/Header'
+import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
 import FilterMenu from './pages/FilterMenu'
 
@@ -21,6 +22,7 @@ function App() {
                 </>
                 } 
               />
+              <Route path="/new-ticket" element={<NewTicketForm />} />
             </Routes>
           </main>
         </div>
