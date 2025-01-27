@@ -5,6 +5,8 @@ import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
 import FilterMenu from './pages/FilterMenu'
 
+import './styles/globals.css';
+
 const queryClient = new QueryClient()
 
 function App() {

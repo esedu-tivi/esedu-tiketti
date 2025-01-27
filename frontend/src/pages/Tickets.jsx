@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchTickets } from '../utils/api'
 import TicketList from '../components/Tickets/TicketList'
-import NewTicketButton from '../components/Tickets/NewTicketButton'
 
 function Tickets() {
   const { data, isLoading, error } = useQuery({
