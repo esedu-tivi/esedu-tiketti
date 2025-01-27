@@ -30,7 +30,6 @@ Tikettijärjestelmä Esedun IT-tuen opiskelijoille , jossa käyttäjät voivat l
 
 ## Käyttöliittymä
 - **Shadcn?**
-- **MaterialUI**
 
 ## Dokumentointi
  - **CHANGELOG.md**
