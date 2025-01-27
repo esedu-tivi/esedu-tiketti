@@ -1,5 +1,13 @@
 # Changelog
 
+## 27.01.2025
+
+### Lisätty
+- Uuden tiketin luonti
+  - Komponentti NewTicketForm.jsx
+  - UI-komponentteja src/components/ui
+
+
 ## 21.01.2025
 
 ### Lisätty
