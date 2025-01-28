@@ -7,7 +7,7 @@
    - [Node.js](https://nodejs.org/) (v18 tai uudempi)
    - [Git](https://git-scm.com/downloads)
 
-2. Kloonaa projekti:
+2. Kloonaa tai pullaa projekti:
 ```bash
 git clone [repositorion-url]
 cd esedu-tiketti
