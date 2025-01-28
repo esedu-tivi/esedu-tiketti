@@ -10,11 +10,6 @@ const Slider = React.forwardRef(({ className, ...props }, ref) => {
     return 'bg-red-500';
   };
 
-  const priorities = [
-    { position: 0, label: 'Matala' },
-    { position: 50, label: 'Normaali' },
-    { position: 100, label: 'Korkea' },
-  ];
 
   return (
     <div className="relative w-full">
@@ -33,21 +28,7 @@ const Slider = React.forwardRef(({ className, ...props }, ref) => {
         <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-blue-900 bg-white ring-offset-background transition-transform duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
       </SliderPrimitive.Root>
 
-      <div className="absolute top-5 flex w-full justify-between px-2 text-xs">
-        {priorities.map((priority) => (
-          <span
-            key={priority.position}
-            className="text-gray-600"
-            style={{
-              position: 'absolute',
-              left: `${priority.position}%`,
-              transform: 'translateX(-50%)',
-            }}
-          >
-            {priority.label}
-          </span>
-        ))}
-      </div>
+
     </div>
   );
 });

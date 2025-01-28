@@ -1,91 +1,117 @@
 # Tehtävälista
 
-## Henkilö 1 (Database & Auth)
-- [ ] PostgreSQL-tietokannan asennus ja konfigurointi
-- [ ] Tietokantamallin luominen (users, tickets, comments)
-- [ ] Tietokantayhteyden konfigurointi
-- [ ] Migraatioiden luominen
+## Tietokanta ja autentikointi
+- [x] PostgreSQL-tietokannan asennus ja konfigurointi
+- [x] Tietokantamallin luominen (users, tickets, comments)
+- [x] Tietokantayhteyden konfigurointi
+- [x] Migraatioiden luominen
+- [x] Kategorioiden hallinta
+  - [x] Kategoriamallin luonti
+  - [x] Kategorioiden CRUD-operaatiot
 - [ ] MSA autentikoinnin integrointi
+  - [ ] Azure AD konfigurointi
+  - [ ] Token validointi backendissä
+  - [ ] Autentikoinnin integrointi frontendiin
 - [ ] Käyttäjäroolien hallinta (admin, user)
+  - [ ] Roolipohjainen pääsynhallinta (RBAC)
+  - [ ] Käyttöliittymän mukauttaminen roolin mukaan
 
-## Henkilö 2 (Frontend)
-- [ ] Tikettien listausnäkymän kehitys
-  - [ ] Suodatus
+## Frontend
+### Tikettinäkymät
+- [x] Tiketin luontilomake
+  - [x] Perustiedot (otsikko, kuvaus)
+  - [x] Laitetiedot ja lisätiedot
+  - [x] Kategorian valinta
+  - [x] Prioriteetin valinta (LOW, MEDIUM, HIGH, CRITICAL)
+  - [x] Validointi
+  - [x] Virheilmoitukset
+- [x] Tikettien listausnäkymä (perusversio)
+  - [ ] Suodatus kategorian mukaan
+  - [ ] Suodatus tilan mukaan
+  - [ ] Suodatus prioriteetin mukaan
   - [ ] Järjestäminen
   - [ ] Hakutoiminto
-- [ ] Tiketin luontilomake
-  - [ ] Validointi
-  - [ ] Virheilmoitukset
-- [ ] Tiketin muokkausnäkymä
 - [ ] Tiketin yksityiskohtanäkymä
-- [ ] Kommenttien käyttöliittymä
-  - [ ] Listaus
-  - [ ] Lisäys
-  - [ ] Muokkaus/poisto
-- [ ] UI/UX parannukset
-  - [ ] Responsiivisuus
-  - [ ] Latausanimaatiot
-  - [ ] Virheilmoitukset
-- [ ] Komponenttitestit
+  - [ ] Perustiedot
+  - [ ] Tilan muuttaminen
+  - [ ] Vastuuhenkilön asettaminen
+  - [ ] Kategorian muuttaminen
 
-## Henkilö 3 (Backend API)
-- [ ] Tikettien CRUD-operaatiot
-  - [ ] Tikettien luonti
-  - [ ] Tikettien haku
-  - [ ] Tikettien päivitys
-  - [ ] Tikettien poisto
+### Kommentit
+- [ ] Kommenttien käyttöliittymä
+  - [ ] Listaus tiketissä
+  - [ ] Lisäys
+  - [ ] Muokkaus (vain omat kommentit)
+  - [ ] Poisto (vain omat kommentit)
+
+### UI/UX
+- [x] Käyttöliittymän peruskomponentit
+  - [x] Shadcn/ui komponenttikirjasto
+  - [x] Select-komponentti
+  - [x] Form-komponentit
+- [ ] Käyttöliittymän parannukset
+  - [x] Responsiivisuus
+  - [x] Latausanimaatiot (React Query)
+  - [x] Virheilmoitukset (React Query)
+  - [ ] Tumma teema
+  - [ ] Käyttöliittymän kieliversiot (FI/EN)
+
+### Testaus
+- [ ] Komponenttitestit (React Testing Library)
+- [ ] End-to-end testit (Cypress)
+
+## Backend
+### API Endpointit
+- [x] Tikettien CRUD-operaatiot
+  - [x] Tikettien luonti
+  - [x] Tikettien haku
+  - [x] Tikettien päivitys
+  - [x] Tikettien poisto
+- [x] Kategorioiden hallinta
+  - [x] Kategorioiden haku
+  - [x] Kategorioiden luonti (seed)
 - [ ] Kommenttien CRUD-operaatiot
   - [ ] Kommenttien luonti
   - [ ] Kommenttien haku
   - [ ] Kommenttien päivitys
   - [ ] Kommenttien poisto
-- [ ] API-testit
-- [ ] API-dokumentaatio
-- [ ] Virhekäsittely
-- [ ] Lokitus
-
-## Backend
-
-### Autentikointi
-- [ ] Käyttäjän rekisteröityminen
-- [ ] Kirjautuminen
-- [ ] JWT-tokenin implementointi
-
-### API Endpointit
 - [ ] Käyttäjien hallinta
+  - [x] Käyttäjien haku
+  - [ ] Käyttäjien päivitys
+  - [ ] Käyttäjien poisto
 
-### Testaus
-- [ ] Yksikkötestit
+### Testaus ja laadunvarmistus
+- [ ] API-testit (Jest)
 - [ ] Integraatiotestit
+- [x] API-dokumentaatio (docs.md)
+- [x] Virhekäsittelyn perusrakenne
+- [ ] Lokitus ja monitorointi
 
-## Frontend
-
-### Autentikointi
-- [ ] Kirjautumissivu
-- [ ] Rekisteröitymissivu
-- [ ] Käyttäjäprofiili
-
-### Tiketit
-- [ ] Tikettien listaus
-- [ ] Tiketin luontilomake
-- [ ] Tiketin muokkaus
-- [ ] Tiketin yksityiskohtanäkymä
-
-### Kommentit
-- [ ] Kommenttien listaus tiketissä
-- [ ] Kommenttien lisäys
-- [ ] Kommenttien muokkaus/poisto
-
-### UI/UX
-- [ ] Responsiivinen design
-- [ ] Teeman toteutus
-- [ ] Käyttöliittymän kieliversiot
-- [ ] Lomakkeiden validointi
-
-### Testaus
-- [ ] End-to-end testit
+## Tuotantoon vienti
+- [x] Docker-konfiguraatio
+  - [x] docker-compose.yml
+  - [x] PostgreSQL kontti
+- [x] Tietokannan migraatiot
+  - [x] Automaattinen migraatioiden ajo
+  - [x] Prisma Client generointi
+- [ ] CI/CD pipeline
+  - [ ] GitHub Actions konfiguraatio
+  - [ ] Automaattinen testaus
+  - [ ] Automaattinen deployaus
+- [ ] Tuotantoympäristön pystytys
+  - [ ] Palvelimen konfigurointi
+  - [ ] SSL-sertifikaatit
+  - [ ] Varmuuskopiointi
 
 ## Dokumentaatio
+- [x] Kehittäjän ohjeet
+  - [x] Asennusohjeet
+  - [x] Kehitysympäristön pystytys
+  - [x] API-dokumentaatio
+  - [x] Tietokannan dokumentaatio
 - [ ] Käyttöohjeet
-- [ ] Kehittäjän ohjeet
-- [ ] Tietokannan dokumentaatio 
+  - [ ] Perustoiminnot
+  - [ ] Ylläpitäjän ohjeet
+- [ ] Tietoturvaohjeistus
+  - [ ] Käyttöoikeuksien hallinta
+  - [ ] Tietoturvaperiaatteet 
