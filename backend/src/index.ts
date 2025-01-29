@@ -1,8 +1,12 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import ticketRoutes from './routes/ticketRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
 
 dotenv.config();
+const prisma = new PrismaClient();
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -10,32 +14,18 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Mock data
-const mockTickets = [
-  {
-    id: 1,
-    title: 'Esimerkki tiketti 1',
-    description: 'Tämä on ensimmäinen testaus tiketti.',
-    status: 'Avoin',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 2,
-    title: 'Esimerkki tiketti 2',
-    description: 'Toinen testaus tiketti testausta varten.',
-    status: 'Työn alla',
-    createdAt: new Date().toISOString()
-  }
-];
-
 // Perusreitti terveystarkistusta varten
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Tikettien reitti - palauttaa mock dataa
-app.get('/api/tickets', (req: Request, res: Response) => {
-  res.json({ tickets: mockTickets });
+// API reitit
+app.use('/api/tickets', ticketRoutes);
+app.use('/api/categories', categoryRoutes);
+
+// Suljetaan Prisma-yhteys kun sovellus suljetaan
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
 });
 
 app.listen(port, () => {

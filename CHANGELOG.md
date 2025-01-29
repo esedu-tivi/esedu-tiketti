@@ -1,5 +1,40 @@
 # Changelog
 
+Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
+
+## 29.01.2025 v2
+
+### Added
+- Lisätty uudet kentät tiketteihin:
+  - `device`: Laitteen tiedot (valinnainen)
+  - `additionalInfo`: Lisätiedot (valinnainen)
+- Lisätty kategorioiden hallinta
+- Lisätty automaattinen migraatioiden ajo tuotannossa
+- Lisätty Prisma Client:in automaattinen generointi asennuksen yhteydessä
+
+### Changed
+- Päivitetty tiketin luontilomake sisältämään uudet kentät
+- Muokattu prioriteettiasteikkoa:
+  - Lisätty "Kriittinen" taso
+  - Muutettu "Korkea" prioriteetin väri punaisesta oranssiksi
+- Päivitetty dokumentaatio vastaamaan uusia ominaisuuksia
+
+### Fixed
+- Korjattu kategorian tallennus tiketin luonnissa
+- Korjattu tyyppiongelmat Prisma Clientin kanssa
+
+## 29.01.2025
+
+### Added
+- Perustoiminnallisuudet:
+  - Tikettien luonti ja hallinta
+  - Käyttäjien hallinta
+  - Kommentointi
+  - Tilan ja prioriteetin hallinta
+- Docker-pohjainen kehitysympäristö
+- Prisma ORM ja PostgreSQL-tietokanta
+- Perusdokumentaatio
+
 ## 27.01.2025
 
 ### Lisätty
