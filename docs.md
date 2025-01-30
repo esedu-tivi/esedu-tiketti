@@ -7,7 +7,7 @@
    - [Node.js](https://nodejs.org/) (v18 tai uudempi)
    - [Git](https://git-scm.com/downloads)
 
-2. Kloonaa projekti:
+2. Kloonaa tai pullaa projekti:
 ```bash
 git clone [repositorion-url]
 cd esedu-tiketti
@@ -334,4 +334,4 @@ Huomioitavaa:
 3. TypeScript-virheet
    - Varmista että kaikki riippuvuudet on asennettu
    - Tarkista että `tsconfig.json` on ajan tasalla
-   - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa
+   - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa 
