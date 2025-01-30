@@ -34,6 +34,32 @@ npm run dev
 ```
 Frontend käynnistyy osoitteeseen http://localhost:5173
 
+## Käyttäjäroolit ja oikeudet
+
+Järjestelmässä on kolme käyttäjäroolia:
+
+1. USER (Opiskelija)
+   - Voi luoda tikettejä
+   - Näkee omat tikettinsä
+   - Voi muokata omia tikettejään
+
+2. SUPPORT (Tukihenkilö)
+   - Kaikki USER-oikeudet
+   - Pääsy hallintapaneeliin
+   - Voi nähdä ja käsitellä kaikkia tikettejä
+   - Voi vastata tiketteihin
+
+3. ADMIN (Järjestelmänvalvoja)
+   - Kaikki SUPPORT-oikeudet
+   - Voi hallita käyttäjien rooleja
+   - Täydet järjestelmänvalvojan oikeudet
+
+### Käyttäjien hallinta
+Admin-käyttäjät voivat hallita käyttäjien rooleja käyttöliittymän kautta:
+1. Käyttäjien hallinta -nappi löytyy headerista (vain admin-käyttäjille)
+2. Dialogissa voi vaihtaa käyttäjien roolin Opiskelijasta Tukihenkilöksi ja takaisin
+3. Admin-käyttäjien rooleja ei voi muuttaa käyttöliittymän kautta
+
 ## Testikäyttäjät ja seed-data
 
 ### Automaattisesti luotavat käyttäjät
@@ -48,8 +74,6 @@ Kehitysympäristössä luodaan automaattisesti seuraavat käyttäjät:
    - Nimi: Test User
    - Email: user@example.com
    - Rooli: USER
-
-Tällä hetkellä järjestelmä käyttää automaattisesti peruskäyttäjää (Test User) tikettien luonnissa, koska autentikointi ei ole vielä käytössä. Backend hakee automaattisesti ensimmäisen USER-roolin omaavan käyttäjän tietokannasta ja käyttää sitä tikettien luojana.
 
 Voit tarkastella käyttäjiä Prisma Studiossa (http://localhost:5555) Users-taulussa.
 
@@ -83,25 +107,14 @@ Järjestelmä käyttää Microsoft Authentication (MSA) -autentikointia Azure AD
 ### Autentikoinnin komponentit
 Frontend sisältää seuraavat autentikointiin liittyvät komponentit:
 - `AuthProvider`: Hallinnoi autentikoinnin tilaa ja tarjoaa autentikointikontekstin
-- `AuthGuard`: Suojaa reittejä vaatimalla kirjautumisen
+- `AuthGuard`: Suojaa reittejä vaatimalla kirjautumisen ja tarkistaa roolit
 - `Login`: Kirjautumissivu Azure AD -kirjautumiselle
 
 ### Käyttäjien synkronointi
-Kun käyttäjä kirjautuu ensimmäistä kertaa järjestelmään:
+Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 1. Azure AD:stä haetaan käyttäjän perustiedot
-2. Järjestelmä luo automaattisesti käyttäjätilin tietokantaan
+2. Järjestelmä luo automaattisesti käyttäjätilin tietokantaan (USER-roolilla)
 3. Käyttäjän tiedot päivitetään joka kirjautumisen yhteydessä
-
-## Projektin kuvaus
-Tikettijärjestelmä on sovellus, joka mahdollistaa tikettien luomisen, hallinnan ja seurannan. Järjestelmä käyttää Azure AD -autentikointia käyttäjien tunnistamiseen.
-
-## Teknologiat
-- Frontend: React 18, React Query, React Router, Vite, TypeScript
-- Backend: Node.js, TypeScript, Express
-- Tietokanta: PostgreSQL
-- ORM: Prisma
-- Autentikointi: Microsoft Authentication (MSA)
-- Konttiteknologia: Docker, Docker Compose
 
 ## Tietokantarakenne
 
@@ -128,7 +141,7 @@ Tikettijärjestelmä on sovellus, joka mahdollistaa tikettien luomisen, hallinna
 - `id`: String (UUID) - Käyttäjän yksilöllinen tunniste
 - `email`: String - Sähköpostiosoite
 - `name`: String - Nimi
-- `role`: UserRole - Rooli (ADMIN, USER)
+- `role`: UserRole - Rooli (ADMIN, SUPPORT, USER)
 - `createdAt`: DateTime - Luontiaika
 - `updatedAt`: DateTime - Viimeisin päivitysaika
 
@@ -171,8 +184,9 @@ Studio käynnistyy osoitteeseen http://localhost:5555
 - `POST /api/auth/logout` - Kirjaudu ulos
 
 ### Tiketit
-- `GET /api/tickets` - Hae kaikki tiketit
-- `GET /api/tickets/:id` - Hae yksittäinen tiketti
+- `GET /api/tickets` - Hae kaikki tiketit (vaatii SUPPORT/ADMIN-roolin)
+- `GET /api/tickets/my-tickets` - Hae käyttäjän omat tiketit
+- `GET /api/tickets/:id` - Hae yksittäinen tiketti (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
 - `POST /api/tickets` - Luo uusi tiketti
   ```typescript
   {
@@ -183,8 +197,18 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     priority: Priority;
     categoryId: string;
   }
+
+  // Esimerkki
+  {
+    "title": "Näppäimistö ei toimi",
+    "description": "Luokassa A123 tietokoneen näppäimistö ei reagoi painalluksiin",
+    "device": "HP EliteBook 840 G7",
+    "additionalInfo": "Ongelma alkoi tänään aamulla",
+    "priority": "HIGH",
+    "categoryId": "clsj2n9g0000dtp97zr5lqw3x"
+  }
   ```
-- `PUT /api/tickets/:id` - Päivitä tiketti
+- `PUT /api/tickets/:id` - Päivitä tikettiä (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
   ```typescript
   {
     title?: string;
@@ -196,11 +220,36 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     assignedToId?: string;
     categoryId?: string;
   }
+
+  // Esimerkki
+  {
+    "status": "IN_PROGRESS",
+    "priority": "MEDIUM",
+    "assignedToId": "clsj2n9g0000etp97zr5lqw3y",
+    "additionalInfo": "Tukihenkilö käynyt tarkistamassa tilanteen"
+  }
   ```
-- `DELETE /api/tickets/:id` - Poista tiketti
+- `DELETE /api/tickets/:id` - Poista tiketti (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
 
 ### Kategoriat
 - `GET /api/categories` - Hae kaikki kategoriat
+  ```typescript
+  // Vastauksen esimerkki
+  {
+    "categories": [
+      {
+        "id": "clsj2n9g0000dtp97zr5lqw3x",
+        "name": "Tekniset ongelmat",
+        "description": "Tietokoneiden ja laitteiden tekniset ongelmat"
+      },
+      {
+        "id": "clsj2n9g0000etp97zr5lqw3z",
+        "name": "Yleinen",
+        "description": "Yleiset tukipyynnöt"
+      }
+    ]
+  }
+  ```
 
 ### Kommentit
 - `POST /api/tickets/:ticketId/comments` - Lisää kommentti tikettiin
@@ -208,8 +257,73 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   {
     content: string;
   }
+
+  // Esimerkki
+  {
+    "content": "Näppäimistö vaihdettu uuteen, ongelma korjattu."
+  }
   ```
 - `GET /api/tickets/:ticketId/comments` - Hae tiketin kommentit
+  ```typescript
+  // Vastauksen esimerkki
+  {
+    "comments": [
+      {
+        "id": "clsj2n9g0000ftp97zr5lqw3z",
+        "content": "Näppäimistö vaihdettu uuteen, ongelma korjattu.",
+        "createdAt": "2024-01-31T12:00:00.000Z",
+        "author": {
+          "id": "clsj2n9g0000etp97zr5lqw3y",
+          "name": "Tukihenkilö Testaaja"
+        }
+      }
+    ]
+  }
+  ```
+
+### Käyttäjät
+- `GET /api/users/me` - Hae kirjautuneen käyttäjän tiedot
+  ```typescript
+  // Vastauksen esimerkki
+  {
+    "id": "clsj2n9g0000etp97zr5lqw3y",
+    "email": "testi.kayttaja@esedulainen.fi",
+    "name": "Testi Käyttäjä",
+    "role": "USER"
+  }
+  ```
+- `GET /api/users` - Hae kaikki käyttäjät (vaatii ADMIN-roolin)
+  ```typescript
+  // Vastauksen esimerkki
+  {
+    "users": [
+      {
+        "id": "clsj2n9g0000etp97zr5lqw3y",
+        "email": "testi.kayttaja@esedulainen.fi",
+        "name": "Testi Käyttäjä",
+        "role": "USER"
+      },
+      {
+        "id": "clsj2n9g0000gtp97zr5lqw4a",
+        "email": "tuki.henkilo@esedulainen.fi",
+        "name": "Tuki Henkilö",
+        "role": "SUPPORT"
+      }
+    ]
+  }
+  ```
+- `PUT /api/users/:id/role` - Päivitä käyttäjän rooli (vaatii ADMIN-roolin)
+  ```typescript
+  // Tyyppi
+  {
+    role: 'ADMIN' | 'SUPPORT' | 'USER'
+  }
+
+  // Esimerkki
+  {
+    "role": "SUPPORT"
+  }
+  ```
 
 ## Kehitysympäristön pystytys
 
@@ -229,7 +343,7 @@ POSTGRES_DB=esedu_tiketti_db
 
 DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5434/${POSTGRES_DB}?schema=public"
 
-NODE_ENV=development
+ENVIRONMENT=development
 PORT=3001
 
 JWT_SECRET=your-super-secret-key-here 
@@ -241,6 +355,7 @@ VITE_API_URL=http://localhost:3001/api
 VITE_MSAL_CLIENT_ID=your-client-id
 VITE_MSAL_AUTHORITY=https://login.microsoftonline.com/your-tenant-id
 VITE_MSAL_REDIRECT_URI=http://localhost:3000
+VITE_ENVIRONMENT=development
 ```
 
 

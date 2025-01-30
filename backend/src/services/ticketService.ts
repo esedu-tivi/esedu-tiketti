@@ -1,4 +1,4 @@
-import { PrismaClient, Ticket, Prisma } from '@prisma/client';
+import { PrismaClient, Ticket, Prisma, TicketStatus } from '@prisma/client';
 import { CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
 
 const prisma = new PrismaClient();
@@ -94,6 +94,88 @@ export const ticketService = {
   deleteTicket: async (id: string) => {
     return prisma.ticket.delete({
       where: { id }
+    });
+  },
+
+  // Hae käyttäjän tiketit
+  getTicketsByUserId: async (userId: string) => {
+    return await prisma.ticket.findMany({
+      where: {
+        createdById: userId
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  },
+
+  // Päivitä tiketin tila
+  updateTicketStatus: async (id: string, status: TicketStatus) => {
+    return await prisma.ticket.update({
+      where: { id },
+      data: { status },
+      include: {
+        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+  },
+
+  // Aseta tiketin käsittelijä
+  assignTicket: async (id: string, assignedToId: string) => {
+    return await prisma.ticket.update({
+      where: { id },
+      data: {
+        assignedToId,
+        status: TicketStatus.IN_PROGRESS
+      },
+      include: {
+        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
     });
   }
 }; 

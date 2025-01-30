@@ -110,3 +110,39 @@ export const fetchTicket = async (id) => {
     throw new Error('Tiketin haku epäonnistui')
   }
 };
+
+// Käyttäjän omien tikettien haku
+export const fetchMyTickets = async () => {
+  try {
+    const { data } = await api.get('/tickets/my-tickets')
+    return data
+  } catch (error) {
+    throw new Error('Tikettien haku epäonnistui')
+  }
+}
+
+// Tiketin tilan päivitys (vain admin)
+export const updateTicketStatus = async (id, status) => {
+  try {
+    const { data } = await api.put(`/tickets/${id}/status`, { status })
+    return data
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin tilan päivitys epäonnistui')
+    }
+    throw new Error('Tiketin tilan päivitys epäonnistui')
+  }
+}
+
+// Tiketin käsittelijän asetus (vain admin)
+export const assignTicket = async (id, assignedToId) => {
+  try {
+    const { data } = await api.put(`/tickets/${id}/assign`, { assignedToId })
+    return data
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin käsittelijän asetus epäonnistui')
+    }
+    throw new Error('Tiketin käsittelijän asetus epäonnistui')
+  }
+}

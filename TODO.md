@@ -13,9 +13,11 @@
   - [x] Token validointi backendissä
   - [x] Autentikoinnin integrointi frontendiin
   - [x] Käyttäjän luonti/synkronointi ensimmäisellä kirjautumisella
-- [ ] Käyttäjäroolien hallinta (admin, user)
-  - [ ] Roolipohjainen pääsynhallinta (RBAC)
-  - [ ] Käyttöliittymän mukauttaminen roolin mukaan
+- [x] Käyttäjäroolien hallinta (users, support, admin)
+  - [x] Roolipohjainen pääsynhallinta (RBAC)
+  - [x] Käyttöliittymän mukauttaminen roolin mukaan
+  - [x] Tukihenkilö-roolin toiminnallisuus
+  - [x] Admin-käyttäjien hallintapaneeli
 
 ## Frontend
 ### Tikettinäkymät
@@ -26,14 +28,16 @@
   - [x] Prioriteetin valinta (LOW, MEDIUM, HIGH, CRITICAL)
   - [x] Validointi
   - [x] Virheilmoitukset
-- [x] Tikettien listausnäkymä (perusversio)
+- [x] Tikettien listausnäkymä
+  - [x] Omat tiketit -näkymä
+  - [x] Hallintapaneelin tikettinäkymä
   - [ ] Suodatus kategorian mukaan
   - [ ] Suodatus tilan mukaan
   - [ ] Suodatus prioriteetin mukaan
   - [ ] Järjestäminen
   - [ ] Hakutoiminto
-- [ ] Tiketin yksityiskohtanäkymä
-  - [ ] Perustiedot
+- [x] Tiketin yksityiskohtanäkymä
+  - [x] Perustiedot
   - [ ] Tilan muuttaminen
   - [ ] Vastuuhenkilön asettaminen
   - [ ] Kategorian muuttaminen
@@ -76,9 +80,9 @@
   - [ ] Kommenttien haku
   - [ ] Kommenttien päivitys
   - [ ] Kommenttien poisto
-- [ ] Käyttäjien hallinta
+- [x] Käyttäjien hallinta
   - [x] Käyttäjien haku
-  - [ ] Käyttäjien päivitys
+  - [x] Käyttäjien päivitys (roolit)
   - [ ] Käyttäjien poisto
 
 ### Testaus ja laadunvarmistus

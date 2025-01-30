@@ -1,18 +1,33 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../providers/AuthProvider';
+import { Alert } from '../ui/Alert';
 
-export default function AuthGuard({ children }) {
-  const { user, loading } = useAuth();
+export default function AuthGuard({ children, requiredRole }) {
+  const { user, loading, userRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Tarkistaa onko käyttäjällä vaaditut oikeudet
+  const hasRequiredRole = () => {
+    if (!requiredRole) return true;
+    if (userRole === 'ADMIN') return true;
+    if (requiredRole === 'ADMIN') return userRole === 'ADMIN';
+    if (requiredRole === 'MANAGEMENT') return userRole === 'ADMIN' || userRole === 'SUPPORT';
+    return userRole === requiredRole;
+  };
+
   useEffect(() => {
-    if (!loading && !user && location.pathname !== '/login') {
-      // Tallennetaan alkuperäinen kohde, jotta voidaan palata siihen kirjautumisen jälkeen
-      navigate('/login', { state: { from: location.pathname } });
+    if (!loading) {
+      if (!user && location.pathname !== '/login') {
+        // Tallennetaan alkuperäinen kohde, jotta voidaan palata siihen kirjautumisen jälkeen
+        navigate('/login', { state: { from: location.pathname } });
+      } else if (user && requiredRole && !hasRequiredRole()) {
+        // Jos vaaditaan tietty rooli ja käyttäjällä ei ole sitä
+        navigate('/unauthorized');
+      }
     }
-  }, [user, loading, navigate, location]);
+  }, [user, loading, navigate, location, requiredRole, userRole]);
 
   // Näytetään tyhjää kun tarkistetaan autentikaatiota
   if (loading) {
@@ -31,6 +46,15 @@ export default function AuthGuard({ children }) {
     return null;
   }
 
-  // Jos käyttäjä on kirjautunut tai ollaan login-sivulla, näytetään sisältö
+  // Jos vaaditaan tietty rooli ja käyttäjällä ei ole sitä
+  if (requiredRole && !hasRequiredRole()) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Alert variant="error" title="Ei käyttöoikeutta" message="Sinulla ei ole tarvittavia oikeuksia tämän sivun katseluun." />
+      </div>
+    );
+  }
+
+  // Jos käyttäjä on kirjautunut ja hänellä on tarvittavat oikeudet, näytetään sisältö
   return children;
 }

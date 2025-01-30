@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import ticketRoutes from './routes/ticketRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -24,6 +25,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Suljetaan Prisma-yhteys kun sovellus suljetaan
 process.on('beforeExit', async () => {

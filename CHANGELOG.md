@@ -2,6 +2,51 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 31.01.2025
+
+### Added
+- RBAC (Role-Based Access Control) järjestelmä
+  - Kolmiportainen roolihierarkia (USER -> SUPPORT -> ADMIN)
+  - Roolikohtaiset käyttöoikeudet ja näkymät
+  - Dynaaminen käyttöliittymän mukautuminen roolin mukaan
+- Käyttäjien hallintajärjestelmä
+  - Käyttäjien listaus ja suodatus
+  - Roolien hallinta käyttöliittymästä
+  - Muutosten vahvistus ja peruutus
+- Tukihenkilö-roolin (SUPPORT) toiminnallisuus
+  - Pääsy hallintapaneeliin
+  - Kaikkien tikettien käsittely
+  - Tikettien tilan ja vastuuhenkilön muuttaminen
+- Uudet näkymät ja komponentit
+  - "Omat tiketit" -näkymä käyttäjille
+  - Hallintapaneeli tukihenkilöille ja admineille
+  - Käyttäjien hallintadialogi admineille
+
+### Changed
+- Päivitetty käyttöoikeuksien hallinta
+  - Lisätty SUPPORT-roolin tarkistukset
+  - Parannettu middlewaren toimintaa
+  - Lisätty roolikohtaiset pääsyoikeudet API-endpointteihin
+- Uudistettu navigaatiorakenne
+  - Siirretty käyttäjien hallinta headeriin
+  - Roolikohtaiset navigaatioelementit
+  - Selkeämpi visuaalinen hierarkia
+- Parannettu tikettien käsittelyä
+  - Eriytetty omat tiketit ja kaikki tiketit
+
+### Fixed
+- Korjattu käyttöoikeuksien tarkistus tikettien käsittelyssä
+- Korjattu roolien päivityksen aiheuttamat layout-ongelmat
+- Korjattu virhetilanteiden käsittely käyttäjien hallinnassa
+
+### Security
+- Parannettu käyttöoikeuksien tarkistusta
+  - Lisätty roolikohtaiset middleware-tarkistukset
+  - Estetty luvaton pääsy hallintapaneeliin
+  - Varmistettu, että vain admin voi muuttaa käyttäjien rooleja
+  - Lisätty tarkistukset tikettien käsittelyoikeuksiin
+
+
 ## 30.01.2025
 
 ### Added

@@ -3,6 +3,7 @@ import { MsalProvider } from '@azure/msal-react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { msalConfig } from '../config/msal';
 import { authService } from '../services/authService';
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
@@ -19,14 +20,38 @@ const msalInstance = new PublicClientApplication(msalConfig);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
 
+  // Haetaan käyttäjän rooli backendistä
+  const fetchUserRole = async (email) => {
+    try {
+      console.log('Fetching user role for email:', email);
+      const token = await authService.acquireToken();
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/users/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      console.log('Received user data:', response.data);
+      setUserRole(response.data.role);
+      return response.data.role;
+    } catch (error) {
+      console.error('Failed to fetch user role:', error);
+      return null;
+    }
+  };
+
   const handleUserAccount = async (account) => {
     if (account) {
+      console.log('Handling user account:', account);
       setUser(account);
       try {
         await authService.handleAuthenticationSuccess(account);
+        // Haetaan käyttäjän rooli kun käyttäjä on autentikoitu
+        const role = await fetchUserRole(account.username);
+        console.log('User role set to:', role);
       } catch (error) {
         console.error('Failed to sync user with backend:', error);
       }
@@ -79,6 +104,7 @@ export function AuthProvider({ children }) {
     try {
       await msalInstance.logoutRedirect();
       setUser(null);
+      setUserRole(null);
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
@@ -87,6 +113,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     user,
+    userRole,
     login,
     logout,
     loading,
