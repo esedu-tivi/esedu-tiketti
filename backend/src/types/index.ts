@@ -1,6 +1,23 @@
 import { Request } from 'express';
 import { Ticket, User, Priority, TicketStatus } from '@prisma/client';
 
+// MSAL käyttäjän tyyppi
+export interface MSALUser {
+  email: string;
+  name: string;
+  oid: string;
+}
+
+// Laajennetaan Express tyypityksiä
+declare global {
+  namespace Express {
+    interface Request {
+      user?: MSALUser;
+    }
+  }
+}
+
+// Tyypitetty pyyntö jossa on body
 export interface TypedRequest<T> extends Request {
   body: T;
 }
@@ -50,9 +67,4 @@ export interface UpdateUserDTO {
   email?: string;
   name?: string;
   role?: string;
-}
-
-// Tulevaa MSAL autentikointia varten
-export interface RequestWithUser extends Request {
-  user?: User;
 } 
