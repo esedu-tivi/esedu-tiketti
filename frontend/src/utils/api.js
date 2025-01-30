@@ -99,4 +99,14 @@ export const deleteTicket = async (id) => {
     }
     throw new Error('Tiketin poisto epäonnistui')
   }
-} 
+}
+
+// yksittäisen tiketin haku
+export const fetchTicket = async (id) => {
+  try {
+    const { data } = await api.get(`/tickets/${id}`)
+    return data
+  } catch (error) {
+    throw new Error('Tiketin haku epäonnistui')
+  }
+};

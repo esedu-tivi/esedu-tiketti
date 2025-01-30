@@ -17,6 +17,15 @@ Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedost
 - Korjattu tyyppiongelmat autentikoinnissa
 - Korjattu reitityksen ongelmat
 
+## 30.01.2025
+
+### Added
+- Rakennettu yksittäisen tiketin näkymä:
+  - pages/TicketDetails
+
+### Changed
+- Päivitetty tikettilistan näkymää
+
 ## 29.01.2025 v2
 
 ### Added

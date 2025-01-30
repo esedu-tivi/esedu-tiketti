@@ -1,4 +1,3 @@
-
 function FilterMenu() {
   return (
     <div id="filter-menu">
@@ -26,15 +25,27 @@ function FilterMenu() {
         <div className="filter-group">
           <div className="filter-item">
             <label htmlFor="subject-filter">Aihe:</label>
-            <input type="text" id="subject-filter" placeholder="Kirjoita aihe" />
+            <input
+              type="text"
+              id="subject-filter"
+              placeholder="Kirjoita aihe"
+            />
           </div>
           <div className="filter-item">
             <label htmlFor="user-filter">Käyttäjä:</label>
-            <input type="text" id="user-filter" placeholder="Kirjoita käyttäjän nimi" />
+            <input
+              type="text"
+              id="user-filter"
+              placeholder="Kirjoita käyttäjän nimi"
+            />
           </div>
           <div className="filter-item">
             <label htmlFor="device-filter">Laite:</label>
-            <input type="text" id="device-filter" placeholder="Kirjoita laitteen nimi" />
+            <input
+              type="text"
+              id="device-filter"
+              placeholder="Kirjoita laitteen nimi"
+            />
           </div>
           <div className="filter-item">
             <label>Päivämäärä</label>
@@ -46,10 +57,12 @@ function FilterMenu() {
             </div>
           </div>
         </div>
-        <button id="clear-filters" className="clear-filters-btn">Tyhjennä suodattimet</button>
+        <button id="clear-filters" className="clear-filters-btn">
+          Tyhjennä suodattimet
+        </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default FilterMenu
+export default FilterMenu;
