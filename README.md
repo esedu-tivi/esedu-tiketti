@@ -1,37 +1,57 @@
 # <p align='center'>Esedu-tiketti</p>
-Tikettijärjestelmä Esedun IT-tuen opiskelijoille , jossa käyttäjät voivat lähettää apupyyntöjä ja IT-tukihenkilöt voivat hallita ja ratkaista niitä.
 
-## Projektin kuvaus
+🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen hallintaan. Mahdollistaa opiskelijoiden ja henkilökunnan IT-tukipyyntöjen tehokkaan käsittelyn.
 
-- **Käyttäjät**: Mahdollisuus luoda ja lähettää tukipyyntöjä.
-- **IT-tuki**: Tukipyyntöjen hallinta, ratkaiseminen ja tilan päivittäminen.
-- **Käyttö**: Selkeä ja moderni käyttöliittymä.
+## 🚀 Ominaisuudet
 
+### Käyttäjät
+- Azure AD -kirjautuminen ja SSO
+- Tikettien luonti ja seuranta
+- Oman tiketin tilan seuranta
+- Tikettien kommentointi
 
+### IT-tuki ja hallinta
+- Kolmiportainen käyttäjähallinta (Opiskelija → Tukihenkilö → Admin)
+- Tikettien priorisointi ja delegointi
+- Käyttäjien hallinta ja roolien määritys
+- Tikettien suodatus ja haku
 
-## Backend
+## 🛠️ Teknologiat
 
-### Käytetyt teknologiat:
+### Frontend
+- React + Vite
+- TailwindCSS
+- React Query
+- Microsoft Authentication Library (MSAL)
+
+### Backend
+- Node.js + Express
 - TypeScript
-- Node.js
-- Express
 - Prisma ORM
+- Azure AD integraatio
 
-## Frontend
+### Tietokanta
+- PostgreSQL
+  - Tiketit ja kommentit
+  - Käyttäjät ja roolit
+  - Kategoriat
 
-### Käytetyt teknologiat:
-- JavaScript
-- React, React Query
+## 📱 Käyttöliittymä
+- Responsiivinen design
+- Moderni ja selkeä ulkoasu
+- Dynaaminen roolipohjainen navigaatio
+- Reaaliaikainen tilojen päivitys
 
-## Tietokanta
-- **PostgreSQL**: Relaatiotietokanta
-  - Tiketit
-  - Käyttäjät
+## 📚 Dokumentaatio
+- [CHANGELOG.md](./CHANGELOG.md) - Versiohistoria ja muutosloki
+- [docs.md](./docs.md) - Tekninen dokumentaatio
+- Koodin sisäinen dokumentaatio
 
-## Käyttöliittymä
-- **Shadcn?**
+## 🔒 Tietoturva
+- Azure AD autentikointi
+- Roolipohjainen pääsynhallinta (RBAC)
+- Suojatut API-endpointit
+- Turvallinen istunnonhallinta
 
-
-## Dokumentointi
- - **CHANGELOG.md**
- - **docs.md**
+---
+Kehitetty Etelä-Savon ammattiopiston IT-tuen tarpeisiin.
