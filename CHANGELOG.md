@@ -2,6 +2,15 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 30.01.2025
+
+### Added
+- Rakennettu yksittäisen tiketin näkymä:
+  - pages/TicketDetails
+
+### Changed
+- Päivitetty tikettilistan näkymää
+
 ## 29.01.2025 v2
 
 ### Added

@@ -38,7 +38,7 @@ export default function NewTicketForm() {
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
     queryKey: ['categories'],
-    queryFn: fetchCategories
+    queryFn: fetchCategories,
   });
 
   const [error, setError] = React.useState(null);
@@ -55,7 +55,7 @@ export default function NewTicketForm() {
     onError: (err) => {
       setError(err.message || 'Tiketin luonti epäonnistui');
       setFormSubmitted(false);
-    }
+    },
   });
 
   const [formSubmitted, setFormSubmitted] = React.useState(false);
@@ -278,8 +278,8 @@ export default function NewTicketForm() {
         </CardContent>
 
         <CardFooter className="flex justify-between">
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={mutation.isPending || categoriesLoading}
             className="w-32"
           >
@@ -292,9 +292,9 @@ export default function NewTicketForm() {
               'Luo tiketti'
             )}
           </Button>
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             onClick={() => navigate('/')}
             disabled={mutation.isPending}
           >

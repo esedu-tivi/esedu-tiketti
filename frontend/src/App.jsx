@@ -4,6 +4,7 @@ import Header from './components/Layout/Header'
 import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
 import FilterMenu from './pages/FilterMenu'
+import TicketDetails from './pages/TicketDetails'
 
 import './styles/globals.css';
 
@@ -25,6 +26,7 @@ function App() {
                 } 
               />
               <Route path="/new-ticket" element={<NewTicketForm />} />
+              <Route path="/ticket/:id" element={<TicketDetails />} />
             </Routes>
           </main>
         </div>
