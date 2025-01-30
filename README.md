@@ -54,4 +54,4 @@
 - Turvallinen istunnonhallinta
 
 ---
-Kehitetty Etelä-Savon ammattiopiston IT-tuen tarpeisiin.
+Kehitetty Etelä-Savon ammattiopiston IT-tuen opiskelijoiden tarpeisiin.
