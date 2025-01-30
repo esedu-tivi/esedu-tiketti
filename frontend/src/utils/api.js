@@ -1,10 +1,25 @@
 import axios from 'axios'
+import { authService } from '../services/authService'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL
 })
+
+// Lisätään token jokaiseen pyyntöön
+api.interceptors.request.use(async (config) => {
+  try {
+    const token = await authService.acquireToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  } catch (error) {
+    console.error('Error adding auth token to request:', error);
+    return config;
+  }
+});
 
 // Prioriteetin muunnos numerosta enum-arvoksi
 const mapPriorityToEnum = (priority) => {
@@ -49,6 +64,9 @@ export const createTicket = async (ticketData) => {
     const { data } = await api.post('/tickets', transformedData)
     return data
   } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin luonti epäonnistui')
+    }
     throw new Error('Tiketin luonti epäonnistui')
   }
 }
@@ -64,6 +82,9 @@ export const updateTicket = async (id, ticketData) => {
     const { data } = await api.put(`/tickets/${id}`, transformedData)
     return data
   } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin päivitys epäonnistui')
+    }
     throw new Error('Tiketin päivitys epäonnistui')
   }
 }
@@ -73,6 +94,9 @@ export const deleteTicket = async (id) => {
     const { data } = await api.delete(`/tickets/${id}`)
     return data
   } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin poisto epäonnistui')
+    }
     throw new Error('Tiketin poisto epäonnistui')
   }
 } 

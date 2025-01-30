@@ -72,10 +72,28 @@ HUOM: `npm run db:reset` komento:
 - Ajaa seed-skriptin
 Käytä tätä vain kehitysympäristössä kun haluat palauttaa tietokannan alkutilaan!
 
-Huom: Tällä hetkellä käyttäjien autentikointi ei ole vielä käytössä, joten järjestelmä käyttää automaattisesti peruskäyttäjää tikettien luonnissa.
+## Autentikointi
+
+### Azure AD -integraatio
+Järjestelmä käyttää Microsoft Authentication (MSA) -autentikointia Azure AD:n kautta. Tämä mahdollistaa:
+- Turvallisen kirjautumisen Azure AD -tunnuksilla
+- Käyttäjien automaattisen luonnin ja synkronoinnin
+- Single Sign-On (SSO) -toiminnallisuuden
+
+### Autentikoinnin komponentit
+Frontend sisältää seuraavat autentikointiin liittyvät komponentit:
+- `AuthProvider`: Hallinnoi autentikoinnin tilaa ja tarjoaa autentikointikontekstin
+- `AuthGuard`: Suojaa reittejä vaatimalla kirjautumisen
+- `Login`: Kirjautumissivu Azure AD -kirjautumiselle
+
+### Käyttäjien synkronointi
+Kun käyttäjä kirjautuu ensimmäistä kertaa järjestelmään:
+1. Azure AD:stä haetaan käyttäjän perustiedot
+2. Järjestelmä luo automaattisesti käyttäjätilin tietokantaan
+3. Käyttäjän tiedot päivitetään joka kirjautumisen yhteydessä
 
 ## Projektin kuvaus
-Tikettijärjestelmä on sovellus, joka mahdollistaa tikettien luomisen, hallinnan ja seurannan. Järjestelmä käyttää MSA-autentikointia käyttäjien tunnistamiseen.
+Tikettijärjestelmä on sovellus, joka mahdollistaa tikettien luomisen, hallinnan ja seurannan. Järjestelmä käyttää Azure AD -autentikointia käyttäjien tunnistamiseen.
 
 ## Teknologiat
 - Frontend: React 18, React Query, React Router, Vite, TypeScript
@@ -147,6 +165,11 @@ Studio käynnistyy osoitteeseen http://localhost:5555
 
 ## API Endpoints
 
+### Autentikointi
+- `POST /api/auth/login` - Azure AD -kirjautuminen
+- `GET /api/auth/me` - Hae kirjautuneen käyttäjän tiedot
+- `POST /api/auth/logout` - Kirjaudu ulos
+
 ### Tiketit
 - `GET /api/tickets` - Hae kaikki tiketit
 - `GET /api/tickets/:id` - Hae yksittäinen tiketti
@@ -215,7 +238,11 @@ JWT_SECRET=your-super-secret-key-here
 #### Frontend (.env)
 ```
 VITE_API_URL=http://localhost:3001/api
+VITE_MSAL_CLIENT_ID=your-client-id
+VITE_MSAL_AUTHORITY=https://login.microsoftonline.com/your-tenant-id
+VITE_MSAL_REDIRECT_URI=http://localhost:3000
 ```
+
 
 ## Projektin rakenne
 
@@ -225,16 +252,36 @@ VITE_API_URL=http://localhost:3001/api
 │   ├── src/
 │   │   ├── components/     # Uudelleenkäytettävät komponentit
 │   │   │   ├── ui/        # Yleiset UI-komponentit
-│   │   │   └── Tickets/   # Tiketteihin liittyvät komponentit
+│   │   │   ├── Tickets/   # Tiketteihin liittyvät komponentit
+│   │   │   └── Auth/      # Autentikointiin liittyvät komponentit
 │   │   ├── pages/         # Sivukomponentit
+│   │   │   ├── Login.jsx  # Kirjautumissivu
+│   │   │   └── ...
+│   │   ├── providers/     # React Context providerit
+│   │   │   └── AuthProvider.jsx
+│   │   ├── services/      # Palvelukerros
+│   │   │   ├── authService.js
+│   │   │   └── ...
+│   │   ├── config/        # Konfiguraatiot
+│   │   │   ├── msal.js    # MSAL konfiguraatio
+│   │   │   └── ...
 │   │   ├── utils/         # Apufunktiot
 │   │   └── api/           # API-kutsut
 │   └── ...
 ├── backend/                # Backend-sovellus
 │   ├── src/
 │   │   ├── routes/        # API-reitit
+│   │   │   ├── authRoutes.ts
+│   │   │   └── ...
 │   │   ├── controllers/   # Reitinkäsittelijät
+│   │   │   ├── authController.ts
+│   │   │   └── ...
 │   │   ├── services/      # Bisneslogiikka
+│   │   │   ├── authService.ts
+│   │   │   └── ...
+│   │   ├── middleware/    # Middlewaret
+│   │   │   ├── authMiddleware.ts    # Autentikointi middleware
+│   │   │   └── ...
 │   │   └── types/         # TypeScript-tyypit
 │   ├── prisma/            # Prisma skeema ja migraatiot
 │   └── ...
@@ -266,7 +313,7 @@ npm start
 ```
 
 Huomioitavaa:
-- Varmista että ympäristömuuttujat ovat oikein (erityisesti `DATABASE_URL`)
+- Varmista että ympäristömuuttujat ovat oikein (erityisesti `DATABASE_URL` ja Azure AD -muuttujat)
 - Tuotannossa migraatiot ajetaan automaattisesti käynnistyksen yhteydessä
 - Prisma Client generoidaan automaattisesti asennuksen ja buildin yhteydessä
 
@@ -287,4 +334,4 @@ Huomioitavaa:
 3. TypeScript-virheet
    - Varmista että kaikki riippuvuudet on asennettu
    - Tarkista että `tsconfig.json` on ajan tasalla
-   - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa 
+   - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa

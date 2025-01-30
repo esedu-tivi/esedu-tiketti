@@ -34,17 +34,24 @@ export const ticketController = {
   // Luo uusi tiketti
   createTicket: async (req: TypedRequest<CreateTicketDTO>, res: Response) => {
     try {
-        // TODO: Tähän tulee myöhemmin käyttäjän ID MSAL:sta
-      // Haetaan väliaikaisesti ensimmäinen käyttäjä ja yleinen kategoria
-      const user = await prisma.user.findFirst({
-        where: { role: 'USER' }
+      // Debug lokitus
+      console.log('Create ticket request user:', req.user);
+      console.log('Create ticket request headers:', req.headers);
+
+      if (!req.user?.email) {
+        return res.status(401).json({ error: 'Unauthorized: User email not found' });
+      }
+
+      // Haetaan käyttäjä sähköpostiosoitteen perusteella
+      const user = await prisma.user.findUnique({
+        where: { email: req.user.email }
       });
 
       if (!user) {
-        return res.status(500).json({ error: 'Required data not found' });
+        return res.status(401).json({ error: 'Unauthorized: User not found' });
       }
 
-      // Käytetään suoraan frontendiltä tulevia tietoja
+      // Käytetään autentikoidun käyttäjän ID:tä
       const ticket = await ticketService.createTicket(req.body, user.id);
       res.status(201).json({ ticket });
     } catch (error) {

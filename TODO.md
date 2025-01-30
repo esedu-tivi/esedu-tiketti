@@ -8,10 +8,11 @@
 - [x] Kategorioiden hallinta
   - [x] Kategoriamallin luonti
   - [x] Kategorioiden CRUD-operaatiot
-- [ ] MSA autentikoinnin integrointi
-  - [ ] Azure AD konfigurointi
-  - [ ] Token validointi backendissä
-  - [ ] Autentikoinnin integrointi frontendiin
+- [x] MSA autentikoinnin integrointi
+  - [x] Azure AD konfigurointi
+  - [x] Token validointi backendissä
+  - [x] Autentikoinnin integrointi frontendiin
+  - [x] Käyttäjän luonti/synkronointi ensimmäisellä kirjautumisella
 - [ ] Käyttäjäroolien hallinta (admin, user)
   - [ ] Roolipohjainen pääsynhallinta (RBAC)
   - [ ] Käyttöliittymän mukauttaminen roolin mukaan

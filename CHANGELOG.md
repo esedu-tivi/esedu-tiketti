@@ -2,6 +2,21 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 30.01.2025
+
+### Added
+- MSA (Microsoft Authentication) integraatio
+  - Azure AD kirjautuminen
+  - Käyttäjien automaattinen luonti/synkronointi
+- Autentikoinnin komponentit
+  - AuthProvider
+  - AuthGuard
+  - Login-sivu
+
+### Fixed
+- Korjattu tyyppiongelmat autentikoinnissa
+- Korjattu reitityksen ongelmat
+
 ## 29.01.2025 v2
 
 ### Added
