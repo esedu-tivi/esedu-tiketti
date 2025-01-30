@@ -24,7 +24,7 @@ function App() {
                 </>
               } />
               <Route path="/new-ticket" element={<NewTicketForm />} />
-              <Route path="/ticket/:id" element={<TicketDetails />} />
+              <Route path="/tickets/:id" element={<TicketDetails />} />
             </Routes>
           </main>
         </div>
