@@ -1,8 +1,15 @@
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import TicketDetailsModal from './TicketDetailsModal';
 
 function TicketList({ tickets = [], isLoading, error }) {
+  const [selectedTicketId, setSelectedTicketId] = useState(null);
+
   if (isLoading) return <div>Ladataan tikettejä...</div>;
   if (error) return <div>Virhe: {error.message}</div>;
+
+  const handleTicketClick = (ticketId) => {
+    setSelectedTicketId(ticketId);
+  };
 
   return (
     <div className="ticket-list">
@@ -14,9 +21,9 @@ function TicketList({ tickets = [], isLoading, error }) {
             <li
               key={ticket.id}
               className="ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
+              onClick={() => handleTicketClick(ticket.id)}
             >
-              {/* Tiketti toimii linkkinä yksityiskohtaiselle sivulle */}
-              <Link to={`/tickets/${ticket.id}`} className="block">
+              <div className="block">
                 <h3 className="text-lg font-semibold text-gray-900">{ticket.title}</h3>
                 <p className="mt-2 text-gray-600">{ticket.description}</p>
                 <div className="ticket-meta mt-4 flex flex-wrap gap-4 text-sm text-gray-500">
@@ -39,10 +46,17 @@ function TicketList({ tickets = [], isLoading, error }) {
                     Tekijä: {ticket.createdBy?.name || 'Tuntematon'}
                   </span>
                 </div>
-              </Link>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {selectedTicketId && (
+        <TicketDetailsModal
+          ticketId={selectedTicketId}
+          onClose={() => setSelectedTicketId(null)}
+        />
       )}
     </div>
   );
