@@ -1,6 +1,6 @@
 # <p align='center'>Esedu-tiketti</p>
 
-🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen hallintaan. Mahdollistaa opiskelijoiden ja henkilökunnan IT-tukipyyntöjen tehokkaan käsittelyn.
+🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen opiskelijoille. Mahdollistaa opiskelijoiden IT-tukipyyntöjen tehokkaan käsittelyn.
 
 ## 🚀 Ominaisuudet
 
