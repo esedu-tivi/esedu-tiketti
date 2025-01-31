@@ -3,7 +3,6 @@ import Header from './components/Layout/Header'
 import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
 import FilterMenu from './pages/FilterMenu'
-import TicketDetails from './pages/TicketDetails'
 import Login from './pages/Login'
 import AuthGuard from './components/auth/AuthGuard'
 import MyTickets from './pages/MyTickets'
@@ -49,16 +48,7 @@ function App() {
             </AuthGuard>
           } />
           
-          <Route path="/tickets/:id" element={
-            <AuthGuard>
-              <>
-                <Header />
-                <main>
-                  <TicketDetails />
-                </main>
-              </>
-            </AuthGuard>
-          } />
+        
 
           {/* Hallintareitit (admin ja tukihenkilöt) */}
           <Route path="/admin" element={

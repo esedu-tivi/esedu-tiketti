@@ -34,6 +34,7 @@ export default function NewTicketForm() {
     priority: 2,
     categoryId: '',
     attachment: null,
+    contentType: 'text',
   });
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
@@ -91,6 +92,13 @@ export default function NewTicketForm() {
         attachment: file,
       }));
     }
+  };
+
+  const handleContentTypeChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      contentType: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -196,6 +204,24 @@ export default function NewTicketForm() {
                     {category.name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contentType">Missä muodossa haluat vastauksen? *</Label>
+            <Select
+              value={formData.contentType}
+              onValueChange={handleContentTypeChange}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Valitse muoto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="text">Teksti</SelectItem>
+                <SelectItem value="image">Kuva</SelectItem>
+                <SelectItem value="video">Video</SelectItem>
               </SelectContent>
             </Select>
           </div>
