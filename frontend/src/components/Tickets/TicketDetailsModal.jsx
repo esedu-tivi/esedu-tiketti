@@ -170,6 +170,11 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     }
   };
 
+  const comments = ticketData?.comments || [];
+
+  console.log('Ticket Data:', ticketData);
+
+
   return (
     <div
       id="modal-background"
@@ -218,20 +223,22 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 <div className="text-sm font-medium text-gray-500 ml-auto">Ei liitteitä</div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Kategoria</h3>
-                <p>{category}</p>
-              </div>
 
-              {ticketData.device && (
+            {ticketData && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Kategoria</h3>
+                  <p>{category}</p>
+                </div>
+
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Laite</h3>
-                  <p>{ticketData.device}</p>
+                  <p>{ticketData.device ?? 'Ei määritelty'}</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
+            
             <div>
               <h3 className="text-sm font-medium text-gray-500">Ongelman kuvaus</h3>
               <p className="mt-1 whitespace-pre-wrap">
@@ -243,30 +250,61 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Lisätiedot</h3>
                 <p className="mt-1 whitespace-pre-wrap">
-                  {ticketData.additionalInfo}
+                {ticketData.additionalInfo}
                 </p>
               </div>
             )}
 
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <User className="w-4 h-4" />
-              <span>{createdBy}</span>
+              <span>Tiketin luonut: <br /> {createdBy}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <Calendar className="w-4 h-4" />
-              <span>{createdAt}</span>
+              <span>Luotu: {createdAt}</span>
             </div>
 
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <MessageSquare className="w-4 h-4" />
-              <span>{updatedAt}</span>
+              <span>Muokattu: {updatedAt}</span>
             </div>
 
             <div className="space-y-2">
               <Label>Vastausmuoto</Label>
-              <p>Ei vielä tietokannassa</p>
+              <p>{ticketData.responseType || 'Ei määritelty'}</p>
+          </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-500">Kommentit</h3>
+              {comments.length > 0 ? (
+                <div className="mt-2 space-y-4">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="p-3 border rounded-lg bg-gray-50">
+                      <p className="text-sm text-gray-700">{comment.content}</p>
+                      <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
+                        <User className="w-3 h-3" />
+                        <span>{comment.author?.name || comment.author?.email || 'Tuntematon'}</span>
+                        <Calendar className="w-3 h-3" />
+                        <span>
+                          {new Date(comment.createdAt).toLocaleDateString('fi-FI', {
+                            day: 'numeric',
+                            month: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mt-2">Ei kommentteja</p>
+              )}
             </div>
+
+
 
           </CardContent>
 
