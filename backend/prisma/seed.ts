@@ -86,6 +86,18 @@ async function main() {
       },
     });
 
+    await prisma.comment.create({
+      data: {
+        content: 'Laitetaan kommentti tikettiin 2',
+        ticket: {
+          connect: { id: ticket2.id }
+        },
+        author: {
+          connect: { id: adminUser.id }
+        }
+      },
+    });
+
     console.log('Seed data created successfully!');
   } catch (error) {
     console.error('Error seeding database:', error);
