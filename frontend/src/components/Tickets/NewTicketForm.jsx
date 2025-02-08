@@ -209,7 +209,9 @@ export default function NewTicketForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="contentType">Missä muodossa haluat vastauksen? *</Label>
+            <Label htmlFor="contentType">
+              Missä muodossa haluat vastauksen? *
+            </Label>
             <Select
               value={formData.contentType}
               onValueChange={handleContentTypeChange}

@@ -177,5 +177,33 @@ export const ticketService = {
         }
       }
     });
+  },
+
+  // Tiketin kommentointi ( toimii, mutta ei osaa hakea oikeaa käyttäjää, vaan anonyymisti)
+  addCommentToTicket: async (ticketId: string, content: string, userId?: string) => {
+    let user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+  
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { email: 'anonymous@example.com' },
+      });
+  
+      if (!user) {
+        user = await prisma.user.create({
+          data: { name: 'Anonymous', email: 'anonymous@example.com' }
+        });
+      }
+    }
+  
+    return prisma.comment.create({
+      data: {
+        content,
+        ticket: { connect: { id: ticketId } },
+        author: { connect: { id: user.id } }
+      }
+    });
   }
-}; 
+  
+};

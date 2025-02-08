@@ -150,5 +150,31 @@ export const ticketController = {
       console.error('Error assigning ticket:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
+  },
+
+  // Tiketin kommentin lisääminen
+  addCommentToTicket: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+      const userId = req.user?.oid || '';
+  
+      if (!content) {
+        return res.status(400).json({ error: 'Kommentin sisältö puuttuu' });
+      }
+  
+      const comment = await ticketService.addCommentToTicket(id, content, userId);
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error('Virhe kommentin lisäämisessä:', error);
+      res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
+    }
   }
-}; 
+  
+  
+  
+  
+
+
+};
+
