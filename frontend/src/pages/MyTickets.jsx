@@ -10,26 +10,37 @@ export default function MyTickets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { user } = useAuth();
+  const [filters, setFilters] = useState({});
 
-  useEffect(() => {
-    const loadTickets = async () => {
-      try {
-        setLoading(true);
-        const response = await fetchMyTickets();
-        setTickets(response.tickets);
-        setError(null);
-      } catch (err) {
-        console.error('Error loading tickets:', err);
-        setError('Tikettien lataaminen epäonnistui');
-      } finally {
-        setLoading(false);
+  // Tikettien lataaminen suodattimilla
+    useEffect(() => {
+      console.log("Haetaan tikettejä seuraavilla suodattimilla:", filters);
+  
+      const loadTickets = async (filters = {}) => {
+        try {
+          setLoading(true);
+          const response = await fetchMyTickets(filters);
+          console.log("Haetut tiketit:", response.tickets);
+          setTickets(response.tickets);
+          setError(null);
+        } catch (err) {
+          console.error('Error loading tickets:', err);
+          setError('Tikettien lataaminen epäonnistui');
+        } finally {
+          setLoading(false);
+        }
       }
-    };
-
-    if (user) {
-      loadTickets();
+  
+      if (user) {
+        loadTickets(filters); // Ladataan tiketit suodattimien kanssa
+      }
+    }, [user, filters]); // Käynnistetään aina kun käyttäjä tai suodattimet muuttuvat
+  
+    // Suodattimien päivitys
+    const handleFilterChange = (newFilters) => {
+      console.log("Päivitetyt suodattimet:", newFilters);
+      setFilters(newFilters);
     }
-  }, [user]);
 
   if (loading) {
     return (
@@ -59,7 +70,7 @@ export default function MyTickets() {
         </p>
       </div>
 
-      <FilterMenu />
+      <FilterMenu onFilterChange={handleFilterChange} />
 
       {tickets.length === 0 ? (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-6 text-center">

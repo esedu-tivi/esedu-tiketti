@@ -32,14 +32,16 @@ const mapPriorityToEnum = (priority) => {
   }
 }
 
-export const fetchTickets = async () => {
+export const fetchTickets = async (filters = {}) => {
   try {
-    const { data } = await api.get('/tickets')
-    return data
+    const params = new URLSearchParams(filters).toString();
+
+    const { data } = await api.get(`/tickets?${params}`);
+    return data;
   } catch (error) {
-    throw new Error('Tikettien haku epäonnistui')
+    throw new Error('Tikettien haku epäonnistui');
   }
-}
+};
 
 export const fetchCategories = async () => {
   try {
@@ -112,14 +114,15 @@ export const fetchTicket = async (id) => {
 };
 
 // Käyttäjän omien tikettien haku
-export const fetchMyTickets = async () => {
+export const fetchMyTickets = async (filters = {}) => {
   try {
-    const { data } = await api.get('/tickets/my-tickets')
-    return data
+    const query = new URLSearchParams(filters).toString();
+    const { data } = await api.get(`/tickets/my-tickets?${query}`);
+    return data;
   } catch (error) {
-    throw new Error('Tikettien haku epäonnistui')
+    throw new Error('Tikettien haku epäonnistui');
   }
-}
+};
 
 // Tiketin tilan päivitys (vain admin)
 export const updateTicketStatus = async (id, status) => {

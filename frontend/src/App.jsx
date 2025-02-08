@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Header from './components/Layout/Header'
 import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
-import FilterMenu from './pages/FilterMenu'
 import Login from './pages/Login'
 import AuthGuard from './components/auth/AuthGuard'
 import MyTickets from './pages/MyTickets'
@@ -56,7 +55,6 @@ function App() {
               <>
                 <Header />
                 <main>
-                  <FilterMenu />
                   <Tickets />
                 </main>
               </>
@@ -68,7 +66,6 @@ function App() {
               <>
                 <Header />
                 <main>
-                  <FilterMenu />
                   <Tickets />
                 </main>
               </>
