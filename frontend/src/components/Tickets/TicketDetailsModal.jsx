@@ -1,5 +1,5 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchTicket } from '../../utils/api';
 import {
   Card,
@@ -17,10 +17,14 @@ import {
   User,
   Calendar,
   MessageSquare,
-  X
 } from 'lucide-react';
 
+import CommentSection from '../Tickets/CommentSection';
+
 export default function TicketDetailsModal({ ticketId, onClose }) {
+  const [newComment, setNewComment] = useState('');
+  const queryClient = useQueryClient();
+
   const {
     data: ticket,
     isLoading,
@@ -30,6 +34,48 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     queryFn: () => fetchTicket(ticketId),
     enabled: !!ticketId,
   });
+
+  const addCommentMutation = useMutation({
+    mutationFn: async (commentData) => {
+      const response = await fetch(`/api/tickets/${ticketId}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(commentData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Kommentin lisääminen epäonnistui');
+      }
+      return response.json();
+    },
+  });
+
+  const handleAddComment = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newComment.trim()) return;
+
+    try {
+      const addedComment = await addCommentMutation.mutateAsync({
+        content: newComment,
+        ticketId: ticketId,
+      });
+
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData || !oldData.ticket) return oldData;
+        return {
+          ...oldData,
+          ticket: {
+            ...oldData.ticket,
+            comments: [...(oldData.ticket.comments || []), addedComment],
+          },
+        };
+      });
+
+      setNewComment('');
+    } catch (error) {
+      console.error('Virhe kommentin lisäämisessä:', error);
+    }
+  };
 
   const getPriorityInfo = (priority) => {
     switch (priority) {
@@ -172,16 +218,16 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
   const comments = ticketData?.comments || [];
 
-  console.log('Ticket Data:', ticketData);
-
-
   return (
     <div
       id="modal-background"
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       onClick={handleClose}
     >
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto relative" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Card className="border-none shadow-none">
           <CardHeader>
             <div className="flex justify-between items-start">
@@ -209,7 +255,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               </span>
               {ticketData.attachment ? (
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500">Liitteet</h3>
+                  <h3 className="text-sm font-medium text-gray-500">
+                    Liitteet
+                  </h3>
                   <img
                     src={ticketData.attachment.url}
                     alt={ticketData.attachment.filename || 'Liitteen kuva'}
@@ -220,14 +268,18 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                   </p>
                 </div>
               ) : (
-                <div className="text-sm font-medium text-gray-500 ml-auto">Ei liitteitä</div>
+                <div className="text-sm font-medium text-gray-500 ml-auto">
+                  Ei liitteitä
+                </div>
               )}
             </div>
 
             {ticketData && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-500">Kategoria</h3>
+                  <h3 className="text-sm font-medium text-gray-500">
+                    Kategoria
+                  </h3>
                   <p>{category}</p>
                 </div>
 
@@ -238,9 +290,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               </div>
             )}
 
-            
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Ongelman kuvaus</h3>
+              <h3 className="text-sm font-medium text-gray-500">
+                Ongelman kuvaus
+              </h3>
               <p className="mt-1 whitespace-pre-wrap">
                 {ticketData.description || 'Ei määritelty'}
               </p>
@@ -248,16 +301,20 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
             {ticketData.additionalInfo && (
               <div>
-                <h3 className="text-sm font-medium text-gray-500">Lisätiedot</h3>
+                <h3 className="text-sm font-medium text-gray-500">
+                  Lisätiedot
+                </h3>
                 <p className="mt-1 whitespace-pre-wrap">
-                {ticketData.additionalInfo}
+                  {ticketData.additionalInfo}
                 </p>
               </div>
             )}
 
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <User className="w-4 h-4" />
-              <span>Tiketin luonut: <br /> {createdBy}</span>
+              <span>
+                Tiketin luonut: <br /> {createdBy}
+              </span>
             </div>
 
             <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -273,39 +330,18 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             <div className="space-y-2">
               <Label>Vastausmuoto</Label>
               <p>{ticketData.responseType || 'Ei määritelty'}</p>
-          </div>
+            </div>
 
             <div>
               <h3 className="text-sm font-medium text-gray-500">Kommentit</h3>
-              {comments.length > 0 ? (
-                <div className="mt-2 space-y-4">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="p-3 border rounded-lg bg-gray-50">
-                      <p className="text-sm text-gray-700">{comment.content}</p>
-                      <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
-                        <User className="w-3 h-3" />
-                        <span>{comment.author?.name || comment.author?.email || 'Tuntematon'}</span>
-                        <Calendar className="w-3 h-3" />
-                        <span>
-                          {new Date(comment.createdAt).toLocaleDateString('fi-FI', {
-                            day: 'numeric',
-                            month: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500 mt-2">Ei kommentteja</p>
-              )}
+              <CommentSection
+                comments={comments}
+                newComment={newComment}
+                setNewComment={setNewComment}
+                handleAddComment={handleAddComment}
+                addCommentMutation={addCommentMutation}
+              />
             </div>
-
-
-
           </CardContent>
 
           <CardFooter className="flex justify-between items-center">

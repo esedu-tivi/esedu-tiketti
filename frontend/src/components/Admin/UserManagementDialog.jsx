@@ -20,9 +20,12 @@ export default function UserManagementDialog({ isOpen, onClose }) {
     try {
       setLoading(true);
       const token = await authService.acquireToken();
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/users`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       setUsers(response.data);
       setModifiedUsers(response.data);
     } catch (err) {
@@ -34,12 +37,12 @@ export default function UserManagementDialog({ isOpen, onClose }) {
   };
 
   const handleRoleChange = (userId, isSupport) => {
-    setModifiedUsers(prevUsers =>
-      prevUsers.map(user =>
+    setModifiedUsers((prevUsers) =>
+      prevUsers.map((user) =>
         user.id === userId
           ? { ...user, role: isSupport ? 'SUPPORT' : 'USER' }
-          : user
-      )
+          : user,
+      ),
     );
   };
 
@@ -51,22 +54,22 @@ export default function UserManagementDialog({ isOpen, onClose }) {
     try {
       setSaving(true);
       const token = await authService.acquireToken();
-      
+
       // Etsi muuttuneet käyttäjät
-      const changedUsers = modifiedUsers.filter(modifiedUser => {
-        const originalUser = users.find(u => u.id === modifiedUser.id);
+      const changedUsers = modifiedUsers.filter((modifiedUser) => {
+        const originalUser = users.find((u) => u.id === modifiedUser.id);
         return originalUser.role !== modifiedUser.role;
       });
 
       // Päivitä kaikki muuttuneet käyttäjät
       await Promise.all(
-        changedUsers.map(user =>
+        changedUsers.map((user) =>
           axios.put(
             `${import.meta.env.VITE_API_URL}/users/${user.id}/role`,
             { role: user.role },
-            { headers: { Authorization: `Bearer ${token}` }}
-          )
-        )
+            { headers: { Authorization: `Bearer ${token}` } },
+          ),
+        ),
       );
 
       // Päivitä käyttäjälista
@@ -103,10 +106,7 @@ export default function UserManagementDialog({ isOpen, onClose }) {
       <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold">Käyttäjien hallinta</h2>
-          <button
-            onClick={onClose}
-            className="rounded p-2 hover:bg-gray-100"
-          >
+          <button onClick={onClose} className="rounded p-2 hover:bg-gray-100">
             ✕
           </button>
         </div>
@@ -150,7 +150,9 @@ export default function UserManagementDialog({ isOpen, onClose }) {
                         <input
                           type="checkbox"
                           checked={user.role === 'SUPPORT'}
-                          onChange={(e) => handleRoleChange(user.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleRoleChange(user.id, e.target.checked)
+                          }
                           disabled={user.role === 'ADMIN' || saving}
                           className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                         />
@@ -171,8 +173,8 @@ export default function UserManagementDialog({ isOpen, onClose }) {
             onClick={handleCancel}
             disabled={saving || !hasChanges()}
             className={`rounded-md border border-gray-300 px-4 py-2 text-sm font-medium shadow-sm transition-opacity ${
-              hasChanges() 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+              hasChanges()
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 : 'pointer-events-none opacity-0'
             } disabled:opacity-50`}
           >
@@ -199,4 +201,4 @@ export default function UserManagementDialog({ isOpen, onClose }) {
       </div>
     </div>
   );
-} 
+}

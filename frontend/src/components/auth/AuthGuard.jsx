@@ -13,7 +13,8 @@ export default function AuthGuard({ children, requiredRole }) {
     if (!requiredRole) return true;
     if (userRole === 'ADMIN') return true;
     if (requiredRole === 'ADMIN') return userRole === 'ADMIN';
-    if (requiredRole === 'MANAGEMENT') return userRole === 'ADMIN' || userRole === 'SUPPORT';
+    if (requiredRole === 'MANAGEMENT')
+      return userRole === 'ADMIN' || userRole === 'SUPPORT';
     return userRole === requiredRole;
   };
 
@@ -50,7 +51,11 @@ export default function AuthGuard({ children, requiredRole }) {
   if (requiredRole && !hasRequiredRole()) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <Alert variant="error" title="Ei käyttöoikeutta" message="Sinulla ei ole tarvittavia oikeuksia tämän sivun katseluun." />
+        <Alert
+          variant="error"
+          title="Ei käyttöoikeutta"
+          message="Sinulla ei ole tarvittavia oikeuksia tämän sivun katseluun."
+        />
       </div>
     );
   }

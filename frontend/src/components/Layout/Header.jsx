@@ -1,40 +1,40 @@
-import { Link } from 'react-router-dom'
-import { useAuth } from '../../providers/AuthProvider'
-import axios from 'axios'
-import { useState } from 'react'
-import { authService } from '../../services/authService'
-import UserManagementDialog from '../Admin/UserManagementDialog'
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../providers/AuthProvider';
+import axios from 'axios';
+import { useState } from 'react';
+import { authService } from '../../services/authService';
+import UserManagementDialog from '../Admin/UserManagementDialog';
 
 export default function Header() {
-  const { user, userRole, logout } = useAuth()
-  const [isChangingRole, setIsChangingRole] = useState(false)
-  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false)
+  const { user, userRole, logout } = useAuth();
+  const [isChangingRole, setIsChangingRole] = useState(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
 
   // Tarkistaa onko käyttäjällä hallintaoikeudet (admin tai tukihenkilö)
-  const hasManagementRights = userRole === 'ADMIN' || userRole === 'SUPPORT'
+  const hasManagementRights = userRole === 'ADMIN' || userRole === 'SUPPORT';
 
   const handleRoleChange = async (newRole) => {
     try {
-      setIsChangingRole(true)
-      const token = await authService.acquireToken()
+      setIsChangingRole(true);
+      const token = await authService.acquireToken();
       await axios.put(
         `${import.meta.env.VITE_API_URL}/users/role`,
         { role: newRole },
         {
           headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      )
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
       // Päivitä sivu roolin vaihtamisen jälkeen
-      window.location.reload()
+      window.location.reload();
     } catch (error) {
-      console.error('Error changing role:', error)
-      alert('Roolin vaihto epäonnistui')
+      console.error('Error changing role:', error);
+      alert('Roolin vaihto epäonnistui');
     } finally {
-      setIsChangingRole(false)
+      setIsChangingRole(false);
     }
-  }
+  };
 
   return (
     <header className="bg-white shadow">
@@ -113,7 +113,13 @@ export default function Header() {
                   {user.name || user.email}
                   {userRole && (
                     <span className="ml-2 text-xs text-gray-500">
-                      ({userRole === 'SUPPORT' ? 'Tukihenkilö' : userRole === 'ADMIN' ? 'Admin' : 'Opiskelija'})
+                      (
+                      {userRole === 'SUPPORT'
+                        ? 'Tukihenkilö'
+                        : userRole === 'ADMIN'
+                          ? 'Admin'
+                          : 'Opiskelija'}
+                      )
                     </span>
                   )}
                 </span>
@@ -141,5 +147,5 @@ export default function Header() {
         onClose={() => setIsUserManagementOpen(false)}
       />
     </header>
-  )
-} 
+  );
+}
