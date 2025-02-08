@@ -4,6 +4,7 @@ import { fetchTickets } from '../utils/api';
 import TicketList from '../components/Tickets/TicketList';
 import { Alert } from '../components/ui/Alert';
 import UserManagementDialog from '../components/Admin/UserManagementDialog';
+import FilterMenu from './FilterMenu';
 
 export default function Tickets() {
   const [tickets, setTickets] = useState([]);
@@ -11,12 +12,17 @@ export default function Tickets() {
   const [error, setError] = useState(null);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const { user, userRole } = useAuth();
+  const [filters, setFilters] = useState({});
 
+  // Tikettien lataaminen suodattimilla
   useEffect(() => {
-    const loadTickets = async () => {
+    console.log("Haetaan tikettejä seuraavilla suodattimilla:", filters);
+
+    const loadTickets = async (filters = {}) => {
       try {
         setLoading(true);
-        const response = await fetchTickets();
+        const response = await fetchTickets(filters);
+        console.log("Haetut tiketit:", response.tickets);
         setTickets(response.tickets);
         setError(null);
       } catch (err) {
@@ -28,9 +34,15 @@ export default function Tickets() {
     };
 
     if (user) {
-      loadTickets();
+      loadTickets(filters); // Ladataan tiketit suodattimien kanssa
     }
-  }, [user]);
+  }, [user, filters]); // Käynnistetään aina kun käyttäjä tai suodattimet muuttuvat
+
+  // Suodattimien päivitys
+  const handleFilterChange = (newFilters) => {
+    console.log("Päivitetyt suodattimet:", newFilters);
+    setFilters(newFilters);
+  };
 
   if (loading) {
     return (
@@ -70,6 +82,8 @@ export default function Tickets() {
           </button>
         )}
       </div>
+
+      <FilterMenu onFilterChange={handleFilterChange} />
 
       {tickets.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">

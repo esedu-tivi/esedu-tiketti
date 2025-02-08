@@ -1,15 +1,48 @@
 import { Request, Response } from 'express';
 import { ticketService } from '../services/ticketService.js';
 import { TypedRequest, CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
-import { PrismaClient, TicketStatus } from '@prisma/client';
+import { PrismaClient, TicketStatus, Priority } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export const ticketController = {
-  // Hae kaikki tiketit
+  // Haetaan kaikki tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
   getAllTickets: async (req: Request, res: Response) => {
     try {
-      const tickets = await ticketService.getAllTickets();
+      const { status, priority, category, subject, user, device, startDate, endDate } = req.query;
+      
+      // Muutetaan priority oikeaksi enum-arvoksi
+      const priorityEnum: Priority | undefined = typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
+        ? (priority.toUpperCase() as Priority)
+        : undefined;
+  
+        // Muutetaan status oikeaksi enum-arvoksi
+      const statusEnum: TicketStatus | undefined = typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
+        ? (status.toUpperCase() as TicketStatus)
+        : undefined;
+  
+      // Muutetaan category-arvo merkkijonoksi, jos se on olemassa (EI TOIMI TÄLLÄ HETKELLÄ)
+      const categoryEnum: string | undefined = typeof category === 'string' ? category.toLowerCase() : undefined;
+
+      // Muutetaan startDate ja endDate päivämääräobjekteiksi
+      const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
+      const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
+  
+      // Haetaan tiketit suodattimilla, jos ne on määritelty
+      const tickets = await prisma.ticket.findMany({
+        where: {
+          ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
+          ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
+          ...(categoryEnum && { category: { name: categoryEnum } }), // Suodatus kategorian mukaan (EI TOIMI TÄLLÄ HETKELLÄ)
+          ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
+          ...(user && { createdById: user as string }), // Suodatus käyttäjän mukaan
+          ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
+          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärn mukaan (alku)
+          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärn mukaan (loppu)
+        },
+      });
+      console.log('Tickets fetched:', tickets);
+  
       res.json({ tickets });
     } catch (error) {
       console.error('Error fetching tickets:', error);
@@ -85,7 +118,7 @@ export const ticketController = {
     }
   },
 
-  // Hae käyttäjän omat tiketit
+  // Haetaan kaikki omat tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
   getMyTickets: async (req: Request, res: Response) => {
     try {
       if (!req.user?.email) {
@@ -100,10 +133,43 @@ export const ticketController = {
         return res.status(401).json({ error: 'Unauthorized: User not found' });
       }
 
-      const tickets = await ticketService.getTicketsByUserId(user.id);
+      const { category, priority, status, subject, device, startDate, endDate } = req.query;
+
+      // Muutetaan priority oikeaksi enum-arvoksi
+      const priorityEnum: Priority | undefined = typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
+        ? (priority.toUpperCase() as Priority)
+        : undefined;
+
+      // Muutetaan status oikeaksi enum-arvoksi
+      const statusEnum: TicketStatus | undefined = typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
+        ? (status.toUpperCase() as TicketStatus)
+        : undefined;
+
+      // Muutetaan category-arvo merkkijonoksi, jos se on olemassa (EI TOIMI TÄLLÄ HETKELLÄ)
+      const categoryEnum: string | undefined = typeof category === 'string' ? category.toLowerCase() : undefined;
+
+      // Muutetaan startDate ja endDate päivämääräobjekteiksi
+      const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
+      const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
+
+      // Rakennetaan Prisma-kysely, jossa suodattimet otetaan huomioon
+      const tickets = await prisma.ticket.findMany({
+        where: {
+          createdById: user.id, // Haetaan vain käyttäjän omat tiketit
+          ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
+          ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
+          ...(categoryEnum && { category: { name: categoryEnum } }), // Suodatus kategorian mukaan (EI TOIMI TÄLLÄ HETKELLÄ)
+          ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
+          ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
+          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
+          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
+        },
+      });
+      console.log('Tickets fetched:', tickets);
+
       res.json({ tickets });
     } catch (error) {
-      console.error('Error fetching user tickets:', error);
+      console.error('Error fetching user tickets with filters:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -170,11 +236,4 @@ export const ticketController = {
       res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
     }
   }
-  
-  
-  
-  
-
-
 };
-
