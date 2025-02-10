@@ -8,7 +8,7 @@ const router = express.Router();
 
 // Julkiset reitit (vaativat vain autentikaation)
 router.post('/', authMiddleware, ticketController.createTicket);
-router.post('/:id/comments', ticketController.addCommentToTicket);
+router.post('/:id/comments', authMiddleware, ticketController.addCommentToTicket);
 
 
 

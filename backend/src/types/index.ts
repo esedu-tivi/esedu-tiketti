@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { Ticket, User, Priority, TicketStatus } from '@prisma/client';
+import { Ticket, User, Priority, TicketStatus, ResponseFormat } from '@prisma/client';
 
 // MSAL käyttäjän tyyppi
 export interface MSALUser {
@@ -29,6 +29,7 @@ export interface CreateTicketDTO {
   additionalInfo?: string;
   priority: Priority;
   categoryId: string;
+  responseFormat?: ResponseFormat;
 }
 
 export interface UpdateTicketDTO {
@@ -40,6 +41,7 @@ export interface UpdateTicketDTO {
   priority?: Priority;
   assignedToId?: string;
   categoryId?: string;
+  responseFormat?: ResponseFormat;
 }
 
 export interface CreateCommentDTO {

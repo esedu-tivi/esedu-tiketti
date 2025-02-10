@@ -30,6 +30,7 @@ model Ticket {
   additionalInfo String?    // Lisätiedot
   status        TicketStatus @default(OPEN)
   priority      Priority    @default(MEDIUM)
+  responseFormat ResponseFormat @default(TEKSTI)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   createdBy     User       @relation("CreatedTickets", fields: [createdById], references: [id])
@@ -85,4 +86,10 @@ enum Priority {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum ResponseFormat {
+  TEKSTI
+  KUVA
+  VIDEO
 } 

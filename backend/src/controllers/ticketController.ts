@@ -16,14 +16,11 @@ export const ticketController = {
         ? (priority.toUpperCase() as Priority)
         : undefined;
   
-        // Muutetaan status oikeaksi enum-arvoksi
+      // Muutetaan status oikeaksi enum-arvoksi
       const statusEnum: TicketStatus | undefined = typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
         ? (status.toUpperCase() as TicketStatus)
         : undefined;
   
-      // Muutetaan category-arvo merkkijonoksi, jos se on olemassa (EI TOIMI TÄLLÄ HETKELLÄ)
-      const categoryEnum: string | undefined = typeof category === 'string' ? category.toLowerCase() : undefined;
-
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
       const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
       const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
@@ -33,13 +30,30 @@ export const ticketController = {
         where: {
           ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
           ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
-          ...(categoryEnum && { category: { name: categoryEnum } }), // Suodatus kategorian mukaan (EI TOIMI TÄLLÄ HETKELLÄ)
+          ...(category && { 
+            category: { 
+              name: { 
+                equals: category as string,
+                mode: 'insensitive'
+              }
+            } 
+          }), // Suodatus kategorian mukaan
           ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
           ...(user && { createdById: user as string }), // Suodatus käyttäjän mukaan
           ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
-          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärn mukaan (alku)
-          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärn mukaan (loppu)
+          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
+          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
         },
+        include: {
+          createdBy: true,
+          assignedTo: true,
+          category: true,
+          comments: {
+            include: {
+              author: true
+            }
+          }
+        }
       });
       console.log('Tickets fetched:', tickets);
   
@@ -145,9 +159,6 @@ export const ticketController = {
         ? (status.toUpperCase() as TicketStatus)
         : undefined;
 
-      // Muutetaan category-arvo merkkijonoksi, jos se on olemassa (EI TOIMI TÄLLÄ HETKELLÄ)
-      const categoryEnum: string | undefined = typeof category === 'string' ? category.toLowerCase() : undefined;
-
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
       const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
       const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
@@ -158,12 +169,39 @@ export const ticketController = {
           createdById: user.id, // Haetaan vain käyttäjän omat tiketit
           ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
           ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
-          ...(categoryEnum && { category: { name: categoryEnum } }), // Suodatus kategorian mukaan (EI TOIMI TÄLLÄ HETKELLÄ)
+          ...(category && { 
+            category: { 
+              name: { 
+                equals: category as string,
+                mode: 'insensitive'
+              }
+            } 
+          }), // Suodatus kategorian mukaan
           ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
           ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
           ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
           ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
         },
+        include: {
+          category: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
       });
       console.log('Tickets fetched:', tickets);
 
@@ -223,13 +261,25 @@ export const ticketController = {
     try {
       const { id } = req.params;
       const { content } = req.body;
-      const userId = req.user?.oid || '';
-  
+
       if (!content) {
         return res.status(400).json({ error: 'Kommentin sisältö puuttuu' });
       }
-  
-      const comment = await ticketService.addCommentToTicket(id, content, userId);
+
+      if (!req.user?.email) {
+        return res.status(401).json({ error: 'Käyttäjän tiedot puuttuvat' });
+      }
+
+      // Haetaan käyttäjä sähköpostiosoitteen perusteella
+      const user = await prisma.user.findUnique({
+        where: { email: req.user.email }
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Käyttäjää ei löydy' });
+      }
+
+      const comment = await ticketService.addCommentToTicket(id, content, user.id);
       res.status(201).json(comment);
     } catch (error) {
       console.error('Virhe kommentin lisäämisessä:', error);

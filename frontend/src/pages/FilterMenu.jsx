@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardHeader,
@@ -11,6 +11,7 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/Button';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from '../components/ui/Select';
 import { Label } from '../components/ui/Label';
+import { fetchCategories } from '../utils/api';
 
 const defaultFilters = {
   status: '',
@@ -26,16 +27,32 @@ const defaultFilters = {
 function FilterMenu({ onFilterChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const [filters, setFilters] = useState(defaultFilters);
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await fetchCategories();
+        setCategories(response.categories || []);
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    };
+    loadCategories();
+  }, []);
 
   const handleChange = (name, value) => {
-    setFilters((currentFilters) => ({
-      ...currentFilters,
-      [name]: value,
-    }));
+    const newFilters = { ...filters };
+    if (value) {
+      newFilters[name] = value;
+    } else {
+      delete newFilters[name];
+    }
+    setFilters(newFilters);
   };
 
-    // Suodattimien lähetys
-    const applyFilters = () => {
+  // Suodattimien lähetys
+  const applyFilters = () => {
     // Poistetaan tyhjät arvot suodattimista
     const filteredFilters = Object.fromEntries(
       Object.entries(filters).filter(([key, value]) => value && value !== '')
@@ -78,6 +95,7 @@ function FilterMenu({ onFilterChange }) {
                 <SelectContent>
                   <SelectItem value="open" className="hover:bg-blue-200">Avoin</SelectItem>
                   <SelectItem value="in_progress" className="hover:bg-blue-200">Käsittelyssä</SelectItem>
+                  <SelectItem value="resolved" className="hover:bg-blue-200">Ratkaistu</SelectItem>
                   <SelectItem value="closed" className="hover:bg-blue-200">Suljettu</SelectItem>
                 </SelectContent>
               </Select>
@@ -103,21 +121,28 @@ function FilterMenu({ onFilterChange }) {
             </div>
 
             <div className="space-y-2">
-            <Label htmlFor="category-filter">Kategoria:</Label>
-            <Select
-              id="category-filter"
-              value={filters.category}
-              onValueChange={(value) => handleChange("category", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Valitse kategoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="general" className="hover:bg-blue-200">Yleinen</SelectItem>
-                <SelectItem value="technical" className="hover:bg-blue-200">Tekninen</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+              <Label htmlFor="category-filter">Kategoria:</Label>
+              <Select
+                id="category-filter"
+                value={filters.category}
+                onValueChange={(value) => handleChange("category", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Valitse kategoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem 
+                      key={category.id} 
+                      value={category.name}
+                      className="hover:bg-blue-200"
+                    >
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="subject-filter">Aihe:</Label>

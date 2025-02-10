@@ -1,4 +1,4 @@
-import { PrismaClient, Ticket, Prisma, TicketStatus } from '@prisma/client';
+import { PrismaClient, Ticket, Prisma, TicketStatus, ResponseFormat } from '@prisma/client';
 import { CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
 
 const prisma = new PrismaClient();
@@ -46,6 +46,7 @@ export const ticketService = {
         ...(data.device && { device: data.device }),
         ...(data.additionalInfo && { additionalInfo: data.additionalInfo }),
         priority: data.priority,
+        responseFormat: data.responseFormat || 'TEKSTI',
         createdBy: {
           connect: { id: userId }
         },
@@ -72,6 +73,10 @@ export const ticketService = {
     if (data.categoryId) {
       updateData.category = { connect: { id: data.categoryId } };
       delete updateData.categoryId;
+    }
+
+    if (data.responseFormat) {
+      updateData.responseFormat = data.responseFormat;
     }
 
     return prisma.ticket.update({
@@ -179,29 +184,16 @@ export const ticketService = {
     });
   },
 
-  // Tiketin kommentointi ( toimii, mutta ei osaa hakea oikeaa käyttäjää, vaan anonyymisti)
-  addCommentToTicket: async (ticketId: string, content: string, userId?: string) => {
-    let user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : null;
-  
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { email: 'anonymous@example.com' },
-      });
-  
-      if (!user) {
-        user = await prisma.user.create({
-          data: { name: 'Anonymous', email: 'anonymous@example.com' }
-        });
-      }
-    }
-  
+  // Tiketin kommentointi
+  addCommentToTicket: async (ticketId: string, content: string, userId: string) => {
     return prisma.comment.create({
       data: {
         content,
         ticket: { connect: { id: ticketId } },
-        author: { connect: { id: user.id } }
+        author: { connect: { id: userId } }
+      },
+      include: {
+        author: true
       }
     });
   }

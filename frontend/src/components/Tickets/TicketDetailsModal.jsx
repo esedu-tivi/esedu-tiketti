@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTicket } from '../../utils/api';
+import { fetchTicket, addComment } from '../../utils/api';
 import {
   Card,
   CardHeader,
@@ -37,16 +37,19 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
   const addCommentMutation = useMutation({
     mutationFn: async (commentData) => {
-      const response = await fetch(`/api/tickets/${ticketId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(commentData),
+      return addComment(ticketId, commentData.content);
+    },
+    onSuccess: (newComment) => {
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData || !oldData.ticket) return oldData;
+        return {
+          ...oldData,
+          ticket: {
+            ...oldData.ticket,
+            comments: [...(oldData.ticket.comments || []), newComment],
+          },
+        };
       });
-
-      if (!response.ok) {
-        throw new Error('Kommentin lisääminen epäonnistui');
-      }
-      return response.json();
     },
   });
 
@@ -55,20 +58,8 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     if (!newComment.trim()) return;
 
     try {
-      const addedComment = await addCommentMutation.mutateAsync({
+      await addCommentMutation.mutateAsync({
         content: newComment,
-        ticketId: ticketId,
-      });
-
-      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
-        if (!oldData || !oldData.ticket) return oldData;
-        return {
-          ...oldData,
-          ticket: {
-            ...oldData.ticket,
-            comments: [...(oldData.ticket.comments || []), addedComment],
-          },
-        };
       });
 
       setNewComment('');

@@ -450,3 +450,81 @@ Huomioitavaa:
    - Varmista että kaikki riippuvuudet on asennettu
    - Tarkista että `tsconfig.json` on ajan tasalla
    - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa 
+
+## Päivitysohjeet
+
+Kun projekti on päivittynyt GitHubissa ja haluat päivittää oman versiosi ajan tasalle, seuraa näitä ohjeita:
+
+### 1. Hae uusin versio
+
+```bash
+git pull origin main
+```
+
+### 2. Asenna uudet riippuvuudet
+
+```bash
+# Backend
+cd backend
+npm install
+
+# Frontend
+cd ../frontend
+npm install
+```
+
+### 3. Päivitä tietokanta
+
+```bash
+# Backend-kansiossa
+cd ../backend
+npx prisma generate  # Päivitä Prisma Client
+npx prisma migrate dev  # Aja uudet migraatiot
+```
+
+### 4. Käynnistä sovellus uudelleen
+
+```bash
+# Backend
+npm run dev
+
+# Frontend (uudessa terminaalissa)
+cd ../frontend
+npm run dev
+```
+
+### Mahdolliset ongelmatilanteet
+
+#### Prisma-virheet
+Jos kohtaat Prisma-virheitä, kokeile seuraavaa:
+```bash
+cd backend
+rm -rf node_modules/.prisma
+npm install
+npx prisma generate
+```
+
+#### Tietokantavirheet
+Jos tietokanta on epäsynkronissa:
+```bash
+cd backend
+npx prisma migrate reset --force  # Nollaa tietokannan ja ajaa migraatiot uudelleen
+```
+
+#### Tyyppivirheet
+Jos kohtaat tyyppivirheitä:
+```bash
+# Backend
+cd backend
+npm run build
+
+# Frontend
+cd ../frontend
+npm run build
+```
+
+### Huomioitavaa
+- Tarkista että `.env` tiedostot ovat ajan tasalla (kysy tarvittaessa tiimin vetäjältä)
+- Jos kohtaat ongelmia, sulje kaikki terminaalit ja avaa ne uudelleen
+- `prisma migrate reset` nollaa tietokannan - varmista että sinulla ei ole tärkeää dataa tietokannassa
+- Jos ongelmat jatkuvat, voit aina kloonata projektin uudelleen puhtaaseen kansioon 

@@ -2,6 +2,35 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 10.02.2025
+
+### Added
+- Lisätty vastausmuoto (responseFormat) tiketteihin
+- Lisätty uusi addComment API-funktio kommenttien lisäämiseen
+- Parannettu kommenttien käsittelyä
+  - Lisätty authMiddleware kommenttien lisäämiseen
+  - Lisätty autentikoitu API-instanssi kommenttien käsittelyyn
+
+### Changed
+- Päivitetty TicketDetailsModal käyttämään uutta addComment-funktiota
+- Parannettu kommenttien lisäämisen virhekäsittelyä
+- Siirretty kommenttien käsittely käyttämään autentikoitua API-instanssia
+
+### Fixed
+- Korjattu kategoriasuodatuksen toiminta
+  - Korjattu case-sensitive haku kategorioille
+  - Lisätty tuki dynaamisille kategorioille
+  - Korjattu kategorioiden nimet vastaamaan tietokannan arvoja
+- Korjattu kommenttien autentikointi
+  - Korjattu kommentoijan tietojen näyttäminen
+  - Poistettu anonyymit kommentit
+  - Korjattu käyttäjätietojen välitys backendille
+
+### Security
+- Parannettu kommenttien tietoturvaa
+  - Lisätty autentikaatiotarkistukset
+  - Varmistettu käyttäjän identiteetti kommentoinnissa
+
 ## 31.01.2025
 
 ### Added

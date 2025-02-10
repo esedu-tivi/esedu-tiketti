@@ -32,6 +32,20 @@ const mapPriorityToEnum = (priority) => {
   }
 }
 
+// Helper function to map content type to response format
+const mapContentTypeToResponseFormat = (contentType) => {
+  switch (contentType) {
+    case 'text':
+      return 'TEKSTI'
+    case 'image':
+      return 'KUVA'
+    case 'video':
+      return 'VIDEO'
+    default:
+      return 'TEKSTI'
+  }
+}
+
 export const fetchTickets = async (filters = {}) => {
   try {
     const params = new URLSearchParams(filters).toString();
@@ -59,7 +73,8 @@ export const createTicket = async (ticketData) => {
     device: ticketData.device || null,
     additionalInfo: ticketData.additionalInfo || null,
     priority: mapPriorityToEnum(ticketData.priority),
-    categoryId: ticketData.categoryId
+    categoryId: ticketData.categoryId,
+    responseFormat: mapContentTypeToResponseFormat(ticketData.contentType)
   };
 
   try {
@@ -147,5 +162,18 @@ export const assignTicket = async (id, assignedToId) => {
       throw new Error(error.response.data.error || 'Tiketin käsittelijän asetus epäonnistui')
     }
     throw new Error('Tiketin käsittelijän asetus epäonnistui')
+  }
+}
+
+// Kommentin lisääminen tikettiin
+export const addComment = async (ticketId, content) => {
+  try {
+    const { data } = await api.post(`/tickets/${ticketId}/comments`, { content })
+    return data
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Kommentin lisääminen epäonnistui')
+    }
+    throw new Error('Kommentin lisääminen epäonnistui')
   }
 }
