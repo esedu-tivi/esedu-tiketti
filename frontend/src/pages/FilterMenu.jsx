@@ -24,8 +24,7 @@ const defaultFilters = {
   endDate: '',
 };
 
-function FilterMenu({ onFilterChange }) {
-  const [isOpen, setIsOpen] = useState(false);
+function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   const [filters, setFilters] = useState(defaultFilters);
   const [categories, setCategories] = useState([]);
 
@@ -42,22 +41,16 @@ function FilterMenu({ onFilterChange }) {
   }, []);
 
   const handleChange = (name, value) => {
-    const newFilters = { ...filters };
-    if (value) {
-      newFilters[name] = value;
-    } else {
-      delete newFilters[name];
-    }
-    setFilters(newFilters);
-  };
-
-  // Suodattimien lähetys
-  const applyFilters = () => {
-    // Poistetaan tyhjät arvot suodattimista
-    const filteredFilters = Object.fromEntries(
-      Object.entries(filters).filter(([key, value]) => value && value !== '')
-    );
-    onFilterChange(filteredFilters);
+    setFilters((filters) => {
+      const newFilters = { ...filters};
+      if (value) {
+        newFilters[name] = value;
+      } else {
+        delete newFilters[name];
+      }
+      onFilterChange(newFilters);
+      return newFilters;
+    }); 
   };
 
   // Suodattimien alustus
@@ -156,17 +149,19 @@ function FilterMenu({ onFilterChange }) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="user-filter">Käyttäjä:</Label>
-              <Input
-                type="text"
-                id="user-filter"
-                name="user"
-                value={filters.user}
-                onChange={(e) => handleChange("user", e.target.value)}
-                placeholder="Kirjoita käyttäjän nimi"
-              />
-            </div>
+            {!isMyTickets && (
+              <div className="space-y-2">
+                <Label htmlFor="user-filter">Käyttäjä:</Label>
+                <Input
+                  type="text"
+                  id="user-filter"
+                  name="user"
+                  value={filters.user}
+                  onChange={(e) => handleChange("user", e.target.value)}
+                  placeholder="Kirjoita käyttäjän nimi"
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="device-filter">Laite:</Label>
@@ -189,6 +184,7 @@ function FilterMenu({ onFilterChange }) {
                     type="date"
                     id="start-date"
                     name="startDate"
+                    max={new Date().toISOString().split('T')[0]}
                     value={filters.startDate}
                     onChange={(e) => handleChange("startDate", e.target.value)}
                   />
@@ -199,6 +195,7 @@ function FilterMenu({ onFilterChange }) {
                     type="date"
                     id="end-date"
                     name="endDate"
+                    max={new Date().toISOString().split('T')[0]}
                     value={filters.endDate}
                     onChange={(e) => handleChange("endDate", e.target.value)}
                   />
@@ -212,7 +209,6 @@ function FilterMenu({ onFilterChange }) {
       {isOpen && (
         <CardFooter className="flex justify-between">
           <Button className="w-32 mt-4 bg-red-400 text-white hover:bg-red-500" onClick={clearFilters}> Tyhjennä suodattimet </Button>
-          <Button className="w-32 mt-4 bg-blue-500 hover:bg-blue-600 text-white" onClick={applyFilters}> Hae </Button>
         </CardFooter>
       )}
     </Card>

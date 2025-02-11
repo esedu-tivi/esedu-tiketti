@@ -24,6 +24,15 @@ export const ticketController = {
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
       const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
       const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
+
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (endDateObj && endDateObj > today) {
+        return res.status(400).json({ error: 'End date can not be in the future!' });
+      }
+      if (startDateObj && endDateObj && startDateObj > endDateObj) {
+        return res.status(400).json({ error: 'Start date can not be after end date!' });
+      }
   
       // Haetaan tiketit suodattimilla, jos ne on määritelty
       const tickets = await prisma.ticket.findMany({
@@ -39,7 +48,7 @@ export const ticketController = {
             } 
           }), // Suodatus kategorian mukaan
           ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
-          ...(user && { createdById: user as string }), // Suodatus käyttäjän mukaan
+          ...(user && { createdBy: { name: { contains: user as string, mode: 'insensitive' } } }), // Suodatus käyttäjän mukaan
           ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
           ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
           ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
@@ -162,6 +171,15 @@ export const ticketController = {
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
       const startDateObj = startDate ? new Date(startDate as string + 'T00:00:00') : undefined;
       const endDateObj = endDate ? new Date(endDate as string + 'T23:59:59') : undefined;
+
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (endDateObj && endDateObj > today) {
+        return res.status(400).json({ error: 'End date can not be in the future!' });
+      }
+      if (startDateObj && endDateObj && startDateObj > endDateObj) {
+        return res.status(400).json({ error: 'Start date can not be after end date!' });
+      }
 
       // Rakennetaan Prisma-kysely, jossa suodattimet otetaan huomioon
       const tickets = await prisma.ticket.findMany({
