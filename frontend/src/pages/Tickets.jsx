@@ -13,6 +13,7 @@ export default function Tickets() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const { user, userRole } = useAuth();
   const [filters, setFilters] = useState({});
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
   // Tikettien lataaminen suodattimilla
   useEffect(() => {
@@ -44,25 +45,6 @@ export default function Tickets() {
     setFilters(newFilters);
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <p className="mt-2 text-sm text-gray-500">Ladataan tikettejä...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto p-4">
-        <Alert variant="error" title="Virhe" message={error} />
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto p-4">
       <div className="mb-6 flex items-center justify-between">
@@ -83,7 +65,11 @@ export default function Tickets() {
         )}
       </div>
 
-      <FilterMenu onFilterChange={handleFilterChange} />
+      <FilterMenu 
+        onFilterChange={handleFilterChange} 
+        isOpen={isFilterMenuOpen} 
+        setIsOpen={setIsFilterMenuOpen}
+      />
 
       {tickets.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">

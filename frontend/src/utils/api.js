@@ -131,8 +131,8 @@ export const fetchTicket = async (id) => {
 // Käyttäjän omien tikettien haku
 export const fetchMyTickets = async (filters = {}) => {
   try {
-    const query = new URLSearchParams(filters).toString();
-    const { data } = await api.get(`/tickets/my-tickets?${query}`);
+    const params = new URLSearchParams(filters).toString();
+    const { data } = await api.get(`/tickets/my-tickets?${params}`);
     return data;
   } catch (error) {
     throw new Error('Tikettien haku epäonnistui');

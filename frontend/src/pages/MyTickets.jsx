@@ -11,6 +11,8 @@ export default function MyTickets() {
   const [error, setError] = useState(null);
   const { user } = useAuth();
   const [filters, setFilters] = useState({});
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const isMyTickets = true;
 
   // Tikettien lataaminen suodattimilla
     useEffect(() => {
@@ -42,17 +44,6 @@ export default function MyTickets() {
       setFilters(newFilters);
     }
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-          <p className="mt-2 text-sm text-gray-500">Ladataan tikettejä...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="container mx-auto p-4">
@@ -70,7 +61,12 @@ export default function MyTickets() {
         </p>
       </div>
 
-      <FilterMenu onFilterChange={handleFilterChange} />
+      <FilterMenu 
+        onFilterChange={handleFilterChange} 
+        isOpen={isFilterMenuOpen} 
+        setIsOpen={setIsFilterMenuOpen}
+        isMyTickets={isMyTickets}
+      />
 
       {tickets.length === 0 ? (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-6 text-center">
