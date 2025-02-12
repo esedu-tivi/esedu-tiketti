@@ -1,56 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { fetchMyTickets } from '../utils/api';
 import TicketList from '../components/Tickets/TicketList';
 import { Alert } from '../components/ui/Alert';
 import FilterMenu from './FilterMenu';
+import { useQuery } from '@tanstack/react-query';
 
 export default function MyTickets() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const { user } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const isMyTickets = true;
 
-  // Tikettien lataaminen suodattimilla
-    useEffect(() => {
-      console.log("Haetaan tikettejä seuraavilla suodattimilla:", filters);
-  
-      const loadTickets = async (filters = {}) => {
-        try {
-          setLoading(true);
-          const response = await fetchMyTickets(filters);
-          console.log("Haetut tiketit:", response.tickets);
-          setTickets(response.tickets);
-          setError(null);
-        } catch (err) {
-          console.error('Error loading tickets:', err);
-          setError('Tikettien lataaminen epäonnistui');
-        } finally {
-          setLoading(false);
-        }
-      }
-  
-      if (user) {
-        loadTickets(filters); // Ladataan tiketit suodattimien kanssa
-      }
-    }, [user, filters]); // Käynnistetään aina kun käyttäjä tai suodattimet muuttuvat
-  
-    // Suodattimien päivitys
-    const handleFilterChange = (newFilters) => {
-      console.log("Päivitetyt suodattimet:", newFilters);
-      setFilters(newFilters);
-    }
+  const {
+    data: ticketsData,
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['my-tickets', filters],
+    queryFn: () => fetchMyTickets(filters),
+    enabled: !!user,
+    refetchInterval: 30000, // Päivitä tiketit automaattisesti 30 sekunnin välein
+  });
+
+  // Suodattimien päivitys
+  const handleFilterChange = (newFilters) => {
+    console.log("Päivitetyt suodattimet:", newFilters);
+    setFilters(newFilters);
+  }
 
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <Alert variant="error" title="Virhe" message={error} />
+        <Alert variant="error" title="Virhe" message={error.message} />
       </div>
     );
   }
+
+  const tickets = ticketsData?.tickets || [];
 
   return (
     <div className="container mx-auto p-4">
@@ -74,7 +61,7 @@ export default function MyTickets() {
         </div>
       ) : (
         <div className="mt-4">
-          <TicketList tickets={tickets} />
+          <TicketList tickets={tickets} isLoading={isLoading} error={error} />
         </div>
       )}
     </div>

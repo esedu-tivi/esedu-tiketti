@@ -2,6 +2,44 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 12.02.2025
+
+### Added
+- Lisätty tiketin käsittelyyn liittyvät toiminnot:
+  - Tiketin vapauttaminen takaisin OPEN-tilaan
+  - Tiketin tilan muuttaminen (RESOLVED, CLOSED)
+  - Tiketin uudelleen avaaminen IN_PROGRESS-tilaan
+  - Tiketin siirtäminen toiselle tukihenkilölle
+- Lisätty käsittelyajan seuranta:
+  - Käsittelyn aloitusaika (processingStartedAt)
+  - Käsittelyn päättymisaika (processingEndedAt)
+  - Arvioitu valmistumisaika prioriteetin mukaan (estimatedCompletionTime)
+- Lisätty automaattiset kommentit tiketin tilan muutoksista
+- Lisätty käsittelyajan näyttäminen tiketin tiedoissa
+- Lisätty tiketin lukitus käsittelijälle:
+  - Vain tiketin käsittelijä voi muokata tikettiä kun se on IN_PROGRESS-tilassa
+  - Muut tukihenkilöt eivät voi ottaa käsittelyyn jo käsittelyssä olevaa tikettiä
+  - Admin voi aina muokata tikettejä riippumatta tilasta
+- Lisätty middleware käsittelyoikeuksien tarkistamiseen (canModifyTicket)
+
+### Changed
+- Päivitetty TicketDetailsModal näyttämään uudet käsittelyyn liittyvät tiedot
+- Parannettu tiketin käsittelyn käyttöliittymää:
+  - Lisätty napit tiketin vapauttamiselle
+  - Lisätty napit tilan muuttamiselle
+  - Lisätty käsittelyaikojen näyttäminen
+  - Lisätty nappi tiketin siirtämiselle toiselle tukihenkilölle
+- Päivitetty tiketin käsittelylogiikka:
+  - Tiketin ottaminen käsittelyyn lukitsee sen käsittelijälle
+  - Tiketin vapauttaminen poistaa käsittelijän ja palauttaa tiketin OPEN-tilaan
+  - Tiketin sulkeminen tai ratkaiseminen poistaa käsittelijän
+  - Tiketin siirtäminen vaihtaa käsittelijän ja lisää automaattisen kommentin
+
+### Fixed
+- Korjattu tiketin käsittelyoikeuksien tarkistus
+- Optimoitu tiketin tilan päivityksen logiikka
+- Korjattu ongelma, jossa useampi tukihenkilö pystyi ottamaan saman tiketin käsittelyyn
+
 # 10.02.2025
 
 ### Added

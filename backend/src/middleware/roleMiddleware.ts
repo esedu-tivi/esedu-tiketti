@@ -4,7 +4,9 @@ import { PrismaClient, UserRole } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // Middleware roolien tarkistamiseen
-export const requireRole = (requiredRole: UserRole) => {
+export const requireRole = (requiredRoles: UserRole | UserRole[]) => {
+  const roles = Array.isArray(requiredRoles) ? requiredRoles : [requiredRoles];
+  
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.email) {
@@ -20,7 +22,13 @@ export const requireRole = (requiredRole: UserRole) => {
         return res.status(403).json({ error: 'Käyttäjää ei löydy' });
       }
 
-      if (user.role !== requiredRole && user.role !== UserRole.ADMIN) {
+      // Admin has access to everything
+      if (user.role === UserRole.ADMIN) {
+        return next();
+      }
+
+      // Check if user's role is in the required roles
+      if (!roles.includes(user.role)) {
         return res.status(403).json({ error: 'Ei käyttöoikeutta' });
       }
 

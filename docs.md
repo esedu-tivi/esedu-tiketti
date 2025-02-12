@@ -75,6 +75,11 @@ Kehitysympäristössä luodaan automaattisesti seuraavat käyttäjät:
    - Email: user@example.com
    - Rooli: USER
 
+3. Tukihenkilö:
+   - Nimi: Support User
+   - Email: support@example.com
+   - Rooli: SUPPORT
+
 Voit tarkastella käyttäjiä Prisma Studiossa (http://localhost:5555) Users-taulussa.
 
 ### Kategoriat
@@ -131,6 +136,9 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `categoryId`: String - Kategorian tunniste
 - `createdById`: String - Luojan tunniste
 - `assignedToId`: String? - Vastuuhenkilön tunniste (valinnainen)
+- `processingStartedAt`: DateTime? - Käsittelyn aloitusaika (valinnainen)
+- `processingEndedAt`: DateTime? - Käsittelyn päättymisaika (valinnainen)
+- `estimatedCompletionTime`: DateTime? - Arvioitu valmistumisaika (valinnainen)
 
 ### Category (Kategoria)
 - `id`: String (UUID) - Kategorian yksilöllinen tunniste
@@ -230,6 +238,43 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   }
   ```
 - `DELETE /api/tickets/:id` - Poista tiketti (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
+- `PUT /api/tickets/:id/release` - Vapauta tiketti takaisin OPEN-tilaan (vaatii SUPPORT/ADMIN-roolin)
+  ```typescript
+  // Ei vaadi request bodya
+  // Palauttaa päivitetyn tiketin
+  ```
+- `PUT /api/tickets/:id/status` - Päivitä tiketin tila ja lisää automaattinen kommentti (vaatii SUPPORT/ADMIN-roolin)
+  ```typescript
+  {
+    status: TicketStatus; // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  }
+
+  // Esimerkki
+  {
+    "status": "RESOLVED"
+  }
+  ```
+- `PUT /api/tickets/:id/transfer` - Siirrä tiketti toiselle tukihenkilölle (vaatii SUPPORT/ADMIN-roolin)
+  ```typescript
+  {
+    targetUserId: string; // Kohdetukihenkilön ID
+  }
+
+  // Esimerkki
+  {
+    "targetUserId": "clsj2n9g0000gtp97zr5lqw4a"
+  }
+
+  // Vastaus
+  {
+    "ticket": {
+      // Päivitetyn tiketin tiedot
+      "id": "...",
+      "assignedToId": "clsj2n9g0000gtp97zr5lqw4a",
+      // ... muut tiketin kentät
+    }
+  }
+  ```
 
 ### Kategoriat
 - `GET /api/categories` - Hae kaikki kategoriat
@@ -528,3 +573,29 @@ npm run build
 - Jos kohtaat ongelmia, sulje kaikki terminaalit ja avaa ne uudelleen
 - `prisma migrate reset` nollaa tietokannan - varmista että sinulla ei ole tärkeää dataa tietokannassa
 - Jos ongelmat jatkuvat, voit aina kloonata projektin uudelleen puhtaaseen kansioon 
+
+### Tiketin käsittely
+
+Tiketin käsittelyssä on seuraavat vaiheet:
+
+1. Tiketin ottaminen käsittelyyn:
+   - Tukihenkilö ottaa tiketin käsittelyyn "Ota käsittelyyn" -napista
+   - Tiketti siirtyy IN_PROGRESS-tilaan
+   - Järjestelmä asettaa käsittelyn aloitusajan ja arvioidun valmistumisajan
+   - Arvioitu valmistumisaika määräytyy prioriteetin mukaan:
+     - CRITICAL: 2 tuntia
+     - HIGH: 4 tuntia
+     - MEDIUM: 8 tuntia
+     - LOW: 24 tuntia
+
+2. Tiketin käsittely:
+   - Tukihenkilö voi:
+     - Vapauttaa tiketin takaisin OPEN-tilaan
+     - Merkitä tiketin ratkaistuksi (RESOLVED)
+     - Sulkea tiketin (CLOSED)
+   - Kaikista tilan muutoksista luodaan automaattinen kommentti
+   - Käsittelyn päättymisaika tallennetaan kun tiketti merkitään ratkaistuksi tai suljetaan
+
+3. Tiketin uudelleen avaaminen:
+   - Ratkaistu tai suljettu tiketti voidaan avata uudelleen IN_PROGRESS-tilaan
+   - Tämä nollaa käsittelyn päättymisajan ja asettaa uuden arvioidun valmistumisajan

@@ -17,7 +17,9 @@ api.interceptors.request.use(async (config) => {
     return config;
   } catch (error) {
     console.error('Error adding auth token to request:', error);
-    return config;
+    // Jos token-virhe, ohjataan käyttäjä kirjautumaan uudelleen
+    await authService.login();
+    throw error;
   }
 });
 
@@ -177,3 +179,75 @@ export const addComment = async (ticketId, content) => {
     throw new Error('Kommentin lisääminen epäonnistui')
   }
 }
+
+// Ota tiketti käsittelyyn
+export const takeTicketIntoProcessing = async (ticketId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/take`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${await authService.acquireToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to take ticket into processing');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error taking ticket into processing:', error);
+    throw error;
+  }
+};
+
+// Vapauta tiketti käsittelystä
+export const releaseTicket = async (ticketId) => {
+  try {
+    const { data } = await api.put(`/tickets/${ticketId}/release`);
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin vapauttaminen epäonnistui');
+    }
+    throw new Error('Tiketin vapauttaminen epäonnistui');
+  }
+};
+
+// Siirrä tiketti toiselle tukihenkilölle
+export const transferTicket = async (ticketId, targetUserId) => {
+  try {
+    const { data } = await api.put(`/tickets/${ticketId}/transfer`, { targetUserId });
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin siirtäminen epäonnistui');
+    }
+    throw new Error('Tiketin siirtäminen epäonnistui');
+  }
+};
+
+// Päivitä tiketin tila
+export const updateTicketStatusWithComment = async (ticketId, status) => {
+  try {
+    const { data } = await api.put(`/tickets/${ticketId}/status`, { status });
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tiketin tilan päivitys epäonnistui');
+    }
+    throw new Error('Tiketin tilan päivitys epäonnistui');
+  }
+};
+
+// Hae tukihenkilöt
+export const fetchSupportUsers = async () => {
+  try {
+    const response = await api.get('/users/support');
+    return response.data;
+  } catch (error) {
+    throw new Error('Tukihenkilöiden hakeminen epäonnistui');
+  }
+};

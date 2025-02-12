@@ -135,4 +135,31 @@ router.put('/role', authMiddleware, async (req, res) => {
   }
 });
 
+// Hae kaikki tukihenkilöt (sallittu tukihenkilöille ja admineille)
+router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.ADMIN]), async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { role: UserRole.SUPPORT },
+          { role: UserRole.ADMIN }
+        ]
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true
+      },
+      orderBy: {
+        name: 'asc'
+      }
+    });
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching support users:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router; 

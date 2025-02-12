@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTicket, addComment } from '../../utils/api';
+import { fetchTicket, addComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
+import { useAuth } from '../../providers/AuthProvider';
+import axios from 'axios';
 import {
   Card,
   CardHeader,
@@ -23,7 +25,9 @@ import CommentSection from '../Tickets/CommentSection';
 
 export default function TicketDetailsModal({ ticketId, onClose }) {
   const [newComment, setNewComment] = useState('');
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
   const queryClient = useQueryClient();
+  const { userRole, user } = useAuth();
 
   const {
     data: ticket,
@@ -33,6 +37,16 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     queryKey: ['ticket', ticketId],
     queryFn: () => fetchTicket(ticketId),
     enabled: !!ticketId,
+  });
+
+  const { data: supportUsers } = useQuery({
+    queryKey: ['support-users'],
+    queryFn: async () => {
+      const data = await fetchSupportUsers();
+      // Näytetään kaikki tukihenkilöt paitsi tiketin nykyinen käsittelijä
+      return data.filter(u => u.id !== ticketData?.assignedToId);
+    },
+    enabled: showTransferDialog,
   });
 
   const addCommentMutation = useMutation({
@@ -50,6 +64,72 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
           },
         };
       });
+      queryClient.invalidateQueries(['ticket', ticketId]);
+    },
+  });
+
+  const takeIntoProcessingMutation = useMutation({
+    mutationFn: () => takeTicketIntoProcessing(ticketId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          ticket: data.ticket,
+        };
+      });
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+      queryClient.invalidateQueries(['ticket', ticketId]);
+    },
+  });
+
+  const releaseTicketMutation = useMutation({
+    mutationFn: () => releaseTicket(ticketId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          ticket: data.ticket,
+        };
+      });
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+      queryClient.invalidateQueries(['ticket', ticketId]);
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status) => updateTicketStatusWithComment(ticketId, status),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          ticket: data.ticket,
+        };
+      });
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+      queryClient.invalidateQueries(['ticket', ticketId]);
+    },
+  });
+
+  const transferTicketMutation = useMutation({
+    mutationFn: ({ targetUserId }) => transferTicket(ticketId, targetUserId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['ticket', ticketId], (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          ticket: data.ticket,
+        };
+      });
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+      queryClient.invalidateQueries(['ticket', ticketId]);
+      setShowTransferDialog(false);
     },
   });
 
@@ -65,6 +145,38 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
       setNewComment('');
     } catch (error) {
       console.error('Virhe kommentin lisäämisessä:', error);
+    }
+  };
+
+  const handleTakeIntoProcessing = async () => {
+    try {
+      await takeIntoProcessingMutation.mutateAsync();
+    } catch (error) {
+      console.error('Error taking ticket into processing:', error);
+    }
+  };
+
+  const handleReleaseTicket = async () => {
+    try {
+      await releaseTicketMutation.mutateAsync();
+    } catch (error) {
+      console.error('Error releasing ticket:', error);
+    }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      await updateStatusMutation.mutateAsync(newStatus);
+    } catch (error) {
+      console.error('Error updating ticket status:', error);
+    }
+  };
+
+  const handleTransferTicket = async (targetUserId) => {
+    try {
+      await transferTicketMutation.mutateAsync({ targetUserId });
+    } catch (error) {
+      console.error('Error transferring ticket:', error);
     }
   };
 
@@ -133,6 +245,27 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     }
   };
 
+  const formatDateTime = (date) => {
+    if (!date) return 'Ei määritelty';
+    return new Date(date).toLocaleString('fi-FI', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const calculateProcessingTime = (startDate, endDate) => {
+    if (!startDate || !endDate) return null;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = end - start;
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}min`;
+  };
+
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -178,6 +311,19 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const PriorityIcon = priorityInfo.icon;
   const statusClass = getStatusBadgeClass(ticketData?.status || 'OPEN');
   const category = ticketData?.category?.name || 'Ei määritelty';
+
+  // Debug tulostukset
+  console.log('User role:', userRole);
+  console.log('User id:', user?.id);
+  console.log('Ticket status:', ticketData?.status);
+  console.log('Ticket assignedToId:', ticketData?.assignedToId);
+  console.log('Should show take button:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'OPEN' && !ticketData?.assignedToId);
+  console.log('Should show control buttons:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'IN_PROGRESS' && (ticketData?.assignedToId === user?.id || userRole === 'ADMIN'));
+
+  const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
+  const isAssignedToUser = ticketData?.assignedToId === user?.id;
+  const canModifyTicket = isSupportOrAdmin && (isAssignedToUser || userRole === 'ADMIN');
+
   const createdBy =
     ticketData?.createdBy?.name ||
     ticketData?.createdBy?.email ||
@@ -208,6 +354,42 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   };
 
   const comments = ticketData?.comments || [];
+
+  const TransferDialog = () => {
+    if (!showTransferDialog) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full">
+          <h3 className="text-lg font-medium mb-4">Siirrä tiketti toiselle tukihenkilölle</h3>
+          <div className="space-y-4">
+            {supportUsers && supportUsers.length > 0 ? (
+              supportUsers.map((user) => (
+                <button
+                  key={user.id}
+                  onClick={() => handleTransferTicket(user.id)}
+                  className="w-full text-left px-4 py-2 rounded hover:bg-gray-100 flex items-center justify-between"
+                >
+                  <span>{user.name}</span>
+                  <span className="text-sm text-gray-500">{user.email}</span>
+                </button>
+              ))
+            ) : (
+              <p className="text-center text-gray-500">Ei muita tukihenkilöitä saatavilla</p>
+            )}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={() => setShowTransferDialog(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+            >
+              Peruuta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -241,26 +423,109 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between w-full">
-              <span className={`px-3 py-1 rounded-full text-sm ${statusClass}`}>
-                {getStatusText(ticketData.status || 'OPEN')}
-              </span>
-              {ticketData.attachment ? (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Liitteet
-                  </h3>
-                  <img
-                    src={ticketData.attachment.url}
-                    alt={ticketData.attachment.filename || 'Liitteen kuva'}
-                    className="w-full max-w-sm rounded-lg"
-                  />
-                  <p className="mt-2 text-sm text-gray-500">
-                    {ticketData.attachment.filename}
-                  </p>
+              <div className="flex items-center space-x-4">
+                <span className={`px-3 py-1 rounded-full text-sm ${statusClass}`}>
+                  {getStatusText(ticketData.status || 'OPEN')}
+                </span>
+                {isSupportOrAdmin && ticketData.status === 'OPEN' && !ticketData.assignedToId && (
+                  <Button
+                    onClick={handleTakeIntoProcessing}
+                    disabled={takeIntoProcessingMutation.isLoading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {takeIntoProcessingMutation.isLoading ? 'Otetaan käsittelyyn...' : 'Ota käsittelyyn'}
+                  </Button>
+                )}
+                {isSupportOrAdmin && 
+                  ticketData.status === 'IN_PROGRESS' && 
+                  (isAssignedToUser || userRole === 'ADMIN') && (
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      onClick={handleReleaseTicket}
+                      disabled={releaseTicketMutation.isLoading}
+                      variant="outline"
+                      size="sm"
+                      className="bg-yellow-50 hover:bg-yellow-100"
+                    >
+                      {releaseTicketMutation.isLoading ? 'Vapautetaan...' : 'Vapauta tiketti'}
+                    </Button>
+                    <Button
+                      onClick={() => setShowTransferDialog(true)}
+                      disabled={transferTicketMutation.isLoading}
+                      variant="outline"
+                      size="sm"
+                      className="bg-blue-50 hover:bg-blue-100"
+                    >
+                      {transferTicketMutation.isLoading ? 'Siirretään...' : 'Siirrä toiselle'}
+                    </Button>
+                    <Button
+                      onClick={() => handleStatusChange('RESOLVED')}
+                      disabled={updateStatusMutation.isLoading}
+                      variant="outline"
+                      size="sm"
+                      className="bg-green-50 hover:bg-green-100"
+                    >
+                      Merkitse ratkaistuksi
+                    </Button>
+                    <Button
+                      onClick={() => handleStatusChange('CLOSED')}
+                      disabled={updateStatusMutation.isLoading}
+                      variant="outline"
+                      size="sm"
+                      className="bg-gray-50 hover:bg-gray-100"
+                    >
+                      Sulje tiketti
+                    </Button>
+                  </div>
+                )}
+                {isSupportOrAdmin && 
+                  (ticketData.status === 'RESOLVED' || ticketData.status === 'CLOSED') && (
+                  <Button
+                    onClick={() => handleStatusChange('IN_PROGRESS')}
+                    disabled={updateStatusMutation.isLoading}
+                    variant="outline"
+                    size="sm"
+                    className="bg-blue-50 hover:bg-blue-100"
+                  >
+                    Avaa tiketti uudelleen
+                  </Button>
+                )}
+              </div>
+              {ticketData.assignedTo && (
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <User className="w-4 h-4" />
+                  <span>Käsittelijä: {ticketData.assignedTo.name}</span>
                 </div>
-              ) : (
-                <div className="text-sm font-medium text-gray-500 ml-auto">
-                  Ei liitteitä
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+              {ticketData.processingStartedAt && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Käsittely aloitettu</h3>
+                  <p>{formatDateTime(ticketData.processingStartedAt)}</p>
+                </div>
+              )}
+              
+              {ticketData.estimatedCompletionTime && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Arvioitu valmistuminen</h3>
+                  <p>{formatDateTime(ticketData.estimatedCompletionTime)}</p>
+                </div>
+              )}
+
+              {ticketData.processingEndedAt && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Käsittely päättynyt</h3>
+                  <p>{formatDateTime(ticketData.processingEndedAt)}</p>
+                </div>
+              )}
+
+              {ticketData.processingStartedAt && ticketData.processingEndedAt && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500">Käsittelyaika</h3>
+                  <p>{calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}</p>
                 </div>
               )}
             </div>
@@ -336,13 +601,14 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
           </CardContent>
 
           <CardFooter className="flex justify-between items-center">
-            <Button variant="outline">Valitse tiketti</Button>
+          
             <Button variant="outline" onClick={onClose}>
               Sulje
             </Button>
           </CardFooter>
         </Card>
       </div>
+      <TransferDialog />
     </div>
   );
 }

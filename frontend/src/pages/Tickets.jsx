@@ -1,49 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { fetchTickets } from '../utils/api';
 import TicketList from '../components/Tickets/TicketList';
 import { Alert } from '../components/ui/Alert';
 import UserManagementDialog from '../components/Admin/UserManagementDialog';
 import FilterMenu from './FilterMenu';
+import { useQuery } from '@tanstack/react-query';
 
 export default function Tickets() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const { user, userRole } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
 
-  // Tikettien lataaminen suodattimilla
-  useEffect(() => {
-    console.log("Haetaan tikettejä seuraavilla suodattimilla:", filters);
-
-    const loadTickets = async (filters = {}) => {
-      try {
-        setLoading(true);
-        const response = await fetchTickets(filters);
-        console.log("Haetut tiketit:", response.tickets);
-        setTickets(response.tickets);
-        setError(null);
-      } catch (err) {
-        console.error('Error loading tickets:', err);
-        setError('Tikettien lataaminen epäonnistui');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user) {
-      loadTickets(filters); // Ladataan tiketit suodattimien kanssa
-    }
-  }, [user, filters]); // Käynnistetään aina kun käyttäjä tai suodattimet muuttuvat
+  const {
+    data: ticketsData,
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['tickets', filters],
+    queryFn: () => fetchTickets(filters),
+    enabled: !!user,
+    refetchInterval: 30000, // Päivitä tiketit automaattisesti 30 sekunnin välein
+  });
 
   // Suodattimien päivitys
   const handleFilterChange = (newFilters) => {
     console.log("Päivitetyt suodattimet:", newFilters);
     setFilters(newFilters);
   };
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <Alert variant="error" title="Virhe" message={error.message} />
+      </div>
+    );
+  }
+
+  const tickets = ticketsData?.tickets || [];
 
   return (
     <div className="container mx-auto p-4">
@@ -76,7 +71,7 @@ export default function Tickets() {
           <p className="text-gray-500">Ei tikettejä</p>
         </div>
       ) : (
-        <TicketList tickets={tickets} />
+        <TicketList tickets={tickets} isLoading={isLoading} error={error} />
       )}
 
       <UserManagementDialog

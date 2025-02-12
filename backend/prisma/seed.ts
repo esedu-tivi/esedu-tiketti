@@ -21,6 +21,14 @@ async function main() {
       },
     });
 
+    const supportUser = await prisma.user.create({
+      data: {
+        email: 'support@example.com',
+        name: 'Support User',
+        role: UserRole.SUPPORT,
+      },
+    });
+
     // Luodaan testikategoriat
     const generalCategory = await prisma.category.create({
       data: {

@@ -36,6 +36,12 @@ export function AuthProvider({ children }) {
       });
       console.log('Received user data:', response.data);
       setUserRole(response.data.role);
+      setUser(prevUser => ({
+        ...prevUser,
+        id: response.data.id,
+        email: response.data.email,
+        name: response.data.name
+      }));
       return response.data.role;
     } catch (error) {
       console.error('Failed to fetch user role:', error);
