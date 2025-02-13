@@ -3,10 +3,12 @@ import * as React from 'react';
 const Card = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={`rounded-lg border bg-card text-card-foreground shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out ${className}`}
+    className={`rounded-lg bg-card text-card-foreground shadow-lg hover:shadow-xl transition-all duration-300 ease-in-out max-h-[80vh] overflow-y-auto ${className}`}
     {...props}
   />
 ));
+
+
 Card.displayName = 'Card';
 
 const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
@@ -37,14 +39,15 @@ const CardDescription = React.forwardRef(({ className, ...props }, ref) => (
 CardDescription.displayName = 'CardDescription';
 
 const CardContent = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} className={`p-6 pt-0 ${className}`} {...props} />
+  <div ref={ref} className={`p-6 pt-8 ${className}`} {...props} />
 ));
+
 CardContent.displayName = 'CardContent';
 
 const CardFooter = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={`flex items-center justify-between p-6 pt-0 border-t border-gray-300 ${className}`}
+    className={`flex items-center justify-between p-4 pt-4 border-t border-gray-300 ${className}`}
     {...props}
   />
 ));

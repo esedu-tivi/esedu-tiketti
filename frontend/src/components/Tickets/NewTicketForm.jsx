@@ -6,7 +6,6 @@ import {
   Card,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardContent,
   CardFooter,
 } from '../ui/Card';
@@ -25,7 +24,7 @@ import {
   SelectValue,
 } from '../ui/Select';
 
-export default function NewTicketForm() {
+export default function NewTicketForm({ onClose }) {
   const [formData, setFormData] = React.useState({
     subject: '',
     device: '',
@@ -51,7 +50,9 @@ export default function NewTicketForm() {
     onSuccess: () => {
       queryClient.invalidateQueries(['tickets']);
       setFormSubmitted(true);
-      setTimeout(() => navigate('/'), 2000);
+      setTimeout(() => {
+        onClose();
+      }, 2000);
     },
     onError: (err) => {
       setError(err.message || 'Tiketin luonti epäonnistui');
@@ -160,176 +161,195 @@ export default function NewTicketForm() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl">Uusi tiketti</CardTitle>
-        <CardDescription>Täytä tiedot</CardDescription>
-      </CardHeader>
+    <div
+      id="modal-background"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+        <div
+          className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto relative "
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Card className="border-none shadow-none ">
+            <CardHeader className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
+              <div className="flex justify-between items-center">
+              <CardTitle className="text-center w-full">
+                  Uusi tiketti
+                </CardTitle>
 
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-6">
-          {error && (
-            <Alert className="bg-red-50 border-red-200">
-              <AlertTriangle className="w-4 h-4 text-red-600" />
-              <AlertDescription className="text-red-600">
-                {error}
-              </AlertDescription>
-            </Alert>
-          )}
+              
+              </div>
+            
+            </CardHeader>
+    
+            <form onSubmit={handleSubmit}>
+              <CardContent>
+                {error && (
+                  <Alert className="bg-red-50 border-red-200">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <AlertDescription className="text-red-600">
+                      {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-          <div className="space-y-2">
-            <Label htmlFor="subject">Tiketin aihe *</Label>
-            <Input
-              id="subject"
-              value={formData.subject}
-              onChange={handleChange('subject')}
-              required
-              placeholder="Ongelma?"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="subject">Tiketin aihe *</Label>
+              <Input
+                id="subject"
+                value={formData.subject}
+                onChange={handleChange('subject')}
+                required
+                placeholder="Mitä ongelmasi koskee?"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Kategoria *</Label>
-            <Select
-              value={formData.categoryId}
-              onValueChange={handleCategoryChange}
-              required
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Valitse kategoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories?.categories?.map((category) => (
-                  <SelectItem key={category.id} value={category.id}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Kategoria *</Label>
+              <Select
+                value={formData.categoryId}
+                onValueChange={handleCategoryChange}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Valitse kategoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories?.categories?.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="contentType">
-              Missä muodossa haluat vastauksen? *
-            </Label>
-            <Select
-              value={formData.contentType}
-              onValueChange={handleContentTypeChange}
-              required
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Valitse muoto" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="text">Teksti</SelectItem>
-                <SelectItem value="image">Kuva</SelectItem>
-                <SelectItem value="video">Video</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="contentType">
+                Missä muodossa haluat vastauksen? *
+              </Label>
+              <Select
+                value={formData.contentType}
+                onValueChange={handleContentTypeChange}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Valitse muoto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Teksti</SelectItem>
+                  <SelectItem value="image">Kuva</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="device">Laite</Label>
-            <Input
-              id="device"
-              value={formData.device}
-              onChange={handleChange('device')}
-              placeholder="Laitteen nimi (esim.TEST1234-1)"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="device">Laite</Label>
+              <Input
+                id="device"
+                value={formData.device}
+                onChange={handleChange('device')}
+                placeholder="Laitteen nimi (esim.TEST1234-1)"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Ongelman kuvaus *</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={handleChange('description')}
-              required
-              placeholder="Kuvaile ongelmasi mahdollisimman tarkasti"
-              className="min-h-[100px]"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Ongelman kuvaus *</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={handleChange('description')}
+                required
+                placeholder="Kuvaile ongelmasi mahdollisimman tarkasti"
+                className="min-h-[100px]"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="additionalInfo">Lisätiedot</Label>
-            <Textarea
-              id="additionalInfo"
-              value={formData.additionalInfo}
-              onChange={handleChange('additionalInfo')}
-              placeholder="Syötä mahdolliset lisätiedot"
-              className="min-h-[80px]"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="additionalInfo">Lisätiedot</Label>
+              <Textarea
+                id="additionalInfo"
+                value={formData.additionalInfo}
+                onChange={handleChange('additionalInfo')}
+                placeholder="Syötä mahdolliset lisätiedot"
+                className="min-h-[80px]"
+              />
+            </div>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <Label>Prioriteetti</Label>
-              <div className="flex items-center space-x-2">
+            <div className="space-y-6 mb-6">
+            <div className="grid grid-cols-3 items-center w-full">
+              <Label className="col-span-1">Prioriteetti</Label>
+              <div className="col-span-1 flex justify-center items-center gap-1">
                 <PriorityIcon className={`w-4 h-4 ${priorityInfo.color}`} />
                 <span className={`text-sm ${priorityInfo.color}`}>
                   {priorityInfo.text}
                 </span>
               </div>
+              <div className="col-span-1"></div>
             </div>
-            <div className="relative pt-6">
-              <Slider
-                value={[formData.priority]}
-                min={1}
-                max={4}
-                step={1}
-                onValueChange={handlePriorityChange}
-                className="w-full"
-              />
-              <div className="absolute left-0 right-0 -top-2 flex justify-between text-sm text-gray-500">
-                <span className="text-green-600">Matala</span>
-                <span className="text-yellow-600">Normaali</span>
-                <span className="text-orange-600">Korkea</span>
-                <span className="text-red-600">Kriittinen</span>
+
+              <div className="relative pt-6 ">
+                <Slider
+                  value={[formData.priority]}
+                  min={1}
+                  max={4}
+                  step={1}
+                  onValueChange={handlePriorityChange}
+                  className="w-full"
+                />
+                <div className="absolute left-0 right-0 -top-2 flex justify-between text-sm text-gray-500">
+                  <span className="text-green-600">Matala</span>
+                  <span className="text-yellow-600">Normaali</span>
+                  <span className="text-orange-600">Korkea</span>
+                  <span className="text-red-600">Kriittinen</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="attachment">Lisää liite (screenshotit ym.)</Label>
-            <Input
-              id="attachment"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            {formData.attachment && (
-              <p className="text-sm text-gray-500">
-                Valittu tiedosto: {formData.attachment.name}
-              </p>
-            )}
-          </div>
-        </CardContent>
+            <div className="space-y-2 ">
+              <Label htmlFor="attachment">Lisää liite</Label>
+              <Input
+                id="attachment"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+              {formData.attachment && (
+                <p className="text-sm text-gray-500  bg-gray-100 p-4">
+                  Valittu tiedosto: {formData.attachment.name}
+                </p>
+              )}
+            </div>
+          </CardContent>
 
-        <CardFooter className="flex justify-between">
-          <Button
-            type="submit"
-            disabled={mutation.isPending || categoriesLoading}
-            className="w-32"
-          >
-            {mutation.isPending ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Luodaan...
-              </>
-            ) : (
-              'Luo tiketti'
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate('/')}
-            disabled={mutation.isPending}
-          >
-            Peruuta
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+          <CardFooter className="flex justify-between">
+            <Button
+              type="submit"
+              disabled={mutation.isPending || categoriesLoading}
+              className="w-32"
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Luodaan...
+                </>
+              ) : (
+                'Luo tiketti'
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={mutation.isPending}
+            >
+              Peruuta
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+      </div>
+    </div>
   );
 }
