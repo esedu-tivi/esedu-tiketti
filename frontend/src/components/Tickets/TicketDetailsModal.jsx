@@ -628,21 +628,23 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="border-none shadow-none">
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-2xl">
+          <CardHeader className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
+            <div className="flex justify-between items-center">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl font-semibold tracking-tight">
                   {ticketData.title || 'Ei määritelty'}
                 </CardTitle>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm opacity-80">
                   Tiketti #{ticketData.id || 'Ei määritelty'}
                 </p>
               </div>
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${priorityInfo.color}`}>
-                <PriorityIcon className="w-4 h-4" />
+
+              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 border-blue-500 ${priorityInfo.color}`}>
+                <PriorityIcon className="w-6 h-6" />
                 <span className="text-sm font-medium">{priorityInfo.text}</span>
               </div>
             </div>
+            
           </CardHeader>
 
           <CardContent className="space-y-6">

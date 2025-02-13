@@ -7,12 +7,17 @@ import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../Notifications/NotificationBell';
 import { UserCircle } from 'lucide-react';
+import  NewTicketForm from '../Tickets/NewTicketForm';
+
+
 
 export default function Header() {
   const { user, userRole, logout } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const navigate = useNavigate();
+  const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
+
 
   // Tarkistaa onko käyttäjällä hallintaoikeudet (admin tai tukihenkilö)
   const hasManagementRights = userRole === 'ADMIN' || userRole === 'SUPPORT';
@@ -71,12 +76,13 @@ export default function Header() {
                     </Link>
                   )}
 
-                  <Link
-                    to="/new-ticket"
-                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    Uusi tiketti
-                  </Link>
+                <button
+                  onClick={() => setIsNewTicketOpen(true)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Uusi tiketti
+                </button>
+
 
                   {isSupportOrAdmin && (
                     <Link
@@ -161,6 +167,22 @@ export default function Header() {
         isOpen={isUserManagementOpen}
         onClose={() => setIsUserManagementOpen(false)}
       />
+
+
+          {isNewTicketOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+              <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full relative">
+                <button
+                  onClick={() => setIsNewTicketOpen(false)}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                >
+                  ✖
+                </button>
+                <NewTicketForm onClose={() => setIsNewTicketOpen(false)} />
+              </div>
+            </div>
+          )}
+
     </header>
   );
 }

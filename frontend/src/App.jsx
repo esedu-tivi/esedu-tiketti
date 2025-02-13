@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Header from './components/Layout/Header'
-import NewTicketForm from './components/Tickets/NewTicketForm'
 import Tickets from './pages/Tickets'
 import Login from './pages/Login'
 import AuthGuard from './components/auth/AuthGuard'
@@ -43,16 +42,7 @@ function App() {
             </AuthGuard>
           } />
           
-          <Route path="/new-ticket" element={
-            <AuthGuard>
-              <>
-                <Header />
-                <main className="container mx-auto px-4 py-8">
-                  <NewTicketForm />
-                </main>
-              </>
-            </AuthGuard>
-          } />
+        
 
           {/* Tukihenkilöiden työnäkymä */}
           <Route path="/my-work" element={
