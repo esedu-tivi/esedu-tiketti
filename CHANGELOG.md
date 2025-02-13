@@ -2,6 +2,49 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 13.02.2024
+
+### Added
+- Lisätty tukihenkilöiden työnäkymä:
+  - Kaksi välilehteä:
+    - "Käsittelyssä" - näyttää tukihenkilön omat käsittelyssä olevat tiketit
+    - "Avoimet tiketit" - näyttää kaikki avoimet tiketit, joita ei ole otettu käsittelyyn
+  - Automaattinen päivitys 30 sekunnin välein
+  - Selkeä välilehtinäkymä tikettien määrillä
+- Lisätty syötteen validointi (Zod):
+  - Tiketin validointi:
+    - title: String (5-100 merkkiä)
+    - description: String (10-2000 merkkiä)
+    - device: String (max 100 merkkiä), valinnainen
+    - additionalInfo: String (max 1000 merkkiä), valinnainen, voi olla null
+    - priority: Enum ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+    - categoryId: UUID
+    - responseFormat: Enum ('TEKSTI', 'KUVA', 'VIDEO'), oletuksena 'TEKSTI'
+  - Kommentin validointi:
+    - content: String (1-1000 merkkiä)
+  - HTML-sanitointi kaikille syötteille
+- Lisätty kommentoinnin rajoitukset:
+  - Estetty kommentointi kun tiketti on ratkaistu tai suljettu
+  - Tukihenkilö voi kommentoida vain ottaessaan tiketin käsittelyyn
+  - Vain tiketin käsittelijä voi kommentoida käsittelyssä olevaa tikettiä
+  - Tiketin luoja voi aina kommentoida (paitsi kun tiketti on suljettu/ratkaistu)
+
+### Changed
+- Parannettu backendin arkkitehtuuria:
+  - Selkeämpi vastuunjako tiedostojen välillä
+  - Express-asetukset keskitetty app.ts:ään
+  - Palvelimen käynnistys siirretty index.ts:ään
+  - Middleware-komponenttien järjestely
+- Päivitetty validointia:
+  - Lisätty tuki null-arvoille additionalInfo-kentässä
+  - Lisätty oletusarvo responseFormat-kentälle
+
+
+### Fixed
+- Korjattu tiketin luonnin validointi:
+  - Lisätty puuttuva responseFormat-kentän validointi
+  - Korjattu additionalInfo-kentän null-arvojen käsittely
+
 # 12.02.2025
 
 ### Added

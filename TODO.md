@@ -31,21 +31,21 @@
 - [x] Tikettien listausnäkymä
   - [x] Omat tiketit -näkymä
   - [x] Hallintapaneelin tikettinäkymä
-  - [ ] Suodatus kategorian mukaan
-  - [ ] Suodatus tilan mukaan
-  - [ ] Suodatus prioriteetin mukaan
-  - [ ] Järjestäminen
+  - [x] Suodatus kategorian mukaan
+  - [x] Suodatus tilan mukaan
+  - [x] Suodatus prioriteetin mukaan
+  - [x] Järjestäminen
   - [ ] Hakutoiminto
 - [x] Tiketin yksityiskohtanäkymä
   - [x] Perustiedot
-  - [ ] Tilan muuttaminen
-  - [ ] Vastuuhenkilön asettaminen
-  - [ ] Kategorian muuttaminen
+  - [x] Tilan muuttaminen
+  - [x] Vastuuhenkilön asettaminen
+  - [x] Kategorian muuttaminen
 
 ### Kommentit
-- [ ] Kommenttien käyttöliittymä
-  - [ ] Listaus tiketissä
-  - [ ] Lisäys
+- [x] Kommenttien käyttöliittymä
+  - [x] Listaus tiketissä
+  - [x] Lisäys
   - [ ] Muokkaus (vain omat kommentit)
   - [ ] Poisto (vain omat kommentit)
 
@@ -75,8 +75,8 @@
 - [x] Kategorioiden hallinta
   - [x] Kategorioiden haku
   - [x] Kategorioiden luonti (seed)
-- [ ] Kommenttien CRUD-operaatiot
-  - [ ] Kommenttien luonti
+- [x] Kommenttien CRUD-operaatiot
+  - [x] Kommenttien luonti
   - [ ] Kommenttien haku
   - [ ] Kommenttien päivitys
   - [ ] Kommenttien poisto

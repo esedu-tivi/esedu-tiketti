@@ -596,6 +596,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 setNewComment={setNewComment}
                 handleAddComment={handleAddComment}
                 addCommentMutation={addCommentMutation}
+                ticket={ticketData}
               />
             </div>
           </CardContent>

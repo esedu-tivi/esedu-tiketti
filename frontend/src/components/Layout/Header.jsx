@@ -4,11 +4,13 @@ import axios from 'axios';
 import { useState } from 'react';
 import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
+import { useNavigate } from 'react-router-dom';
 
 export default function Header() {
   const { user, userRole, logout } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Tarkistaa onko käyttäjällä hallintaoikeudet (admin tai tukihenkilö)
   const hasManagementRights = userRole === 'ADMIN' || userRole === 'SUPPORT';
@@ -36,6 +38,8 @@ export default function Header() {
     }
   };
 
+  const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
+
   return (
     <header className="bg-white shadow">
       <div className="container mx-auto px-4">
@@ -54,6 +58,17 @@ export default function Header() {
                   >
                     Omat tiketit
                   </Link>
+
+                  {/* Näytetään työnäkymä tukihenkilöille ja admineille */}
+                  {isSupportOrAdmin && (
+                    <Link
+                      to="/my-work"
+                      className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Työnäkymä
+                    </Link>
+                  )}
+
                   <Link
                     to="/new-ticket"
                     className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
@@ -61,15 +76,13 @@ export default function Header() {
                     Uusi tiketti
                   </Link>
 
-                  {hasManagementRights && (
-                    <>
-                      <Link
-                        to="/admin"
-                        className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                      >
-                        Hallintapaneeli
-                      </Link>
-                    </>
+                  {isSupportOrAdmin && (
+                    <Link
+                      to="/admin"
+                      className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Hallintapaneeli
+                    </Link>
                   )}
                 </>
               )}

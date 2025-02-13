@@ -184,9 +184,77 @@ export const ticketService = {
     });
   },
 
-  // Tiketin kommentointi
+  // Lisää kommentti tikettiin
   addCommentToTicket: async (ticketId: string, content: string, userId: string) => {
-    return prisma.comment.create({
+    // Haetaan tiketti ja tarkistetaan sen tila
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        comments: true,
+        assignedTo: true
+      }
+    });
+
+    if (!ticket) {
+      throw new Error('Tikettiä ei löydy');
+    }
+
+    // Haetaan käyttäjä
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new Error('Käyttäjää ei löydy');
+    }
+
+    // Tarkistetaan kommentointioikeudet
+    if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+      throw new Error('Tiketti on ratkaistu tai suljettu - kommentointi ei ole mahdollista');
+    }
+
+    // Jos käyttäjä on tiketin luoja, saa aina kommentoida (paitsi jos tiketti on suljettu/ratkaistu)
+    if (ticket.createdById === userId) {
+      return await prisma.comment.create({
+        data: {
+          content,
+          ticket: { connect: { id: ticketId } },
+          author: { connect: { id: userId } }
+        },
+        include: {
+          author: true
+        }
+      });
+    }
+
+    // Jos käyttäjä on tukihenkilö tai admin
+    if (user.role === 'SUPPORT' || user.role === 'ADMIN') {
+      // Admin voi aina kommentoida
+      if (user.role === 'ADMIN') {
+        return await prisma.comment.create({
+          data: {
+            content,
+            ticket: { connect: { id: ticketId } },
+            author: { connect: { id: userId } }
+          },
+          include: {
+            author: true
+          }
+        });
+      }
+
+      // Tukihenkilö voi kommentoida vain jos tiketti on käsittelyssä ja hän on tiketin käsittelijä
+      if (ticket.status === 'OPEN') {
+        throw new Error('Ota tiketti ensin käsittelyyn kommentoidaksesi');
+      }
+
+      if (ticket.status === 'IN_PROGRESS' && ticket.assignedToId !== userId) {
+        throw new Error('Vain tiketin käsittelijä voi kommentoida');
+      }
+    }
+
+    // Jos kaikki tarkistukset menivät läpi, luodaan kommentti
+    return await prisma.comment.create({
       data: {
         content,
         ticket: { connect: { id: ticketId } },
@@ -197,5 +265,4 @@ export const ticketService = {
       }
     });
   }
-  
 };

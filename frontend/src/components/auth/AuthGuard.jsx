@@ -12,6 +12,13 @@ export default function AuthGuard({ children, requiredRole }) {
   const hasRequiredRole = () => {
     if (!requiredRole) return true;
     if (userRole === 'ADMIN') return true;
+
+    // Jos requiredRole on taulukko, tarkista onko käyttäjän rooli jokin sallituista
+    if (Array.isArray(requiredRole)) {
+      return requiredRole.includes(userRole);
+    }
+
+    // Vanhat tarkistukset string-muotoisille rooleille
     if (requiredRole === 'ADMIN') return userRole === 'ADMIN';
     if (requiredRole === 'MANAGEMENT')
       return userRole === 'ADMIN' || userRole === 'SUPPORT';

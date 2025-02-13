@@ -64,7 +64,7 @@ export const ticketController = {
           }
         }
       });
-      console.log('Tickets fetched:', tickets);
+      //console.log('Tickets fetched:', tickets);
   
       res.json({ tickets });
     } catch (error) {
@@ -221,7 +221,7 @@ export const ticketController = {
           createdAt: 'desc'
         }
       });
-      console.log('Tickets fetched:', tickets);
+      //console.log('Tickets fetched:', tickets);
 
       res.json({ tickets });
     } catch (error) {
@@ -297,8 +297,16 @@ export const ticketController = {
         return res.status(401).json({ error: 'Käyttäjää ei löydy' });
       }
 
-      const comment = await ticketService.addCommentToTicket(id, content, user.id);
-      res.status(201).json(comment);
+      try {
+        const comment = await ticketService.addCommentToTicket(id, content, user.id);
+        res.status(201).json(comment);
+      } catch (error) {
+        // Jos virhe on businesslogiikasta (esim. ei oikeuksia), palautetaan 403
+        if (error instanceof Error) {
+          return res.status(403).json({ error: error.message });
+        }
+        throw error; // Heitetään muut virheet catch-lohkoon
+      }
     } catch (error) {
       console.error('Virhe kommentin lisäämisessä:', error);
       res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });

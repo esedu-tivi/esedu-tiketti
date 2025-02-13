@@ -599,3 +599,79 @@ Tiketin käsittelyssä on seuraavat vaiheet:
 3. Tiketin uudelleen avaaminen:
    - Ratkaistu tai suljettu tiketti voidaan avata uudelleen IN_PROGRESS-tilaan
    - Tämä nollaa käsittelyn päättymisajan ja asettaa uuden arvioidun valmistumisajan
+
+### Tukihenkilöiden työnäkymä
+
+Tukihenkilöillä ja admineilla on käytössään erillinen työnäkymä `/my-work` osoitteessa:
+
+1. Käsittelyssä-välilehti:
+   - Näyttää vain tiketit, jotka ovat tilassa IN_PROGRESS ja osoitettu kyseiselle tukihenkilölle
+   - Päivittyy automaattisesti 30 sekunnin välein
+   - Näyttää tikettien määrän välilehden otsikossa
+
+2. Avoimet tiketit-välilehti:
+   - Näyttää kaikki tiketit, jotka ovat OPEN-tilassa ja joita ei ole osoitettu kenellekään
+   - Päivittyy automaattisesti 30 sekunnin välein
+   - Näyttää avoimien tikettien määrän välilehden otsikossa
+
+### Kommentoinnin rajoitukset
+
+Tikettien kommentoinnissa on seuraavat rajoitukset:
+
+1. Tiketin luoja:
+   - Voi kommentoida tikettiä aina kun se on OPEN tai IN_PROGRESS tilassa
+   - Ei voi kommentoida kun tiketti on RESOLVED tai CLOSED
+
+2. Tukihenkilö:
+   - Voi kommentoida vain tikettejä, jotka ovat IN_PROGRESS tilassa ja osoitettu hänelle
+   - Ei voi kommentoida OPEN-tilassa olevia tikettejä ennen kuin ottaa ne käsittelyyn
+   - Ei voi kommentoida toisen tukihenkilön käsittelyssä olevia tikettejä
+
+3. Admin:
+   - Voi kommentoida kaikkia tikettejä paitsi RESOLVED tai CLOSED tilassa olevia
+
+### Syötteiden validointi
+
+Kaikki syötteet validoidaan ja sanitoidaan automaattisesti:
+
+1. Tiketin luonti ja päivitys:
+   ```typescript
+   {
+     title: string;       // 5-100 merkkiä
+     description: string; // 10-2000 merkkiä
+     device?: string;     // max 100 merkkiä, valinnainen
+     additionalInfo?: string | null; // max 1000 merkkiä, valinnainen
+     priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+     categoryId: string;  // UUID-muotoinen
+     responseFormat?: "TEKSTI" | "KUVA" | "VIDEO"; // oletuksena "TEKSTI"
+   }
+   ```
+
+2. Kommentin lisäys:
+   ```typescript
+   {
+     content: string; // 1-1000 merkkiä
+   }
+   ```
+
+3. Turvallisuus:
+   - Kaikki HTML-koodi poistetaan syötteistä automaattisesti
+   - Erikoismerkit muunnetaan turvalliseen muotoon
+   - Virheelliset syötteet hylätään automaattisesti
+
+### Virheviestit
+
+Validointivirheistä palautetaan selkokieliset virheilmoitukset:
+
+```typescript
+// Esimerkkejä virheistä
+{
+  error: "Otsikon pitää olla vähintään 5 merkkiä"
+}
+{
+  error: "Kuvaus on liian pitkä (max 2000 merkkiä)"
+}
+{
+  error: "Virheellinen kategoria ID"
+}
+```

@@ -4,19 +4,29 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 import { requireRole, requireOwnership } from '../middleware/roleMiddleware.js';
 import { canModifyTicket } from '../middleware/checkRole.js';
 import { UserRole } from '@prisma/client';
+import { validateTicket, validateComment } from '../middleware/validationMiddleware.js';
 
 const router = express.Router();
 
 // Julkiset reitit (vaativat vain autentikaation)
-router.post('/', authMiddleware, ticketController.createTicket);
-router.post('/:id/comments', authMiddleware, ticketController.addCommentToTicket);
+router.post('/', 
+  authMiddleware, 
+  validateTicket,
+  ticketController.createTicket
+);
+
+router.post('/:id/comments', 
+  authMiddleware, 
+  validateComment,
+  ticketController.addCommentToTicket
+);
 
 // Käyttäjän omat tiketit
 router.get('/my-tickets', authMiddleware, ticketController.getMyTickets);
 
 // Reitit jotka vaativat omistajuuden tai admin-oikeudet
 router.get('/:id', authMiddleware, requireOwnership, ticketController.getTicketById);
-router.put('/:id', authMiddleware, requireOwnership, ticketController.updateTicket);
+router.put('/:id', authMiddleware, requireOwnership, validateTicket, ticketController.updateTicket);
 router.delete('/:id', authMiddleware, requireOwnership, ticketController.deleteTicket);
 
 // Management-tason reitit (admin ja tukihenkilöt)

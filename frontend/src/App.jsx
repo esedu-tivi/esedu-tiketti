@@ -7,6 +7,7 @@ import AuthGuard from './components/auth/AuthGuard'
 import MyTickets from './pages/MyTickets'
 import Unauthorized from './pages/Unauthorized'
 import './styles/globals.css';
+import MyWorkView from './pages/MyWorkView';
 
 function App() {
   return (
@@ -46,9 +47,19 @@ function App() {
               </>
             </AuthGuard>
           } />
-          
-        
 
+          {/* Tukihenkilöiden työnäkymä */}
+          <Route path="/my-work" element={
+            <AuthGuard requiredRole={['SUPPORT', 'ADMIN']}>
+              <>
+                <Header />
+                <main>
+                  <MyWorkView />
+                </main>
+              </>
+            </AuthGuard>
+          } />
+        
           {/* Hallintareitit (admin ja tukihenkilöt) */}
           <Route path="/admin" element={
             <AuthGuard requiredRole="MANAGEMENT">

@@ -1,18 +1,58 @@
+import React from 'react';
 import { useState } from 'react';
 import { User, Calendar } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import { Textarea } from '../ui/TextArea';
+import { useAuth } from '../../providers/AuthProvider';
 
-function CommentSection({
+export default function CommentSection({
   comments,
   newComment,
   setNewComment,
   handleAddComment,
   addCommentMutation,
+  ticket
 }) {
+  const { user, userRole } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  const canComment = () => {
+    if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+      return false;
+    }
+
+    if (ticket.createdById === user?.id) {
+      return true;
+    }
+
+    if (userRole === 'SUPPORT' || userRole === 'ADMIN') {
+      return (
+        userRole === 'ADMIN' ||
+        (ticket.status === 'IN_PROGRESS' && ticket.assignedToId === user?.id)
+      );
+    }
+
+    return true;
+  };
+
+  const getCommentDisabledMessage = () => {
+    if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+      return 'Tiketti on ratkaistu tai suljettu - kommentointi ei ole mahdollista';
+    }
+    if ((userRole === 'SUPPORT' || userRole === 'ADMIN') && 
+        ticket.status === 'OPEN' && 
+        userRole !== 'ADMIN') {
+      return 'Ota tiketti ensin käsittelyyn kommentoidaksesi';
+    }
+    if (userRole === 'SUPPORT' && 
+        ticket.status === 'IN_PROGRESS' && 
+        ticket.assignedToId !== user?.id) {
+      return 'Vain tiketin käsittelijä voi kommentoida';
+    }
+    return '';
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,7 +107,12 @@ function CommentSection({
 
       <div className="mt-4 flex space-x-2">
         {!showForm ? (
-          <Button variant="outline" onClick={() => setShowForm(true)}>
+          <Button 
+            variant="outline" 
+            onClick={() => setShowForm(true)}
+            disabled={!canComment()}
+            title={!canComment() ? getCommentDisabledMessage() : undefined}
+          >
             + Lisää kommentti
           </Button>
         ) : (
@@ -81,7 +126,7 @@ function CommentSection({
             </Button>
             <Button
               type="submit"
-              disabled={addCommentMutation.isLoading || !newComment.trim()}
+              disabled={!canComment() || addCommentMutation.isLoading || !newComment.trim()}
               onClick={handleSubmit}
             >
               {addCommentMutation.isLoading ? 'Lisätään...' : 'Lisää kommentti'}
@@ -98,11 +143,16 @@ function CommentSection({
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="Kirjoita kommentti..."
+            disabled={!canComment()}
           />
         </form>
+      )}
+
+      {!canComment() && (
+        <div className="text-sm text-gray-500 italic p-2 bg-gray-50 rounded">
+          {getCommentDisabledMessage()}
+        </div>
       )}
     </div>
   );
 }
-
-export default CommentSection;
