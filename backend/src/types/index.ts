@@ -69,4 +69,24 @@ export interface UpdateUserDTO {
   email?: string;
   name?: string;
   role?: string;
+}
+
+export type NotificationType = 
+  | 'TICKET_ASSIGNED'
+  | 'COMMENT_ADDED'
+  | 'STATUS_CHANGED'
+  | 'PRIORITY_CHANGED'
+  | 'MENTIONED'
+  | 'DEADLINE_APPROACHING';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  content: string;
+  read: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+  ticketId?: string;
+  metadata?: Record<string, any>;
 } 

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ticketService } from '../services/ticketService.js';
 import { TypedRequest, CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
 import { PrismaClient, TicketStatus, Priority, UserRole } from '@prisma/client';
+import { createNotification } from './notificationController.js';
 
 const prisma = new PrismaClient();
 
@@ -245,6 +246,14 @@ export const ticketController = {
         return res.status(404).json({ error: 'Ticket not found' });
       }
 
+      // Create notification for the ticket creator
+      await createNotification(
+        ticket.createdById,
+        'STATUS_CHANGED',
+        `Tiketin "${ticket.title}" tila on muuttunut: ${status}`,
+        ticket.id
+      );
+
       res.json({ ticket });
     } catch (error) {
       console.error('Error updating ticket status:', error);
@@ -266,6 +275,14 @@ export const ticketController = {
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket not found' });
       }
+
+      // Create notification for the assigned user
+      await createNotification(
+        assignedToId,
+        'TICKET_ASSIGNED',
+        `Sinulle on osoitettu uusi tiketti: ${ticket.title}`,
+        ticket.id
+      );
 
       res.json({ ticket });
     } catch (error) {
@@ -298,7 +315,76 @@ export const ticketController = {
       }
 
       try {
-        const comment = await ticketService.addCommentToTicket(id, content, user.id);
+        // Etsi @-maininnat kommentista
+        const mentionRegex = /@([a-zA-Z0-9äöåÄÖÅ\s]+)/g;
+        const mentions = content.match(mentionRegex) || [];
+        const mentionedNames = mentions.map((mention: string) => mention.slice(1).trim()); // Poista @-merkki
+
+        console.log('Found mentions:', mentionedNames);
+
+        // Hae mainitut käyttäjät
+        const mentionedUsers = await prisma.user.findMany({
+          where: {
+            OR: mentionedNames.map((name: string) => ({
+              name: {
+                equals: name,
+                mode: 'insensitive'  // Case-insensitive haku
+              }
+            }))
+          }
+        });
+
+        console.log('Found mentioned users:', mentionedUsers);
+
+        // Luo kommentti
+        const comment = await prisma.comment.create({
+          data: {
+            content,
+            ticket: { connect: { id } },
+            author: { connect: { id: user.id } }
+          },
+          include: {
+            author: true,
+            ticket: {
+              select: {
+                title: true,
+                createdById: true
+              }
+            }
+          }
+        });
+
+        console.log('Created comment:', comment);
+
+        // Lähetä ilmoitus tiketin luojalle, jos kommentoija on eri henkilö
+        if (comment.ticket && comment.ticket.createdById !== user.id) {
+          const creatorNotification = await createNotification(
+            comment.ticket.createdById,
+            'COMMENT_ADDED',
+            `Uusi kommentti tiketissä "${comment.ticket.title}"`,
+            id,
+            { commentId: comment.id }
+          );
+          console.log('Created notification for ticket creator:', creatorNotification);
+        }
+
+        // Lähetä ilmoitukset mainituille käyttäjille
+        for (const mentionedUser of mentionedUsers) {
+          console.log('Creating mention notification for user:', mentionedUser.email);
+          const mentionNotification = await createNotification(
+            mentionedUser.id,
+            'MENTIONED',
+            `${user.name} mainitsi sinut kommentissa tiketissä "${comment.ticket?.title}"`,
+            id,
+            { 
+              commentId: comment.id,
+              mentionedBy: user.name,
+              mentionedByEmail: user.email
+            }
+          );
+          console.log('Created mention notification:', mentionNotification);
+        }
+
         res.status(201).json(comment);
       } catch (error) {
         // Jos virhe on businesslogiikasta (esim. ei oikeuksia), palautetaan 403
@@ -410,6 +496,14 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Create notification for the assigned user
+      await createNotification(
+        user.id,
+        'TICKET_ASSIGNED',
+        `Sinulle on osoitettu uusi tiketti: ${updatedTicket.title}`,
+        updatedTicket.id
+      );
+
       res.json({ ticket: updatedTicket });
     } catch (error) {
       console.error('Error taking ticket into processing:', error);
@@ -492,6 +586,14 @@ export const ticketController = {
 
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
+
+      // Create notification for the ticket creator
+      await createNotification(
+        ticket.createdById,
+        'STATUS_CHANGED',
+        `Tiketin "${ticket.title}" tila on muuttunut: OPEN`,
+        ticket.id
+      );
 
       res.json({ ticket: updatedTicket });
     } catch (error) {
@@ -623,6 +725,14 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Create notification for the ticket creator
+      await createNotification(
+        ticket.createdById,
+        'STATUS_CHANGED',
+        `Tiketin "${ticket.title}" tila on muuttunut: ${status}`,
+        ticket.id
+      );
+
       res.json({ ticket: updatedTicket });
     } catch (error) {
       console.error('Error updating ticket status:', error);
@@ -744,10 +854,49 @@ export const ticketController = {
       // Lisää uudet kommentit tiketin tietoihin
       updatedTicket.comments.push(userComment, systemComment);
 
+      // Create notification for the assigned user
+      await createNotification(
+        targetUserId,
+        'TICKET_ASSIGNED',
+        `Sinulle on osoitettu uusi tiketti: ${updatedTicket.title}`,
+        updatedTicket.id
+      );
+
       res.json({ ticket: updatedTicket });
     } catch (error) {
       console.error('Error transferring ticket:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  // When updating ticket priority
+  updateTicketPriority: async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { priority } = req.body;
+
+    try {
+      const ticket = await prisma.ticket.update({
+        where: { id },
+        data: { priority },
+        include: {
+          assignedTo: true,
+        },
+      });
+
+      // Create notification for assigned user if exists
+      if (ticket.assignedToId) {
+        await createNotification(
+          ticket.assignedToId,
+          'PRIORITY_CHANGED',
+          `Tiketin "${ticket.title}" prioriteetti on muuttunut: ${priority}`,
+          ticket.id
+        );
+      }
+
+      res.json(ticket);
+    } catch (error) {
+      console.error('Error updating ticket priority:', error);
+      res.status(500).json({ error: 'Failed to update ticket priority' });
     }
   }
 };

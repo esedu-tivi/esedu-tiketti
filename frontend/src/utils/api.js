@@ -251,3 +251,89 @@ export const fetchSupportUsers = async () => {
     throw new Error('Tukihenkilöiden hakeminen epäonnistui');
   }
 };
+
+// Notification API calls
+export const getNotifications = async () => {
+  try {
+    const { data } = await api.get('/notifications');
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to fetch notifications');
+    }
+    throw new Error('Failed to fetch notifications');
+  }
+};
+
+export const getUnreadNotificationCount = async () => {
+  try {
+    const { data } = await api.get('/notifications/unread/count');
+    return data.count;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to fetch unread count');
+    }
+    throw new Error('Failed to fetch unread count');
+  }
+};
+
+export const markNotificationAsRead = async (id) => {
+  try {
+    const { data } = await api.put(`/notifications/${id}/read`);
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to mark notification as read');
+    }
+    throw new Error('Failed to mark notification as read');
+  }
+};
+
+export const markAllNotificationsAsRead = async () => {
+  try {
+    const { data } = await api.put('/notifications/read/all');
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to mark all notifications as read');
+    }
+    throw new Error('Failed to mark all notifications as read');
+  }
+};
+
+export const deleteNotification = async (id) => {
+  try {
+    const { data } = await api.delete(`/notifications/${id}`);
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to delete notification');
+    }
+    throw new Error('Failed to delete notification');
+  }
+};
+
+// Notification settings API calls
+export const getNotificationSettings = async () => {
+  try {
+    const { data } = await api.get('/notification-settings');
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to fetch notification settings');
+    }
+    throw new Error('Failed to fetch notification settings');
+  }
+};
+
+export const updateNotificationSettings = async (settings) => {
+  try {
+    const { data } = await api.put('/notification-settings', settings);
+    return data;
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Failed to update notification settings');
+    }
+    throw new Error('Failed to update notification settings');
+  }
+};

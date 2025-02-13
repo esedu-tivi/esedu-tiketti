@@ -1,3 +1,28 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+
+/* Mention styles */
+.mention {
+  color: #4F46E5;
+  background-color: rgba(79, 70, 229, 0.1);
+  border-radius: 4px;
+  padding: 1px 2px;
+  font-weight: 500;
+}
+
+/* Comment mention styles */
+.comment-content .mention {
+  display: inline-block;
+  color: #4F46E5;
+  background-color: rgba(79, 70, 229, 0.1);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.comment-content .mention:hover {
+  background-color: rgba(79, 70, 229, 0.2);
+  text-decoration: underline;
+}

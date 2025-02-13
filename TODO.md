@@ -46,18 +46,36 @@
 - [x] Kommenttien käyttöliittymä
   - [x] Listaus tiketissä
   - [x] Lisäys
+  - [x] @-maininta toiminnallisuus
+  - [x] Automaattinen käyttäjien ehdotus
   - [ ] Muokkaus (vain omat kommentit)
   - [ ] Poisto (vain omat kommentit)
+
+### Ilmoitusjärjestelmä
+- [x] Reaaliaikaiset ilmoitukset
+  - [x] WebSocket-integraatio
+  - [x] Ilmoitusten hallintapaneeli
+  - [x] Ilmoitusten merkitseminen luetuiksi
+  - [x] Ilmoitusten poistaminen
+- [x] Ilmoitusasetukset
+  - [x] Selainilmoitukset
+  - [x] Mukautettavat ilmoitustyypit
+  - [ ] Sähköposti-ilmoitukset
+- [x] Profiilisivu
+  - [x] Käyttäjän perustiedot
+  - [x] Ilmoitusasetusten hallinta
 
 ### UI/UX
 - [x] Käyttöliittymän peruskomponentit
   - [x] Shadcn/ui komponenttikirjasto
   - [x] Select-komponentti
   - [x] Form-komponentit
+  - [x] Toast-ilmoitukset (React Hot Toast)
 - [ ] Käyttöliittymän parannukset
   - [x] Responsiivisuus
   - [x] Latausanimaatiot (React Query)
   - [x] Virheilmoitukset (React Query)
+  - [x] Ilmoitusten ulkoasu
   - [ ] Tumma teema
   - [ ] Käyttöliittymän kieliversiot (FI/EN)
 
@@ -84,6 +102,21 @@
   - [x] Käyttäjien haku
   - [x] Käyttäjien päivitys (roolit)
   - [ ] Käyttäjien poisto
+
+### WebSocket ja ilmoitukset
+- [x] WebSocket-integraatio
+  - [x] Socket.IO palvelin
+  - [x] Autentikointi WebSocket-yhteydelle
+  - [x] Yhteyden uudelleenyhdistäminen
+- [x] Ilmoitusten hallinta
+  - [x] Ilmoitusten luonti
+  - [x] Ilmoitusten haku
+  - [x] Ilmoitusten merkitseminen luetuiksi
+  - [x] Ilmoitusten poistaminen
+- [x] Ilmoitusasetusten hallinta
+  - [x] Asetusten tallennus
+  - [x] Asetusten haku
+  - [x] Oletusasetusten luonti
 
 ### Testaus ja laadunvarmistus
 - [ ] API-testit (Jest)

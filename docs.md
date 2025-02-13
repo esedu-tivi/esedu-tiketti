@@ -152,6 +152,8 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `role`: UserRole - Rooli (ADMIN, SUPPORT, USER)
 - `createdAt`: DateTime - Luontiaika
 - `updatedAt`: DateTime - Viimeisin päivitysaika
+- `notifications`: Notification[] - Käyttäjän ilmoitukset
+- `notificationSettings`: NotificationSettings? - Käyttäjän ilmoitusasetukset
 
 ### Comment (Kommentti)
 - `id`: String (UUID) - Kommentin yksilöllinen tunniste
@@ -160,6 +162,31 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `updatedAt`: DateTime - Viimeisin päivitysaika
 - `ticketId`: String - Tiketin tunniste
 - `authorId`: String - Kirjoittajan tunniste
+
+### Notification (Ilmoitus)
+- `id`: String (UUID) - Ilmoituksen yksilöllinen tunniste
+- `type`: NotificationType - Ilmoituksen tyyppi (TICKET_ASSIGNED, COMMENT_ADDED, STATUS_CHANGED, PRIORITY_CHANGED, MENTIONED, DEADLINE_APPROACHING)
+- `content`: String - Ilmoituksen sisältö
+- `read`: Boolean - Onko ilmoitus luettu
+- `createdAt`: DateTime - Luontiaika
+- `updatedAt`: DateTime - Viimeisin päivitysaika
+- `userId`: String - Käyttäjän tunniste
+- `ticketId`: String? - Tiketin tunniste (valinnainen)
+- `metadata`: Json? - Lisätiedot (valinnainen)
+
+### NotificationSettings (Ilmoitusasetukset)
+- `id`: String (UUID) - Asetusten yksilöllinen tunniste
+- `userId`: String - Käyttäjän tunniste
+- `emailNotifications`: Boolean - Sähköposti-ilmoitukset käytössä
+- `webNotifications`: Boolean - Selainilmoitukset käytössä
+- `notifyOnAssigned`: Boolean - Ilmoita kun tiketti osoitetaan
+- `notifyOnStatusChange`: Boolean - Ilmoita tilamuutoksista
+- `notifyOnComment`: Boolean - Ilmoita uusista kommenteista
+- `notifyOnPriority`: Boolean - Ilmoita prioriteettimuutoksista
+- `notifyOnMention`: Boolean - Ilmoita @-maininnoista
+- `notifyOnDeadline`: Boolean - Ilmoita deadlinesta
+- `createdAt`: DateTime - Luontiaika
+- `updatedAt`: DateTime - Viimeisin päivitysaika
 
 ## Tietokannan hallinta
 
@@ -367,6 +394,29 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   // Esimerkki
   {
     "role": "SUPPORT"
+  }
+  ```
+
+### Ilmoitukset
+- `GET /api/notifications` - Hae käyttäjän ilmoitukset
+- `GET /api/notifications/unread/count` - Hae lukemattomien ilmoitusten määrä
+- `PUT /api/notifications/:id/read` - Merkitse ilmoitus luetuksi
+- `PUT /api/notifications/read/all` - Merkitse kaikki ilmoitukset luetuiksi
+- `DELETE /api/notifications/:id` - Poista ilmoitus
+
+### Ilmoitusasetukset
+- `GET /api/notification-settings` - Hae käyttäjän ilmoitusasetukset
+- `PUT /api/notification-settings` - Päivitä ilmoitusasetuksia
+  ```typescript
+  {
+    emailNotifications?: boolean;
+    webNotifications?: boolean;
+    notifyOnAssigned?: boolean;
+    notifyOnStatusChange?: boolean;
+    notifyOnComment?: boolean;
+    notifyOnPriority?: boolean;
+    notifyOnMention?: boolean;
+    notifyOnDeadline?: boolean;
   }
   ```
 
@@ -701,5 +751,64 @@ Validointivirheistä palautetaan selkokieliset virheilmoitukset:
 }
 {
   error: "Virheellinen kategoria ID"
+}
+```
+
+## WebSocket-yhteydet
+
+### Yhteyden muodostaminen
+Frontend muodostaa WebSocket-yhteyden Socket.IO:n avulla:
+```javascript
+const socket = io(baseUrl, {
+  auth: { token: 'Bearer [JWT-token]' },
+  transports: ['websocket'],
+  path: '/socket.io/',
+  reconnection: true
+});
+```
+
+### Tapahtumat
+- `notification` - Uusi ilmoitus käyttäjälle
+  ```typescript
+  {
+    id: string;
+    type: NotificationType;
+    content: string;
+    ticketId?: string;
+    metadata?: Record<string, any>;
+    timestamp: string;
+  }
+  ```
+
+### Virheenkäsittely
+- Yhteyden katketessa Socket.IO yrittää automaattisesti yhdistää uudelleen
+- Yhteyden tila päivitetään käyttöliittymään
+- Offline-tilassa ilmoitukset tallennetaan ja näytetään kun yhteys palautuu
+
+## Kommenttien @-maininta
+
+### Toiminnallisuus
+- Käyttäjät voidaan mainita kommenteissa @-merkillä
+- Automaattinen käyttäjien ehdotus kirjoitettaessa
+- Mainitut käyttäjät saavat ilmoituksen
+- Maininnat korostetaan visuaalisesti
+
+### Käyttö
+```typescript
+// Kommentti jossa maininta
+const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
+
+// Maininta laukaisee ilmoituksen
+// NotificationType.MENTIONED
+```
+
+### Tyylimäärittelyt
+```css
+.mention {
+  color: #4F46E5;
+  background-color: rgba(79, 70, 229, 0.1);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-weight: 500;
 }
 ```

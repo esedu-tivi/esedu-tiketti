@@ -29,6 +29,7 @@ const ticketSchema = z.object({
   device: z
     .string()
     .max(100, 'Laitteen nimi on liian pitkä')
+    .nullable()
     .optional()
     .transform((val) => val ? sanitizeHtml(val) : val),
   additionalInfo: z

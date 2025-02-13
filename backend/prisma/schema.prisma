@@ -17,6 +17,8 @@ model User {
   comments        Comment[]
   assignedTickets Ticket[]  @relation("AssignedTickets")
   tickets         Ticket[]  @relation("CreatedTickets")
+  notifications   Notification[]
+  notificationSettings NotificationSettings?
 }
 
 model Ticket {
@@ -37,6 +39,7 @@ model Ticket {
   assignedToId   String?
   categoryId     String
   comments       Comment[]
+  notifications  Notification[]
   assignedTo     User?          @relation("AssignedTickets", fields: [assignedToId], references: [id])
   category       Category       @relation(fields: [categoryId], references: [id])
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
@@ -87,4 +90,46 @@ enum ResponseFormat {
   TEKSTI
   KUVA
   VIDEO
+}
+
+enum NotificationType {
+  TICKET_ASSIGNED
+  COMMENT_ADDED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  MENTIONED
+  DEADLINE_APPROACHING
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  type      NotificationType
+  content   String
+  read      Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  userId    String
+  ticketId  String?
+  metadata  Json?           // For additional flexible data storage
+  user      User            @relation(fields: [userId], references: [id])
+  ticket    Ticket?         @relation(fields: [ticketId], references: [id])
+
+  @@index([userId])
+  @@index([ticketId])
+}
+
+model NotificationSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  emailNotifications    Boolean  @default(true)
+  webNotifications     Boolean  @default(true)
+  notifyOnAssigned     Boolean  @default(true)
+  notifyOnStatusChange Boolean  @default(true)
+  notifyOnComment      Boolean  @default(true)
+  notifyOnPriority     Boolean  @default(true)
+  notifyOnMention      Boolean  @default(true)
+  notifyOnDeadline     Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id])
 }

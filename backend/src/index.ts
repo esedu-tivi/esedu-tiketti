@@ -1,7 +1,7 @@
-import app from './app.js';
+import { httpServer } from './app.js';
 
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
-app.listen(port, () => {
-  console.log(`Palvelin käynnissä portissa ${port}`);
+httpServer.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
 }); 

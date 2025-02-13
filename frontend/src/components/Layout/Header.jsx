@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
+import NotificationBell from '../Notifications/NotificationBell';
+import { UserCircle } from 'lucide-react';
 
 export default function Header() {
   const { user, userRole, logout } = useAuth();
@@ -122,26 +124,26 @@ export default function Header() {
                   </button>
                 )}
 
-                <span className="text-sm text-gray-700">
-                  {user.name || user.email}
-                  {userRole && (
-                    <span className="ml-2 text-xs text-gray-500">
-                      (
-                      {userRole === 'SUPPORT'
-                        ? 'Tukihenkilö'
-                        : userRole === 'ADMIN'
-                          ? 'Admin'
-                          : 'Opiskelija'}
-                      )
-                    </span>
-                  )}
-                </span>
-                <button
-                  onClick={logout}
-                  className="rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-                >
-                  Kirjaudu ulos
-                </button>
+                <NotificationBell />
+
+                <div className="ml-4 flex items-center gap-3">
+                  <Link
+                    to="/profile"
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md transition-colors"
+                  >
+                    <UserCircle className="w-5 h-5" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium">{user.name}</span>
+                      <span className="text-xs">Hallinnoi profiilia</span>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={logout}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded"
+                  >
+                    Kirjaudu ulos
+                  </button>
+                </div>
               </>
             ) : (
               <Link

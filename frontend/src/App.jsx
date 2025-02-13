@@ -8,11 +8,17 @@ import MyTickets from './pages/MyTickets'
 import Unauthorized from './pages/Unauthorized'
 import './styles/globals.css';
 import MyWorkView from './pages/MyWorkView';
+import { Toaster } from 'react-hot-toast';
+import { useAuth } from './providers/AuthProvider';
+import ProfileView from './pages/ProfileView';
 
 function App() {
+  const { userRole } = useAuth();
+  const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
+
   return (
     <Router>
-      <div className="app">
+      <div className="min-h-screen bg-gray-50">
         <Routes>
           {/* Julkiset reitit */}
           <Route path="/login" element={<Login />} />
@@ -30,7 +36,7 @@ function App() {
             <AuthGuard>
               <>
                 <Header />
-                <main>
+                <main className="container mx-auto px-4 py-8">
                   <MyTickets />
                 </main>
               </>
@@ -41,7 +47,7 @@ function App() {
             <AuthGuard>
               <>
                 <Header />
-                <main>
+                <main className="container mx-auto px-4 py-8">
                   <NewTicketForm />
                 </main>
               </>
@@ -53,7 +59,7 @@ function App() {
             <AuthGuard requiredRole={['SUPPORT', 'ADMIN']}>
               <>
                 <Header />
-                <main>
+                <main className="container mx-auto px-4 py-8">
                   <MyWorkView />
                 </main>
               </>
@@ -65,7 +71,7 @@ function App() {
             <AuthGuard requiredRole="MANAGEMENT">
               <>
                 <Header />
-                <main>
+                <main className="container mx-auto px-4 py-8">
                   <Tickets />
                 </main>
               </>
@@ -76,8 +82,19 @@ function App() {
             <AuthGuard requiredRole="MANAGEMENT">
               <>
                 <Header />
-                <main>
+                <main className="container mx-auto px-4 py-8">
                   <Tickets />
+                </main>
+              </>
+            </AuthGuard>
+          } />
+
+          <Route path="/profile" element={
+            <AuthGuard>
+              <>
+                <Header />
+                <main className="container mx-auto px-4 py-8">
+                  <ProfileView />
                 </main>
               </>
             </AuthGuard>
@@ -89,6 +106,31 @@ function App() {
           } />
         </Routes>
       </div>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 5000,
+          style: {
+            background: '#fff',
+            color: '#363636',
+            padding: '16px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#4F46E5',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#EF4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
     </Router>
   );
 }

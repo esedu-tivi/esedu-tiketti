@@ -2,6 +2,54 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 13.02.2025 part 3
+
+### Added
+- Lisätty ilmoitusjärjestelmä:
+  - Reaaliaikaiset ilmoitukset WebSocket-yhteyden kautta
+  - Ilmoitukset seuraavista tapahtumista:
+    - Tiketin osoitus käsittelijälle
+    - Uusi kommentti tiketissä
+    - Tiketin tilan muutos
+    - Tiketin prioriteetin muutos
+    - @-maininta kommentissa
+    - Deadline lähestyy (tulossa)
+  - Ilmoitusten hallintapaneeli kellokuvakkeen takana
+  - Ilmoitusten merkitseminen luetuiksi
+  - Ilmoitusten poistaminen
+- Lisätty ilmoitusasetukset:
+  - Selainilmoitusten hallinta
+  - Sähköposti-ilmoitusten hallinta (tulossa)
+  - Yksityiskohtaiset asetukset eri ilmoitustyypeille
+  - Asetukset tallennetaan käyttäjäkohtaisesti
+- Lisätty profiilisivu:
+  - Käyttäjän perustiedot
+  - Ilmoitusasetusten hallinta
+  - Selkeämpi pääsy profiilisivulle headerissa
+- Lisätty @-maininta kommentteihin:
+  - Käyttäjien mainitseminen @-merkillä
+  - Automaattinen käyttäjien ehdotus kirjoitettaessa
+  - Visuaalinen korostus mainituille käyttäjille
+  - Ilmoitus mainituille käyttäjille
+
+### Changed
+- Päivitetty käyttöliittymää:
+  - Selkeämpi profiilipainike headerissa
+  - Paranneltu ilmoitusten ulkoasua
+  - Lisätty tooltippejä käyttöliittymän elementteihin
+- Vaihdettu toast-kirjasto react-toastify:stä react-hot-toast:iin
+- Parannettu ilmoitusten käsittelyä:
+  - Ilmoitukset näytetään vain jos käyttäjä on sallinut ne
+  - Duplikaatti-ilmoitusten esto
+  - Parempi virheenkäsittely
+
+### Fixed
+- Korjattu tiketin luonnin validointi:
+  - Laite-kenttä ei ole enää pakollinen
+  - Null-arvojen oikea käsittely
+- Korjattu ilmoitusten toiminta offline-tilassa
+- Korjattu WebSocket-yhteyden uudelleenyhdistäminen
+
 # 13.02.2024 part 2
 
 ### Added

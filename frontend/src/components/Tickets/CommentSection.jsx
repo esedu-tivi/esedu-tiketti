@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { User, Calendar } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
-import { Textarea } from '../ui/TextArea';
+import MentionInput from '../MentionInput';
 import { useAuth } from '../../providers/AuthProvider';
 
 // Lisätään mukautettu värimääritys
@@ -12,6 +12,13 @@ const SUPPORT_COLOR = {
   bgLight: 'bg-[#92C01F]/10',
   text: 'text-[#92C01F]',
   border: 'border-[#92C01F]/20'
+};
+
+const formatCommentContent = (content) => {
+  const mentionRegex = /@[a-zA-ZäöåÄÖÅ\s]+/g;
+  return content.replace(mentionRegex, (match) => {
+    return `<span class="mention">${match}</span>`;
+  });
 };
 
 export default function CommentSection({
@@ -99,7 +106,10 @@ export default function CommentSection({
             const styles = getCommentStyle(comment);
             return (
               <div key={comment.id} className={`p-3 rounded-lg border ${styles.container}`}>
-                <p className={`text-sm ${styles.text}`}>{comment.content}</p>
+                <p 
+                  className={`text-sm ${styles.text} comment-content`}
+                  dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
+                />
                 <div className="text-xs mt-1 flex items-center space-x-2">
                   <User className={`w-3 h-3 ${styles.text}`} />
                   <span className={styles.author}>
@@ -163,12 +173,10 @@ export default function CommentSection({
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <Label htmlFor="new-comment">Lisää kommentti</Label>
-          <Textarea
-            id="new-comment"
+          <MentionInput
             value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Kirjoita kommentti..."
-            disabled={!canComment()}
+            onChange={(value) => setNewComment(value)}
+            placeholder="Kirjoita kommentti... Käytä @-merkkiä mainitaksesi käyttäjän"
           />
         </form>
       )}
