@@ -19,13 +19,28 @@ import {
   User,
   Calendar,
   MessageSquare,
+  Clock,
+  Lock,
+  ArrowRight,
+  Circle,
+  ChevronDown,
+  ChevronUp,
+  History,
 } from 'lucide-react';
 
 import CommentSection from '../Tickets/CommentSection';
 
+const SUPPORT_COLOR = {
+  bg: 'bg-[#92C01F]',
+  bgLight: 'bg-[#92C01F]/10',
+  text: 'text-[#92C01F]',
+  border: 'border-[#92C01F]/20'
+};
+
 export default function TicketDetailsModal({ ticketId, onClose }) {
   const [newComment, setNewComment] = useState('');
   const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const queryClient = useQueryClient();
   const { userRole, user } = useAuth();
 
@@ -215,45 +230,92 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     }
   };
 
-  const getStatusBadgeClass = (status) => {
+  const getStatusInfo = (status) => {
     switch (status) {
       case 'OPEN':
-        return 'bg-blue-100 text-blue-800';
+        return {
+          color: 'bg-blue-100 text-blue-800',
+          icon: AlertTriangle,
+          text: 'Avoin',
+          animation: 'animate-pulse'
+        };
       case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-800';
+        return {
+          color: 'bg-yellow-100 text-yellow-800',
+          icon: Clock,
+          text: 'Käsittelyssä',
+          animation: 'animate-bounce'
+        };
       case 'RESOLVED':
-        return 'bg-green-100 text-green-800';
+        return {
+          color: 'bg-green-100 text-green-800',
+          icon: Check,
+          text: 'Ratkaistu',
+          animation: 'animate-fade-in'
+        };
       case 'CLOSED':
-        return 'bg-gray-100 text-gray-800';
+        return {
+          color: 'bg-gray-100 text-gray-800',
+          icon: Lock,
+          text: 'Suljettu',
+          animation: ''
+        };
       default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'OPEN':
-        return 'Avoin';
-      case 'IN_PROGRESS':
-        return 'Käsittelyssä';
-      case 'RESOLVED':
-        return 'Ratkaistu';
-      case 'CLOSED':
-        return 'Suljettu';
-      default:
-        return status;
+        return {
+          color: 'bg-gray-100 text-gray-800',
+          icon: InfoIcon,
+          text: status,
+          animation: ''
+        };
     }
   };
 
   const formatDateTime = (date) => {
     if (!date) return 'Ei määritelty';
-    return new Date(date).toLocaleString('fi-FI', {
+    const formattedDate = new Date(date).toLocaleString('fi-FI', {
       day: 'numeric',
       month: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
+    const timeAgo = formatTimeAgo(date);
+    return `${formattedDate} (${timeAgo})`;
+  };
+
+  const formatTimeAgo = (date, isEstimate = false) => {
+    const now = new Date();
+    const target = new Date(date);
+    const diffInSeconds = Math.floor((now - target) / 1000);
+    
+    // Jos kyseessä on arvioitu aika, käytetään eri formaattia
+    if (isEstimate) {
+      if (diffInSeconds < 0) {
+        const absDiff = Math.abs(diffInSeconds);
+        if (absDiff < 3600) return `${Math.ceil(absDiff / 60)} min`;
+        if (absDiff < 86400) return `${Math.ceil(absDiff / 3600)} h`;
+        return `${Math.ceil(absDiff / 86400)} pv`;
+      }
+      return 'Ylitetty';
+    }
+    
+    // Normaalit aikaleimät
+    if (diffInSeconds < 30) return 'juuri nyt';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min sitten`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} h sitten`;
+    return `${Math.floor(diffInSeconds / 86400)} pv sitten`;
+  };
+
+  const calculateTimeLeft = (estimatedTime) => {
+    if (!estimatedTime) return null;
+    const now = new Date();
+    const estimated = new Date(estimatedTime);
+    const diffInSeconds = Math.floor((estimated - now) / 1000);
+    
+    if (diffInSeconds < 0) return 'Ylitetty';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} h`;
+    return `${Math.floor(diffInSeconds / 86400)} pv`;
   };
 
   const calculateProcessingTime = (startDate, endDate) => {
@@ -308,8 +370,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
   const ticketData = ticket.ticket;
   const priorityInfo = getPriorityInfo(ticketData?.priority || 'MEDIUM');
+  const statusInfo = getStatusInfo(ticketData?.status || 'OPEN');
   const PriorityIcon = priorityInfo.icon;
-  const statusClass = getStatusBadgeClass(ticketData?.status || 'OPEN');
+  const StatusIcon = statusInfo.icon;
+  const timeLeft = calculateTimeLeft(ticketData.estimatedCompletionTime);
   const category = ticketData?.category?.name || 'Ei määritelty';
 
   // Debug tulostukset
@@ -391,6 +455,168 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     );
   };
 
+  const Timeline = () => {
+    // Yhdistetään kaikki tapahtumat yhteen aikajanaan
+    const allEvents = [
+      {
+        id: 'creation',
+        type: 'system',
+        date: ticketData.createdAt,
+        icon: Calendar,
+        color: 'blue',
+        title: 'Tiketti luotu',
+        details: `Luonut: ${ticketData.createdBy?.name}`,
+        isSystemEvent: true,
+        isSystemMessage: true
+      },
+      ...(ticketData.processingStartedAt ? [{
+        id: 'start',
+        type: 'system',
+        date: ticketData.processingStartedAt,
+        icon: Clock,
+        color: 'yellow',
+        title: 'Otettu käsittelyyn',
+        details: ticketData.assignedTo ? `Käsittelijä: ${ticketData.assignedTo.name}` : null,
+        isSystemEvent: true,
+        isSystemMessage: true
+      }] : []),
+      // Järjestelmän automaattiset kommentit
+      ...comments
+        .filter(comment => comment.author?.email === 'system@esedu.fi')
+        .map(comment => {
+          // Määritellään värit viestin sisällön perusteella
+          let color = 'gray';
+          let isSystemMessage = true;
+          
+          // Tulostetaan viestin sisältö debuggausta varten
+          console.log('System message content:', comment.content);
+          
+          if (comment.content.includes('IN_PROGRESS')) {
+            color = 'yellow';
+          } else if (comment.content.includes('RESOLVED')) {
+            color = 'green';
+          } else if (comment.content.includes('CLOSED')) {
+            color = 'gray';
+          } else if (comment.content.includes('vapautettu')) {
+            color = 'blue';
+          } else if (comment.content.includes('käsittelijä vaihdettu:') || comment.content.includes('→')) {
+            color = 'transfer';
+          }
+          
+          return {
+            id: comment.id,
+            type: 'system',
+            date: comment.createdAt,
+            icon: MessageSquare,
+            color,
+            title: 'Järjestelmäviesti',
+            details: comment.content,
+            isSystemEvent: true,
+            isSystemMessage
+          };
+        }),
+      // Käyttäjien kommentit pienemmässä koossa
+      ...comments
+        .filter(comment => comment.author?.email !== 'system@esedu.fi')
+        .map(comment => {
+          const isCreator = comment.author?.id === ticketData.createdById;
+          return {
+            id: comment.id,
+            type: 'comment',
+            date: comment.createdAt,
+            icon: MessageSquare,
+            color: 'gray',
+            title: isCreator ? 'Käyttäjän kommentti' : 'Tukihenkilön kommentti',
+            details: comment.content,
+            author: comment.author?.name,
+            isSystemEvent: false,
+            customColors: !isCreator ? SUPPORT_COLOR : null
+          };
+        }),
+      ...(ticketData.processingEndedAt ? [{
+        id: 'end',
+        type: 'system',
+        date: ticketData.processingEndedAt,
+        icon: Check,
+        color: 'green',
+        title: 'Käsittely päättynyt',
+        details: `Tila: ${ticketData.status}${ticketData.processingStartedAt ? 
+          ` • Käsittelyaika: ${calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}` : ''}`,
+        isSystemEvent: true,
+        isSystemMessage: true
+      }] : [])
+    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const systemEventsCount = allEvents.filter(e => e.isSystemEvent).length;
+    const commentCount = allEvents.filter(e => !e.isSystemEvent).length;
+
+    return (
+      <div className="mt-8">
+        <button
+          onClick={() => setShowTimeline(!showTimeline)}
+          className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-gray-600" />
+            <span className="font-medium text-gray-700">Tiketin tapahtumahistoria</span>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500">({systemEventsCount} tapahtumaa</span>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-500">{commentCount} kommenttia)</span>
+            </div>
+          </div>
+          {showTimeline ? (
+            <ChevronUp className="w-5 h-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-500" />
+          )}
+        </button>
+
+        {showTimeline && (
+          <div className="mt-4 relative pl-8 space-y-4 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+            {allEvents.map((event, index) => {
+              const Icon = event.icon;
+              return (
+                <div key={event.id} className={`relative animate-fadeIn ${!event.isSystemEvent ? 'pl-4' : ''}`}>
+                  <Circle className={`absolute -left-10 w-4 h-4 ${
+                    event.customColors ? event.customColors.text : `text-${event.color === 'transfer' ? 'transfer-500' : `${event.color}-500`}`
+                  } fill-white ${!event.isSystemEvent ? 'w-3 h-3' : ''}`} />
+                  <div className={`${
+                    event.customColors 
+                      ? `bg-[#92C01F]/10 border border-gray-200` 
+                      : event.isSystemEvent 
+                        ? `${event.color === 'transfer' ? 'bg-transfer-50 border-transfer-200' : `bg-${event.color}-50 border-${event.color}-200`} shadow-sm` 
+                        : `bg-gray-50 border border-gray-200`
+                  } p-${event.isSystemEvent ? '4' : '3'} rounded-lg`}>
+                    <div className={`flex items-center gap-2 text-sm ${
+                      event.customColors ? 'text-gray-700' : event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-700' : `text-${event.color}-700`}` : `text-${event.color}-700`
+                    }`}>
+                      <Icon className={`${event.isSystemEvent ? 'w-4 h-4' : 'w-3.5 h-3.5'} ${event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : ''}`} />
+                      <span className={`${event.isSystemEvent ? 'font-medium' : ''}`}>{event.title}</span>
+                      <span className={event.customColors ? 'text-gray-500' : event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : `text-${event.color}-500`}>•</span>
+                      <span className={`${!event.isSystemEvent ? 'text-xs' : ''} ${event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : ''}`}>{formatDateTime(event.date)}</span>
+                    </div>
+                    {event.details && (
+                      <div className={`mt-1 ${event.isSystemEvent ? 'text-sm' : 'text-xs'} ${
+                        event.customColors ? 'text-gray-700' : event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : `text-${event.color}-600`
+                      }`}>
+                        {event.author && <span className="font-medium text-gray-900">{event.author}: </span>}
+                        {event.details}
+                      </div>
+                    )}
+                  </div>
+                  {index < allEvents.length - 1 && (
+                    <div className="absolute -left-8 top-8 bottom-0 w-0.5 bg-gray-200" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       id="modal-background"
@@ -412,11 +638,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                   Tiketti #{ticketData.id || 'Ei määritelty'}
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
-                <PriorityIcon className={`w-4 h-4 ${priorityInfo.color}`} />
-                <span className={`text-sm ${priorityInfo.color}`}>
-                  {priorityInfo.text}
-                </span>
+              <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${priorityInfo.color}`}>
+                <PriorityIcon className="w-4 h-4" />
+                <span className="text-sm font-medium">{priorityInfo.text}</span>
               </div>
             </div>
           </CardHeader>
@@ -424,9 +648,23 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
           <CardContent className="space-y-6">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center space-x-4">
-                <span className={`px-3 py-1 rounded-full text-sm ${statusClass}`}>
-                  {getStatusText(ticketData.status || 'OPEN')}
-                </span>
+                <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusInfo.color} ${statusInfo.animation}`}>
+                  <StatusIcon className="w-4 h-4" />
+                  <span className="text-sm font-medium">{statusInfo.text}</span>
+                </div>
+                {ticketData.createdById === user?.id && 
+                 ticketData.status !== 'CLOSED' && 
+                 ticketData.status !== 'RESOLVED' && (
+                  <Button
+                    onClick={() => handleStatusChange('CLOSED')}
+                    disabled={updateStatusMutation.isLoading}
+                    variant="outline"
+                    size="sm"
+                    className="bg-gray-50 hover:bg-gray-100"
+                  >
+                    {updateStatusMutation.isLoading ? 'Suljetaan...' : 'Sulje tiketti'}
+                  </Button>
+                )}
                 {isSupportOrAdmin && ticketData.status === 'OPEN' && !ticketData.assignedToId && (
                   <Button
                     onClick={handleTakeIntoProcessing}
@@ -493,7 +731,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 )}
               </div>
               {ticketData.assignedTo && (
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="flex items-center space-x-2 text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
                   <User className="w-4 h-4" />
                   <span>Käsittelijä: {ticketData.assignedTo.name}</span>
                 </div>
@@ -502,30 +740,45 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
             <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
               {ticketData.processingStartedAt && (
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-sm font-medium text-gray-500">Käsittely aloitettu</h3>
-                  <p>{formatDateTime(ticketData.processingStartedAt)}</p>
+                  <p className="text-sm">{formatDateTime(ticketData.processingStartedAt)}</p>
                 </div>
               )}
               
               {ticketData.estimatedCompletionTime && (
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-sm font-medium text-gray-500">Arvioitu valmistuminen</h3>
-                  <p>{formatDateTime(ticketData.estimatedCompletionTime)}</p>
+                  <p className="text-sm">
+                    {new Date(ticketData.estimatedCompletionTime).toLocaleString('fi-FI', {
+                      day: 'numeric',
+                      month: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    {timeLeft && (
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                        timeLeft === 'Ylitetty' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                      }`}>
+                        {timeLeft}
+              </span>
+                    )}
+                  </p>
                 </div>
               )}
 
               {ticketData.processingEndedAt && (
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-sm font-medium text-gray-500">Käsittely päättynyt</h3>
-                  <p>{formatDateTime(ticketData.processingEndedAt)}</p>
+                  <p className="text-sm">{formatDateTime(ticketData.processingEndedAt)}</p>
                 </div>
               )}
 
               {ticketData.processingStartedAt && ticketData.processingEndedAt && (
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-sm font-medium text-gray-500">Käsittelyaika</h3>
-                  <p>{calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}</p>
+                  <p className="text-sm">{calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}</p>
                 </div>
               )}
             </div>
@@ -589,9 +842,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-500">Kommentit</h3>
+              <h3 className="text-sm font-medium text-gray-500">Keskustelu</h3>
               <CommentSection
-                comments={comments}
+                comments={comments.filter(comment => comment.author?.email !== 'system@esedu.fi')}
                 newComment={newComment}
                 setNewComment={setNewComment}
                 handleAddComment={handleAddComment}
@@ -599,10 +852,11 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 ticket={ticketData}
               />
             </div>
+
+            <Timeline />
           </CardContent>
 
           <CardFooter className="flex justify-between items-center">
-          
             <Button variant="outline" onClick={onClose}>
               Sulje
             </Button>

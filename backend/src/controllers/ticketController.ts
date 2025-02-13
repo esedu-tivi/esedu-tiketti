@@ -542,6 +542,9 @@ export const ticketController = {
             error: 'Only support personnel or admin can reopen tickets'
           });
         }
+      } else if (status === TicketStatus.CLOSED && ticket.createdById === user.id) {
+        // Tiketin luoja voi sulkea oman tikettinsä
+        // Jatketaan suoraan eteenpäin
       } else if (ticket.assignedToId !== user.id && user.role !== UserRole.ADMIN) {
         // Muissa tapauksissa vain tiketin käsittelijä tai admin voi muuttaa tilaa
         return res.status(403).json({ 
@@ -685,8 +688,19 @@ export const ticketController = {
         });
       }
 
-      // Päivitä tiketin käsittelijä ja lisää kommentti
-      const [updatedTicket, comment] = await prisma.$transaction([
+      // Hae tai luo järjestelmäkäyttäjä automaattisia kommentteja varten
+      const systemUser = await prisma.user.upsert({
+        where: { email: 'system@esedu.fi' },
+        update: {},
+        create: {
+          email: 'system@esedu.fi',
+          name: 'Järjestelmä',
+          role: UserRole.ADMIN
+        }
+      });
+
+      // Päivitä tiketin käsittelijä ja lisää kommentit
+      const [updatedTicket, userComment, systemComment] = await prisma.$transaction([
         prisma.ticket.update({
           where: { id: req.params.id },
           data: {
@@ -707,9 +721,19 @@ export const ticketController = {
         }),
         prisma.comment.create({
           data: {
-            content: `Tiketti siirretty käyttäjältä ${user.name} käyttäjälle ${targetUser.name}`,
+            content: `Tiketti siirretty tukihenkilöltä ${user.name} tukihenkilölle ${targetUser.name}`,
             ticket: { connect: { id: req.params.id } },
             author: { connect: { id: user.id } }
+          },
+          include: {
+            author: true
+          }
+        }),
+        prisma.comment.create({
+          data: {
+            content: `Tiketin käsittelijä vaihdettu: ${user.name} → ${targetUser.name}`,
+            ticket: { connect: { id: req.params.id } },
+            author: { connect: { id: systemUser.id } }
           },
           include: {
             author: true
@@ -717,8 +741,8 @@ export const ticketController = {
         })
       ]);
 
-      // Lisää uusi kommentti tiketin tietoihin
-      updatedTicket.comments.push(comment);
+      // Lisää uudet kommentit tiketin tietoihin
+      updatedTicket.comments.push(userComment, systemComment);
 
       res.json({ ticket: updatedTicket });
     } catch (error) {

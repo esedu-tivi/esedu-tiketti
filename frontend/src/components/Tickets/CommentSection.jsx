@@ -6,6 +6,14 @@ import { Label } from '../ui/Label';
 import { Textarea } from '../ui/TextArea';
 import { useAuth } from '../../providers/AuthProvider';
 
+// Lisätään mukautettu värimääritys
+const SUPPORT_COLOR = {
+  bg: 'bg-[#92C01F]',
+  bgLight: 'bg-[#92C01F]/10',
+  text: 'text-[#92C01F]',
+  border: 'border-[#92C01F]/20'
+};
+
 export default function CommentSection({
   comments,
   newComment,
@@ -54,6 +62,22 @@ export default function CommentSection({
     return '';
   };
 
+  const getCommentStyle = (comment) => {
+    const isCreator = comment.author?.id === ticket.createdById;
+    if (isCreator) {
+      return {
+        container: 'bg-gray-50 border-gray-200',
+        text: 'text-gray-700',
+        author: 'text-gray-900 font-medium'
+      };
+    }
+    return {
+      container: 'bg-[#92C01F]/10 border-gray-200',
+      text: 'text-gray-700',
+      author: 'text-gray-900 font-medium'
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -71,29 +95,30 @@ export default function CommentSection({
     <div>
       {comments.length > 0 ? (
         <div className="mt-4 space-y-4">
-          {comments.map((comment) => (
-            <div key={comment.id} className="p-3 border rounded-lg bg-gray-50">
-              <p className="text-sm text-gray-700">{comment.content}</p>
-              <div className="text-xs text-gray-500 mt-1 flex items-center space-x-2">
-                <User className="w-3 h-3" />
-                <span>
-                  {comment.author?.name ||
-                    comment.author?.email ||
-                    'Tuntematon'}
-                </span>
-                <Calendar className="w-3 h-3" />
-                <span>
-                  {new Date(comment.createdAt).toLocaleDateString('fi-FI', {
-                    day: 'numeric',
-                    month: 'numeric',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
+          {comments.map((comment) => {
+            const styles = getCommentStyle(comment);
+            return (
+              <div key={comment.id} className={`p-3 rounded-lg border ${styles.container}`}>
+                <p className={`text-sm ${styles.text}`}>{comment.content}</p>
+                <div className="text-xs mt-1 flex items-center space-x-2">
+                  <User className={`w-3 h-3 ${styles.text}`} />
+                  <span className={styles.author}>
+                    {comment.author?.name || comment.author?.email || 'Tuntematon'}
+                  </span>
+                  <Calendar className={`w-3 h-3 ${styles.text}`} />
+                  <span className={styles.text}>
+                    {new Date(comment.createdAt).toLocaleDateString('fi-FI', {
+                      day: 'numeric',
+                      month: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-sm text-gray-500 mt-2">Ei kommentteja</p>

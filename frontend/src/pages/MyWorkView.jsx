@@ -56,7 +56,8 @@ export default function MyWorkView() {
         tickets: data.tickets.filter(ticket => {
           // Tarkistetaan onko tiketti ratkaistu/suljettu ja onko käyttäjä käsitellyt sen
           const isResolvedOrClosed = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
-          const wasHandledByUser = ticket.assignedToId === user?.id || ticket.processingEndedAt;
+          // Tarkistetaan että tiketti on ollut käsittelyssä (eli sillä on processingStartedAt)
+          const wasHandledByUser = ticket.processingStartedAt && (ticket.assignedToId === user?.id || ticket.processingEndedAt);
 
           return isResolvedOrClosed && wasHandledByUser;
         }).sort((a, b) => {

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, UserRole, TicketStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -29,6 +29,15 @@ export const canModifyTicket = async (req: Request, res: Response, next: NextFun
 
     if (!ticket) {
       return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Jos käyttäjä on tiketin luoja ja yrittää sulkea tikettiä, salli se
+    const isClosingOwnTicket = ticket.createdById === user.id && 
+                              req.method === 'PUT' && 
+                              req.body.status === TicketStatus.CLOSED;
+    
+    if (isClosingOwnTicket) {
+      return next();
     }
 
     // If ticket is assigned to someone, only that person can modify it

@@ -2,6 +2,27 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 13.02.2024 part 2
+
+### Added
+- Lisätty mahdollisuus tiketin luojalle sulkea oma tikettinsä missä tahansa tilassa, paitsi jos tiketti on jo suljettu tai ratkaistu
+- Lisätty värikoodatut järjestelmäviestit tapahtumahistoriaan:
+  - Keltainen: "Tiketti otettu käsittelyyn" ja "IN_PROGRESS"-tilamuutokset
+  - Vihreä: "Tiketti ratkaistu (RESOLVED)"
+  - Harmaa: "Tiketti suljettu (CLOSED)"
+  - Sininen: "Tiketti vapautettu"
+  - Violetti: "Tiketin käsittelijä vaihdettu" ja siirtoviestit
+
+### Changed
+- Päivitetty tiketin käsittelyoikeuksien logiikkaa:
+  - Tiketin luoja voi nyt sulkea tikettinsä missä tahansa tilassa
+  - Parannettu käsittelijän vaihtamisen logiikkaa
+- Uudistettu tapahtumahistorian ulkoasua:
+  - Selkeämpi visuaalinen hierarkia
+  - Parempi värikoodaus eri tapahtumatyypeille
+  - Parannettu luettavuutta
+
+
 # 13.02.2024
 
 ### Added

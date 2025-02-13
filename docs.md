@@ -593,12 +593,40 @@ Tiketin käsittelyssä on seuraavat vaiheet:
      - Vapauttaa tiketin takaisin OPEN-tilaan
      - Merkitä tiketin ratkaistuksi (RESOLVED)
      - Sulkea tiketin (CLOSED)
+   - Tiketin luoja voi:
+     - Sulkea tiketin missä tahansa tilassa (paitsi jos tiketti on jo RESOLVED tai CLOSED)
    - Kaikista tilan muutoksista luodaan automaattinen kommentti
    - Käsittelyn päättymisaika tallennetaan kun tiketti merkitään ratkaistuksi tai suljetaan
 
 3. Tiketin uudelleen avaaminen:
    - Ratkaistu tai suljettu tiketti voidaan avata uudelleen IN_PROGRESS-tilaan
    - Tämä nollaa käsittelyn päättymisajan ja asettaa uuden arvioidun valmistumisajan
+
+### Järjestelmäviestit
+
+Järjestelmä luo automaattisia viestejä tiketin tilan muutoksista. Viestit on värikoodattu seuraavasti:
+
+1. Keltainen:
+   - "Tiketti otettu käsittelyyn"
+   - Tiketin tila muutettu: IN_PROGRESS
+
+2. Vihreä:
+   - Tiketin tila muutettu: RESOLVED
+
+3. Harmaa:
+   - Tiketin tila muutettu: CLOSED
+
+4. Sininen:
+   - "Tiketti vapautettu"
+
+5. Violetti:
+   - "Tiketin käsittelijä vaihdettu"
+   - Tiketin siirtoviestit
+
+Järjestelmäviestit erottuvat selkeästi muista viesteistä:
+- Selkeä visuaalinen hierarkia
+- Värikoodaus tapahtumatyypin mukaan
+- Parannettu luettavuus
 
 ### Tukihenkilöiden työnäkymä
 
