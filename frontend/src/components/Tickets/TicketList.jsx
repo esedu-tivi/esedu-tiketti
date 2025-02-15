@@ -110,7 +110,7 @@ function TicketList({ tickets = [], isLoading, error }) {
                       {timeAgo}
                     </span>
                     <span>
-                      {ticket.createdBy?.name || 'Tuntematon'}
+                   {ticket.createdBy?.name || 'Tuntematon'}
                     </span>
                     {ticket.assignedTo && (
                       <span className="text-blue-600">

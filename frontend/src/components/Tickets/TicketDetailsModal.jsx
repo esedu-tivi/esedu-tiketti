@@ -377,6 +377,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const category = ticketData?.category?.name || 'Ei määritelty';
 
   // Debug tulostukset
+  console.log('Tiketin tiedot:', ticketData);
   console.log('User role:', userRole);
   console.log('User id:', user?.id);
   console.log('Ticket status:', ticketData?.status);
@@ -639,8 +640,8 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 </p>
               </div>
 
-              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 border-blue-500 ${priorityInfo.color}`}>
-                <PriorityIcon className="w-6 h-6" />
+              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2  bg-gray-100 ${priorityInfo.color}`}>
+                <PriorityIcon className="w-5 h-5" />
                 <span className="text-sm font-medium">{priorityInfo.text}</span>
               </div>
             </div>
@@ -840,7 +841,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
             <div className="space-y-2">
               <Label>Vastausmuoto</Label>
-              <p>{ticketData.responseType || 'Ei määritelty'}</p>
+              <p>{ticketData.responseFormat || 'Ei määritelty'}</p>
             </div>
 
             <div>
