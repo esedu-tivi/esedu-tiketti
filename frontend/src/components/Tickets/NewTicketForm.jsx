@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { createTicket, fetchCategories } from '../../utils/api';
 import {
@@ -24,6 +23,8 @@ import {
   SelectValue,
 } from '../ui/Select';
 
+import { Paperclip, X } from 'lucide-react';
+
 export default function NewTicketForm({ onClose }) {
   const [formData, setFormData] = React.useState({
     subject: '',
@@ -32,8 +33,8 @@ export default function NewTicketForm({ onClose }) {
     additionalInfo: '',
     priority: 2,
     categoryId: '',
-    attachment: null,
-    contentType: 'text',
+    attachment: [],
+    contentType: 'text'
   });
 
   const { data: categories, isLoading: categoriesLoading } = useQuery({
@@ -42,7 +43,6 @@ export default function NewTicketForm({ onClose }) {
   });
 
   const [error, setError] = React.useState(null);
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -50,9 +50,9 @@ export default function NewTicketForm({ onClose }) {
     onSuccess: () => {
       queryClient.invalidateQueries(['tickets']);
       setFormSubmitted(true);
-      setTimeout(() => {
-        onClose();
-      }, 2000);
+         setTimeout(() => {
+          onClose();
+        }, 2000);
     },
     onError: (err) => {
       setError(err.message || 'Tiketin luonti epäonnistui');
@@ -86,14 +86,22 @@ export default function NewTicketForm({ onClose }) {
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData((prev) => ({
-        ...prev,
-        attachment: file,
-      }));
-    }
+    const files = Array.from(e.target.files);
+  
+    setFormData((prev) => {
+      const newAttachments = [...(prev.attachment || []), ...files];
+      if (newAttachments.length > 5) {
+        setError('Voit lähettää enintään 5 liitettä');
+        setTimeout(() => {
+          setError(null);
+        }, 3000);
+        return { ...prev, attachment: prev.attachment };
+      }
+      return { ...prev, attachment: newAttachments };
+    });
+    e.target.value = null;
   };
+  
 
   const handleContentTypeChange = (value) => {
     setFormData((prev) => ({
@@ -151,11 +159,8 @@ export default function NewTicketForm({ onClose }) {
 
   if (formSubmitted) {
     return (
-      <Alert className="max-w-md mx-auto mt-8 bg-green-50 border-green-200">
-        <Check className="w-4 h-4 text-green-600" />
-        <AlertDescription className="text-green-600">
-          Tiketti luotu onnistuneesti!
-        </AlertDescription>
+      <Alert variant="success">
+        Tiketti luotu onnistuneesti!
       </Alert>
     );
   }
@@ -183,15 +188,18 @@ export default function NewTicketForm({ onClose }) {
             </CardHeader>
     
             <form onSubmit={handleSubmit}>
-              <CardContent>
-                {error && (
-                  <Alert className="bg-red-50 border-red-200">
-                    <AlertTriangle className="w-4 h-4 text-red-600" />
+            <CardContent>
+              {error && (
+                <div className="sticky top-0 bg-white z-50">
+                  <Alert className="bg-red-50 border-red-200 shadow-md">
+                    <AlertTriangle className="w-6 h-6 text-red-600" />
                     <AlertDescription className="text-red-600">
                       {error}
                     </AlertDescription>
                   </Alert>
-                )}
+                </div>
+              )}
+
 
             <div className="space-y-2">
               <Label htmlFor="subject">Tiketin aihe *</Label>
@@ -307,18 +315,48 @@ export default function NewTicketForm({ onClose }) {
               </div>
             </div>
 
-            <div className="space-y-2 ">
-              <Label htmlFor="attachment">Lisää liite</Label>
-              <Input
-                id="attachment"
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-              />
-              {formData.attachment && (
-                <p className="text-sm text-gray-500  bg-gray-100 p-4">
-                  Valittu tiedosto: {formData.attachment.name}
-                </p>
+            <div className="space-y-2">
+              <Label htmlFor="attachment" className="text-gray-700 font-medium">
+              </Label>
+              <div>
+                <input
+                  id="attachment"
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="attachment"
+                  className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white text-sm font-medium rounded-md hover:bg-blue-600 transition duration-200 shadow-md"
+                >
+                  <Paperclip size={18} />
+                  Lisää liite
+                </label>
+              </div>
+              {formData.attachment.length > 0 && (
+                <div className="space-y-1">
+                  {formData.attachment.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between text-sm text-gray-700 bg-gray-100 p-2 rounded-lg shadow-sm border border-gray-300"
+                    >
+                      <span className="truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            attachment: prev.attachment.filter((_, i) => i !== index),
+                          }))
+                        }
+                        className="text-gray-500 hover:text-red-500 ml-2 transition duration-200"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </CardContent>
@@ -327,7 +365,7 @@ export default function NewTicketForm({ onClose }) {
             <Button
               type="submit"
               disabled={mutation.isPending || categoriesLoading}
-              className="w-32"
+              className="w-32 shadow-xl ring-1 ring-gray-300"
             >
               {mutation.isPending ? (
                 <>
