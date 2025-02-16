@@ -35,9 +35,7 @@ function App() {
             <AuthGuard>
               <>
                 <Header />
-                <main className="container mx-auto px-4 py-8">
                   <MyTickets />
-                </main>
               </>
             </AuthGuard>
           } />
@@ -61,9 +59,7 @@ function App() {
             <AuthGuard requiredRole="MANAGEMENT">
               <>
                 <Header />
-                <main className="container mx-auto px-4 py-8">
                   <Tickets />
-                </main>
               </>
             </AuthGuard>
           } />
@@ -72,9 +68,7 @@ function App() {
             <AuthGuard requiredRole="MANAGEMENT">
               <>
                 <Header />
-                <main className="container mx-auto px-4 py-8">
                   <Tickets />
-                </main>
               </>
             </AuthGuard>
           } />
