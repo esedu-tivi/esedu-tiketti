@@ -110,6 +110,7 @@ function TicketList({ tickets = [], isLoading, error }) {
                       {timeAgo}
                     </span>
                     <span>
+                      Tekijä: {ticket.createdBy?.name || 'Tuntematon'}
                    {ticket.createdBy?.name || 'Tuntematon'}
                     </span>
                     {ticket.assignedTo && (
