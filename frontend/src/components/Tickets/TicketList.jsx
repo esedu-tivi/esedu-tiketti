@@ -111,7 +111,6 @@ function TicketList({ tickets = [], isLoading, error }) {
                     </span>
                     <span>
                       Tekijä: {ticket.createdBy?.name || 'Tuntematon'}
-                   {ticket.createdBy?.name || 'Tuntematon'}
                     </span>
                     {ticket.assignedTo && (
                       <span className="text-blue-600">
