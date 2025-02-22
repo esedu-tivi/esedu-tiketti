@@ -631,21 +631,19 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         <Card className="border-none shadow-none">
           <CardHeader className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
             <div className="flex justify-between items-center">
-              <div className="space-y-1">
-                <CardTitle className="text-2xl font-semibold tracking-tight">
-                  {ticketData.title || 'Ei määritelty'}
-                </CardTitle>
-                <p className="text-sm opacity-80">
-                  Tiketti #{ticketData.id || 'Ei määritelty'}
-                </p>
+              <div className="flex items-center gap-4">
+                <div className="space-y-1">
+                  <CardTitle className="text-2xl font-semibold tracking-tight">
+                    {ticketData.title || 'Ei määritelty'}
+                  </CardTitle>
+                  <p className="text-sm opacity-80">Tiketti #{ticketData.id || 'Ei määritelty'}</p>
+                </div>
               </div>
-
-              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2  bg-gray-100 ${priorityInfo.color}`}>
+              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 bg-gray-100 ${priorityInfo.color}`}>
                 <PriorityIcon className="w-5 h-5" />
                 <span className="text-sm font-medium">{priorityInfo.text}</span>
               </div>
             </div>
-            
           </CardHeader>
 
           <CardContent className="space-y-6">
@@ -863,6 +861,13 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             <Button variant="outline" onClick={onClose}>
               Sulje
             </Button>
+            <Button
+                onClick={() => window.open(`/tickets/${ticketData.id}`, '_blank')}
+                className="bg-gray-200 hover:bg-gray-300 text-black border-gray-400"
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                Avaa linkkinä
+              </Button>
           </CardFooter>
         </Card>
       </div>

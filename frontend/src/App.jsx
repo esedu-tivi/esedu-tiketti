@@ -10,6 +10,7 @@ import MyWorkView from './pages/MyWorkView';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './providers/AuthProvider';
 import ProfileView from './pages/ProfileView';
+import TicketPage from './pages/TicketPage'; 
 
 function App() {
   const { userRole } = useAuth();
@@ -39,8 +40,16 @@ function App() {
               </>
             </AuthGuard>
           } />
-          
-        
+
+          <Route path="/tickets/:id" element={
+            <AuthGuard>
+              <>
+                <Header />
+                <TicketPage />
+              </>
+            </AuthGuard>
+          } />
+                  
 
           {/* Tukihenkilöiden työnäkymä */}
           <Route path="/my-work" element={

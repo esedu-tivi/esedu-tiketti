@@ -110,8 +110,8 @@ const NotificationBell = () => {
     }
     
     if (notification.ticketId) {
-      // TODO: Implement navigation to ticket
-      console.log('Navigate to ticket:', notification.ticketId);
+      const ticketUrl = `/tickets/${notification.ticketId}`;
+      window.open(ticketUrl, '_blank');
     }
   };
 
