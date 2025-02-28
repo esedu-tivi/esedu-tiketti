@@ -35,12 +35,14 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   }, []);
 
   const handleCheckboxChange = (key, value, checked) => {
+    console.log(`Checkbox changed - Key: ${key}, Value: ${value}, Checked: ${checked}`);
     setFilters((currentFilters) => {
       const updatedFilters = checked
         ? [...currentFilters[key], value]
         : currentFilters[key].filter((item) => item !== value);
 
       const newFilters = { ...currentFilters, [key]: updatedFilters };
+      console.log("Päivitetyt suodattimet:", newFilters);
       onFilterChange(newFilters);
       return newFilters;
     });
@@ -52,7 +54,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
       if (value) {
         newFilters[name] = value;
       } else {
-        delete newFilters[name];
+        newFilters[name]= "";
       }
       onFilterChange(newFilters);
       return newFilters;
@@ -69,19 +71,19 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   const toggleFilterMenu = () => setIsOpen(!isOpen);
 
   return (
-    <div className="shadow-md border border-gray-500 rounded-b-sm w-full mt-0 mb-0 sticky top-0">
+    <div className="container mx-auto mt-0 mb-0 sticky top-0 shadow-md border border-gray-300 rounded-b-md">
       <div
-        className="flex justify-between items-center px-24 py-1 cursor-pointer bg-gradient-to-r from-blue-500 to-indigo-600 rounded-b-sm"
+        className="flex justify-between items-center px-4 py-1 cursor-pointer bg-gradient-to-r from-blue-500 to-indigo-600 rounded-b-md"
         onClick={() => toggleFilterMenu()}
       >
-        <h3 className="text-white text-left font-semibold p-1 w-full">
+        <h3 className="text-white text-left font-semibold p-1">
           {isOpen ? "Sulje suodatin" : "Näytä suodatin"}
         </h3>
-        <ChevronDown className="w-5 h-5 mr-2 text-white" />
+        <ChevronDown className={`w-5 h-5 text-white transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
       </div>
 
       {isOpen && (
-        <div className="sticky top-0 z-10 bg-white shadow-md">
+        <div className="sticky top-0 z-10 bg-white mx-auto px-4 shadow-md">
         <CardContent className="bg-white shadow-md">
           <div className="flex gap-4 flex-wrap">
             <div className="space-y-1">
@@ -147,7 +149,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 type="text"
                 id="subject-filter"
                 name="subject"
-                value={filters.subject}
+                value={filters.subject || ""}
                 onChange={(e) => handleChange("subject", e.target.value)}
                 placeholder="Kirjoita aihe"
                 className="border-2 border-gray-400 rounded hover:border-blue-500"
@@ -161,7 +163,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                   type="text"
                   id="user-filter"
                   name="user"
-                  value={filters.user}
+                  value={filters.user || "" }
                   onChange={(e) => handleChange("user", e.target.value)}
                   placeholder="Kirjoita käyttäjän nimi"
                   className="border-2 border-gray-400 rounded hover:border-blue-500"
@@ -175,7 +177,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 type="text"
                 id="device-filter"
                 name="device"
-                value={filters.device}
+                value={filters.device || "" }
                 onChange={(e) => handleChange("device", e.target.value)}
                 placeholder="Kirjoita laiteen nimi"
                 className="border-2 border-gray-400 rounded hover:border-blue-500"
@@ -189,7 +191,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 id="start-date"
                 name="startDate"
                 max={new Date().toISOString().split('T')[0]}
-                value={filters.startDate}
+                value={filters.startDate || "" }
                 onChange={(e) => handleChange("startDate", e.target.value)}
                 className="border-2 border-gray-400 rounded hover:border-blue-500"
               />
@@ -202,7 +204,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 id="end-date"
                 name="endDate"
                 max={new Date().toISOString().split('T')[0]}
-                value={filters.endDate}
+                value={filters.endDate || "" }
                 onChange={(e) => handleChange("endDate", e.target.value)}
                 className="border-2 border-gray-400 rounded hover:border-blue-500"
               />
