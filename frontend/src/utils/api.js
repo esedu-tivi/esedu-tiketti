@@ -52,7 +52,7 @@ export const fetchTickets = async (filters = {}) => {
   try {
     const params = new URLSearchParams(filters).toString();
 
-    const { data } = await api.get(`/tickets?${params}`);
+    const { data } = await api.get('/tickets', { params: filters });
     return data;
   } catch (error) {
     throw new Error('Tikettien haku epäonnistui');
@@ -134,7 +134,7 @@ export const fetchTicket = async (id) => {
 export const fetchMyTickets = async (filters = {}) => {
   try {
     const params = new URLSearchParams(filters).toString();
-    const { data } = await api.get(`/tickets/my-tickets?${params}`);
+    const { data } = await api.get('/tickets/my-tickets', { params: filters });
     return data;
   } catch (error) {
     throw new Error('Tikettien haku epäonnistui');

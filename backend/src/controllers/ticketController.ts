@@ -12,14 +12,25 @@ export const ticketController = {
     try {
       const { status, priority, category, subject, user, device, startDate, endDate } = req.query;
       
-      // Muutetaan priority oikeaksi enum-arvoksi
-      const priorityEnum: Priority | undefined = typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
-        ? (priority.toUpperCase() as Priority)
+      // Muutetaan priority oikeiksi enum-arvoiksi
+      const priorityEnum = Array.isArray(priority)
+        ? priority.map((p) => typeof p === 'string' && Object.values(Priority).includes(p.toUpperCase() as Priority) ? p.toUpperCase() as Priority : undefined).filter(Boolean) as Priority[]
+        : typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
+        ? [priority.toUpperCase() as Priority]
         : undefined;
-  
-      // Muutetaan status oikeaksi enum-arvoksi
-      const statusEnum: TicketStatus | undefined = typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
-        ? (status.toUpperCase() as TicketStatus)
+
+      // Muutetaan status oikeiksi enum-arvoiksi
+      const statusEnum = Array.isArray(status)
+        ? status.map((s) => typeof s === 'string' && Object.values(TicketStatus).includes(s.toUpperCase() as TicketStatus) ? s.toUpperCase() as TicketStatus : undefined).filter(Boolean) as TicketStatus[]
+        : typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
+        ? [status.toUpperCase() as TicketStatus]
+        : undefined;
+
+      // Muutetaan category oikeanmuotoiseksi taulukoksi
+      const categoryArray: string[] | undefined = Array.isArray(category)
+        ? category.filter((c) => typeof c === 'string') as string[]
+        : typeof category === 'string'
+        ? [category]
         : undefined;
   
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
@@ -38,16 +49,13 @@ export const ticketController = {
       // Haetaan tiketit suodattimilla, jos ne on määritelty
       const tickets = await prisma.ticket.findMany({
         where: {
-          ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
-          ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
-          ...(category && { 
+          ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
+          ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
+          ...(categoryArray && categoryArray.length > 0 && { 
             category: { 
-              name: { 
-                equals: category as string,
-                mode: 'insensitive'
-              }
-            } 
-          }), // Suodatus kategorian mukaan
+                name: { in: categoryArray, mode: 'insensitive' }
+            }
+        }), // Suodatus kategorian mukaan
           ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
           ...(user && { createdBy: { name: { contains: user as string, mode: 'insensitive' } } }), // Suodatus käyttäjän mukaan
           ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
@@ -159,14 +167,25 @@ export const ticketController = {
 
       const { category, priority, status, subject, device, startDate, endDate } = req.query;
 
-      // Muutetaan priority oikeaksi enum-arvoksi
-      const priorityEnum: Priority | undefined = typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
-        ? (priority.toUpperCase() as Priority)
+      // Muutetaan priority oikeiksi enum-arvoiksi (tuetaan monivalintaa)
+      const priorityEnum = Array.isArray(priority)
+        ? priority.map((p) => typeof p === 'string' && Object.values(Priority).includes(p.toUpperCase() as Priority) ? p.toUpperCase() as Priority : undefined).filter(Boolean) as Priority[]
+        : typeof priority === 'string' && Object.values(Priority).includes(priority.toUpperCase() as Priority)
+        ? [priority.toUpperCase() as Priority]
         : undefined;
 
-      // Muutetaan status oikeaksi enum-arvoksi
-      const statusEnum: TicketStatus | undefined = typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
-        ? (status.toUpperCase() as TicketStatus)
+      // Muutetaan status oikeiksi enum-arvoiksi (tuetaan monivalintaa)
+      const statusEnum = Array.isArray(status)
+        ? status.map((s) => typeof s === 'string' && Object.values(TicketStatus).includes(s.toUpperCase() as TicketStatus) ? s.toUpperCase() as TicketStatus : undefined).filter(Boolean) as TicketStatus[]
+        : typeof status === 'string' && Object.values(TicketStatus).includes(status.toUpperCase() as TicketStatus)
+        ? [status.toUpperCase() as TicketStatus]
+        : undefined;
+
+      // Muutetaan category oikeanmuotoiseksi taulukoksi
+      const categoryArray: string[] | undefined = Array.isArray(category)
+        ? category.filter((c) => typeof c === 'string') as string[]
+        : typeof category === 'string'
+        ? [category]
         : undefined;
 
       // Muutetaan startDate ja endDate päivämääräobjekteiksi
@@ -186,16 +205,13 @@ export const ticketController = {
       const tickets = await prisma.ticket.findMany({
         where: {
           createdById: user.id, // Haetaan vain käyttäjän omat tiketit
-          ...(statusEnum && { status: statusEnum }), // Suodatus tilan mukaan
-          ...(priorityEnum && { priority: priorityEnum }), // Suodatus prioriteetin mukaan
-          ...(category && { 
+          ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
+          ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
+          ...(categoryArray && categoryArray.length > 0 && { 
             category: { 
-              name: { 
-                equals: category as string,
-                mode: 'insensitive'
-              }
-            } 
-          }), // Suodatus kategorian mukaan
+                name: { in: categoryArray, mode: 'insensitive' }
+            }
+        }), // Suodatus kategorian mukaan
           ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
           ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
           ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
