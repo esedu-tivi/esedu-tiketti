@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchTicket } from '../utils/api';
+import { fetchTicket, addComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../utils/api';
 
 import {
   Card,
@@ -26,6 +26,8 @@ import {
   History,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+
+import CommentSection from '../components/Tickets/CommentSection';
 
 export default function TicketPage() {
   const { id } = useParams();
@@ -129,7 +131,7 @@ export default function TicketPage() {
   const PriorityIcon = priorityInfo.icon;
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
+    <div className="max-w-5xl mx-auto p-6">
       <Card>
         <CardHeader className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
           <div className="flex justify-between items-center">
@@ -220,7 +222,12 @@ export default function TicketPage() {
               {ticketData.additionalInfo || 'Ei lisätietoja'}
             </p>
           </div>
+
+
+
         </CardContent>
+
+
         <CardFooter className="flex justify-between items-center">
           <Button
             variant="outline"

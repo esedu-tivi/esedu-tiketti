@@ -625,7 +625,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto relative"
+        className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto relative"
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="border-none shadow-none">
