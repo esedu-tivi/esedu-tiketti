@@ -7,8 +7,10 @@
   color: #4F46E5;
   background-color: rgba(79, 70, 229, 0.1);
   border-radius: 4px;
-  padding: 1px 2px;
+  padding: 1px 4px;
   font-weight: 500;
+  display: inline-block;
+  white-space: nowrap;
 }
 
 /* Comment mention styles */
@@ -20,10 +22,44 @@
   padding: 1px 4px;
   font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .comment-content .mention:hover {
   background-color: rgba(79, 70, 229, 0.2);
   text-decoration: underline;
+}
+
+/* Styles for mention input */
+.mention-textarea {
+  color: transparent;
+  caret-color: black;
+  background-color: transparent;
+}
+
+.mention-overlay {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: black;
+}
+
+.hidden-text {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.mention-overlay .mention-highlight {
+  color: #4F46E5;
+  background-color: rgba(79, 70, 229, 0.1);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-weight: 500;
 }
 

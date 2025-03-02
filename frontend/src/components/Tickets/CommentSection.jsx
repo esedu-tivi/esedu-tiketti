@@ -15,9 +15,13 @@ const SUPPORT_COLOR = {
 };
 
 const formatCommentContent = (content) => {
-  const mentionRegex = /@[a-zA-ZäöåÄÖÅ\s]+/g;
-  return content.replace(mentionRegex, (match) => {
-    return `<span class="mention">${match}</span>`;
+  // Improved regex to match mentions with zero-width space delimiter
+  // This ensures we only match complete mentions, not partial text
+  const mentionRegex = /@([\w\sáàâäãåçéèêëíìîïñóòôöõúùûüÿýæœÁÀÂÄÃÅÇÉÈÊËÍÌÎÏÑÓÒÔÖÕÚÙÛÜŸÝÆŒÄÖÅäöå]+)\u200B\s/g;
+  
+  return content.replace(mentionRegex, (match, name) => {
+    // Create a mention span with just the name (without the @ and trailing space)
+    return `<span class="mention">@${name}</span> `;
   });
 };
 

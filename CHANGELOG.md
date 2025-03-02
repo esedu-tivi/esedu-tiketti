@@ -2,6 +2,33 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 14.02.2025 (Improved TicketPage and mention functionality)
+
+### Added
+- Päivitetty TicketPage-komponentti vastaamaan TicketDetailsModal-toiminnallisuutta:
+  - Lisätty tiketin tilan hallinta
+  - Lisätty API-mutaatiot tiketin päivittämiseen
+  - Lisätty aikamäärittelyt ja formatointi
+  - Lisätty tiketin kontrollit (vapauta, ratkaise, sulje, siirrä)
+  - Lisätty CommentSection-komponentti
+  - Lisätty Timeline-komponentti
+  - Lisätty käyttöliittymän parannukset ja tyylit
+
+### Changed
+- Uudistettu @-maininta toiminnallisuus:
+  - Yksinkertaistettu mainintalogiikka
+  - Pakollinen valinta pudotusvalikosta
+  - Selkeämpi visuaalinen erottelu mainituille käyttäjille
+  - Parannettu CSS-tyylejä mainintoja varten
+  - Lisätty nollalevyinen välilyönti (zero-width space) mainintojen erottamiseksi
+  - Päivitetty regex-kaavat mainintojen tunnistamiseen
+
+### Fixed
+- Korjattu ongelma, jossa maininnat eivät toimineet oikein tekstin seuratessa niitä
+- Korjattu mainintojen visuaalinen duplikaatio
+- Korjattu ongelma, jossa käyttäjä jäi "maininta-tilaan" käyttäjän valinnan jälkeen
+- Yksinkertaistettu mainintojen CSS-tyylejä
+
 # 13.02.2025 part 3
 
 ### Added
