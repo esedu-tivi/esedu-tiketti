@@ -1,10 +1,10 @@
-import React from 'react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { User, Calendar, ImageIcon, VideoIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import MentionInput from '../MentionInput';
 import { useAuth } from '../../providers/AuthProvider';
+import { Avatar, AvatarFallback, Badge } from '../ui/Avatar';
 
 // Lisätään mukautettu värimääritys
 const SUPPORT_COLOR = {
@@ -26,7 +26,7 @@ const formatCommentContent = (content) => {
 };
 
 // Render media content based on type
-const MediaContent = ({ mediaUrl, mediaType }) => {
+const MediaContent = ({ mediaUrl, mediaType, onClick }) => {
   if (!mediaUrl) return null;
   
   // Ensure mediaUrl has the full path to the backend
@@ -38,14 +38,13 @@ const MediaContent = ({ mediaUrl, mediaType }) => {
   if (mediaType === 'image') {
     return (
       <div className="mt-2">
-        <a href={fullMediaUrl} target="_blank" rel="noopener noreferrer">
-          <img 
-            src={fullMediaUrl} 
-            alt="Kuva vastauksessa" 
-            className="max-w-full rounded-lg border border-gray-200 shadow-sm hover:opacity-90 transition-opacity"
-            style={{ maxHeight: '300px' }}
-          />
-        </a>
+        <img 
+          src={fullMediaUrl} 
+          alt="Kuva vastauksessa" 
+          className="max-w-full rounded-lg border border-gray-200 shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
+          style={{ maxHeight: '300px' }}
+          onClick={() => onClick({ url: fullMediaUrl, type: mediaType })}
+        />
       </div>
     );
   }
@@ -96,6 +95,7 @@ export default function CommentSection({
   const [successMessage, setSuccessMessage] = useState('');
   const [showMediaForm, setShowMediaForm] = useState(false);
   const [mediaFile, setMediaFile] = useState(null);
+  const [selectedMedia, setSelectedMedia] = useState(null);
 
   const canComment = () => {
     if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
@@ -120,6 +120,11 @@ export default function CommentSection({
     return (userRole === 'SUPPORT' || userRole === 'ADMIN') &&
            (ticket.responseFormat === 'KUVA' || ticket.responseFormat === 'VIDEO') &&
            ticket.assignedToId === user?.id;
+  };
+
+  const canAddMediaComment = () => {
+    // All support staff and admins can add media comments if they can comment at all
+    return (userRole === 'SUPPORT' || userRole === 'ADMIN') && canComment();
   };
 
   const getCommentDisabledMessage = () => {
@@ -194,10 +199,22 @@ export default function CommentSection({
     setMediaFile(null);
   };
 
+  const handleMediaClick = (media) => {
+    setSelectedMedia(media);
+  };
+
+  const closeLightbox = () => {
+    setSelectedMedia(null);
+  };
+
   return (
-    <div>
-      {comments.length > 0 ? (
-        <div className="mt-4 space-y-4">
+    <div className="mt-6 space-y-4">
+      <h3 className="text-lg font-semibold mb-2">Keskustelu</h3>
+      
+      {comments.length === 0 ? (
+        <p className="text-sm text-gray-500">Ei vielä kommentteja. Aloita keskustelu!</p>
+      ) : (
+        <div className="space-y-4">
           {comments.map((comment) => {
             const styles = getCommentStyle(comment);
             return (
@@ -209,7 +226,11 @@ export default function CommentSection({
                 
                 {/* Render media content if present */}
                 {comment.mediaUrl && (
-                  <MediaContent mediaUrl={comment.mediaUrl} mediaType={comment.mediaType} />
+                  <MediaContent 
+                    mediaUrl={comment.mediaUrl} 
+                    mediaType={comment.mediaType}
+                    onClick={handleMediaClick}
+                  />
                 )}
                 
                 <div className="text-xs mt-1 flex items-center space-x-2">
@@ -240,8 +261,30 @@ export default function CommentSection({
             );
           })}
         </div>
-      ) : (
-        <p className="text-sm text-gray-500 mt-2">Ei kommentteja</p>
+      )}
+
+      {/* Media Lightbox */}
+      {selectedMedia && selectedMedia.type === 'image' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75" onClick={closeLightbox}>
+          <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
+            <div className="absolute top-4 right-4 z-10">
+              <button 
+                onClick={closeLightbox}
+                className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <img 
+              src={selectedMedia.url} 
+              alt="Mediakuva" 
+              className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
       )}
 
       {successMessage && (
@@ -262,15 +305,15 @@ export default function CommentSection({
               + Lisää tekstikommentti
             </Button>
             
-            {/* Show media response button for support persons when required */}
-            {shouldUseMediaResponse() && (
+            {/* Show media response button always for all support staff */}
+            {(userRole === 'SUPPORT' || userRole === 'ADMIN') && (
               <Button
                 variant="default"
                 onClick={() => setShowMediaForm(true)}
                 disabled={!canComment()}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                + Lisää {ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}vastaus
+                + Lisää media
               </Button>
             )}
           </>
@@ -305,7 +348,7 @@ export default function CommentSection({
                 onClick={handleMediaSubmit}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                {addCommentMutation.isLoading ? 'Lisätään...' : `Lisää ${ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}`}
+                {addCommentMutation.isLoading ? 'Lisätään...' : 'Lisää media'}
               </Button>
             )}
           </>
@@ -325,7 +368,7 @@ export default function CommentSection({
       
       {showMediaForm && (
         <form onSubmit={handleMediaSubmit} className="mt-4 space-y-4">
-          <Label htmlFor="new-comment">Lisää {ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}vastaus</Label>
+          <Label htmlFor="new-comment">Lisää media</Label>
           <MentionInput
             value={newComment}
             onChange={(value) => setNewComment(value)}
@@ -333,11 +376,15 @@ export default function CommentSection({
           />
           
           <div className="mt-2">
-            <Label htmlFor="media-file">Valitse {ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}</Label>
+            <Label htmlFor="media-file">Valitse media</Label>
             <input
               id="media-file"
               type="file"
-              accept={ticket.responseFormat === 'KUVA' ? "image/*" : "video/*"}
+              accept={ticket.responseFormat === 'KUVA' 
+                ? "image/*" 
+                : ticket.responseFormat === 'VIDEO'
+                ? "video/*"
+                : "image/*,video/*"}
               onChange={handleMediaChange}
               className="mt-1 block w-full text-sm text-gray-500
                         file:mr-4 file:py-2 file:px-4
@@ -363,7 +410,7 @@ export default function CommentSection({
       
       {shouldUseMediaResponse() && userRole === 'SUPPORT' && !showMediaForm && (
         <div className="text-sm text-blue-700 bg-blue-50 p-2 mt-2 rounded border border-blue-200">
-          <p>Tämä tiketti vaatii {ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}-vastauksen.</p>
+          <p>Tämä tiketti vaatii mediavastauksen ({ticket.responseFormat.toLowerCase()}).</p>
         </div>
       )}
     </div>

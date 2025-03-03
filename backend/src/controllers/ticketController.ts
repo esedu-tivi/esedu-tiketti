@@ -116,6 +116,22 @@ export const ticketController = {
         return res.status(401).json({ error: 'Unauthorized: User not found' });
       }
 
+      // Process any uploaded files
+      const attachmentData = [];
+      if (req.files && Array.isArray(req.files)) {
+        for (const file of req.files) {
+          attachmentData.push({
+            filename: file.originalname,
+            path: `/uploads/${file.filename}`,
+            mimetype: file.mimetype,
+            size: file.size
+          });
+        }
+      }
+
+      // Add attachment data to request body
+      req.body.attachments = attachmentData;
+
       // Käytetään autentikoidun käyttäjän ID:tä
       const ticket = await ticketService.createTicket(req.body, user.id);
       res.status(201).json({ ticket });
@@ -470,8 +486,8 @@ export const ticketController = {
       }
       
       // Tarkista, että käyttäjä on tukihenkilö ja on tiketin käsittelijä
-      if (user.role === 'SUPPORT' && ticket.assignedToId !== user.id && user.role !== 'ADMIN') {
-        return res.status(403).json({ error: 'Vain tiketin käsittelijä voi lisätä mediasisältöä' });
+      if (user.role !== 'SUPPORT' && user.role !== 'ADMIN' && ticket.createdById !== user.id) {
+        return res.status(403).json({ error: 'Vain tukihenkilöt, järjestelmänvalvojat tai tiketin luoja voivat lisätä mediasisältöä' });
       }
       
       // Määritä mediatyyppi tiedostopäätteen perusteella

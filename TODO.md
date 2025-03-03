@@ -102,6 +102,11 @@
   - [x] Käyttäjien haku
   - [x] Käyttäjien päivitys (roolit)
   - [ ] Käyttäjien poisto
+- [x] Media-integraatiot
+  - [x] Tiedostojen lataus järjestelmään
+  - [x] Kuva- ja videokommenttien käsittely
+  - [x] Kaikki tukihenkilöt voivat lisätä mediakommentteja kaikkiin tiketteihin
+  - [x] Käyttöliittymän terminologian yhtenäistäminen: "kuva/video" -> "media"
 
 ### WebSocket ja ilmoitukset
 - [x] WebSocket-integraatio

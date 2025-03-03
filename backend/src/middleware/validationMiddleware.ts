@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import sanitizeHtml from 'sanitize-html';
+import { Priority, ResponseFormat } from '@prisma/client';
 
 // Validointiskeema kommenteille
 const commentSchema = z.object({
@@ -59,18 +60,60 @@ export const validateComment = (req: Request, res: Response, next: NextFunction)
   }
 };
 
-// Middleware tikettien validointiin
+// Tikettien validointi
 export const validateTicket = (req: Request, res: Response, next: NextFunction) => {
+  // For multipart form data, the body is provided as strings in form fields
+  const { title, description, device, additionalInfo, priority, categoryId, responseFormat } = req.body;
+  
   try {
-    const validatedData = ticketSchema.parse(req.body);
-    req.body = validatedData;
+    // Create a data object with the correct types
+    const data = {
+      title,
+      description,
+      device: device || null,
+      additionalInfo: additionalInfo || null,
+      priority: priority as Priority,
+      categoryId,
+      responseFormat: responseFormat as ResponseFormat || 'TEKSTI'
+    };
+    
+    // Basic validation
+    if (!title || title.length < 5 || title.length > 100) {
+      throw new Error('Otsikon tulee olla 5-100 merkkiä pitkä');
+    }
+    
+    if (!description || description.length < 10 || description.length > 2000) {
+      throw new Error('Kuvauksen tulee olla 10-2000 merkkiä pitkä');
+    }
+    
+    if (device && device.length > 100) {
+      throw new Error('Laitteen tiedot voivat olla enintään 100 merkkiä');
+    }
+    
+    if (additionalInfo && additionalInfo.length > 1000) {
+      throw new Error('Lisätiedot voivat olla enintään 1000 merkkiä');
+    }
+    
+    if (!Object.values(Priority).includes(priority as Priority)) {
+      throw new Error('Virheellinen prioriteetti');
+    }
+    
+    if (!categoryId) {
+      throw new Error('Kategoria on pakollinen');
+    }
+    
+    if (responseFormat && !Object.values(ResponseFormat).includes(responseFormat as ResponseFormat)) {
+      throw new Error('Virheellinen vastausmuoto');
+    }
+    
+    // Attach the validated data to the request body
+    req.body = data;
+    
     next();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: error.errors[0].message 
-      });
+    if (error instanceof Error) {
+      return res.status(400).json({ error: error.message });
     }
-    next(error);
+    return res.status(400).json({ error: 'Validointivirhe' });
   }
 }; 

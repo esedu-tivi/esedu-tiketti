@@ -30,6 +30,7 @@ import {
   History,
   ImageIcon,
   VideoIcon,
+  FileIcon,
 } from 'lucide-react';
 
 import CommentSection from '../components/Tickets/CommentSection';
@@ -49,6 +50,7 @@ export default function TicketPage() {
   const [showTimeline, setShowTimeline] = useState(false);
   const queryClient = useQueryClient();
   const { userRole, user } = useAuth();
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const {
     data: ticket,
@@ -347,6 +349,14 @@ export default function TicketPage() {
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     return `${hours}h ${minutes}min`;
+  };
+
+  const handleImageClick = (attachment) => {
+    setSelectedImage(attachment);
+  };
+
+  const closeLightbox = () => {
+    setSelectedImage(null);
   };
 
   if (isLoading) return <div>Ladataan...</div>;
@@ -807,6 +817,98 @@ export default function TicketPage() {
               <p className="mt-1 whitespace-pre-wrap">
                 {ticketData.additionalInfo}
               </p>
+            </div>
+          )}
+
+          {ticketData.attachments && ticketData.attachments.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-500 flex items-center mb-3">
+                <FileIcon className="w-4 h-4 mr-1.5 text-gray-400" />
+                Liitteet ({ticketData.attachments.length})
+              </h3>
+              <div className="mt-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {ticketData.attachments.map((attachment) => (
+                  <div 
+                    key={attachment.id} 
+                    className="border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:border-blue-300 group"
+                  >
+                    {attachment.mimetype.startsWith('image/') ? (
+                      <div 
+                        onClick={() => handleImageClick(attachment)}
+                        className="cursor-pointer"
+                      >
+                        <div className="relative">
+                          <img 
+                            src={`http://localhost:3001${attachment.path}`} 
+                            alt={attachment.filename} 
+                            className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                        </div>
+                        <div className="p-2 text-xs truncate text-gray-600 border-t bg-gray-50 group-hover:bg-blue-50 transition-colors duration-200 flex items-center">
+                          <ImageIcon className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="truncate">{attachment.filename}</span>
+                        </div>
+                      </div>
+                    ) : attachment.mimetype.startsWith('video/') ? (
+                      <a 
+                        href={`http://localhost:3001${attachment.path}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <div className="w-full h-32 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-200">
+                          <VideoIcon className="w-10 h-10 text-blue-500 opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
+                        </div>
+                        <div className="p-2 text-xs truncate text-gray-600 border-t bg-gray-50 group-hover:bg-blue-50 transition-colors duration-200 flex items-center">
+                          <VideoIcon className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="truncate">{attachment.filename}</span>
+                        </div>
+                      </a>
+                    ) : (
+                      <a 
+                        href={`http://localhost:3001${attachment.path}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <div className="w-full h-32 bg-gray-100 flex items-center justify-center group-hover:bg-gray-200 transition-colors duration-200">
+                          <FileIcon className="w-10 h-10 text-gray-500 opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
+                        </div>
+                        <div className="p-2 text-xs truncate text-gray-600 border-t bg-gray-50 group-hover:bg-blue-50 transition-colors duration-200 flex items-center">
+                          <FileIcon className="w-3 h-3 mr-1 flex-shrink-0" />
+                          <span className="truncate">{attachment.filename}</span>
+                        </div>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Image Lightbox */}
+          {selectedImage && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75" onClick={closeLightbox}>
+              <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
+                <div className="absolute top-4 right-4 z-10">
+                  <button 
+                    onClick={closeLightbox}
+                    className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <img 
+                  src={`http://localhost:3001${selectedImage.path}`} 
+                  alt={selectedImage.filename} 
+                  className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="mt-2 text-center text-white">{selectedImage.filename}</div>
+              </div>
             </div>
           )}
 

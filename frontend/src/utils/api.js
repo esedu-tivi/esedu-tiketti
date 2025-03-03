@@ -69,26 +69,39 @@ export const fetchCategories = async () => {
 }
 
 export const createTicket = async (ticketData) => {
-  const transformedData = {
-    title: ticketData.subject,
-    description: ticketData.description,
-    device: ticketData.device || null,
-    additionalInfo: ticketData.additionalInfo || null,
-    priority: mapPriorityToEnum(ticketData.priority),
-    categoryId: ticketData.categoryId,
-    responseFormat: mapContentTypeToResponseFormat(ticketData.contentType)
-  };
+  // For file uploads, we need to use FormData
+  const formData = new FormData();
+  
+  // Add the basic ticket data
+  formData.append('title', ticketData.subject);
+  formData.append('description', ticketData.description);
+  formData.append('device', ticketData.device || '');
+  formData.append('additionalInfo', ticketData.additionalInfo || '');
+  formData.append('priority', mapPriorityToEnum(ticketData.priority));
+  formData.append('categoryId', ticketData.categoryId);
+  formData.append('responseFormat', mapContentTypeToResponseFormat(ticketData.contentType));
+  
+  // Add any attachments if present
+  if (ticketData.attachment && ticketData.attachment.length > 0) {
+    ticketData.attachment.forEach(file => {
+      formData.append('attachments', file);
+    });
+  }
 
   try {
-    const { data } = await api.post('/tickets', transformedData)
-    return data
+    const { data } = await api.post('/tickets', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return data;
   } catch (error) {
     if (error.response) {
-      throw new Error(error.response.data.error || 'Tiketin luonti epäonnistui')
+      throw new Error(error.response.data.error || 'Tiketin luonti epäonnistui');
     }
-    throw new Error('Tiketin luonti epäonnistui')
+    throw new Error('Tiketin luonti epäonnistui');
   }
-}
+};
 
 export const updateTicket = async (id, ticketData) => {
   // Jos päivityksessä on prioriteetti, muunnetaan se

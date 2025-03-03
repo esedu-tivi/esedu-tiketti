@@ -4,21 +4,26 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 import { requireRole, requireOwnership } from '../middleware/roleMiddleware.js';
 import { canModifyTicket } from '../middleware/checkRole.js';
 import { validateTicket, validateComment } from '../middleware/validationMiddleware.js';
-import { mediaUpload } from '../middleware/uploadMiddleware.js';
+import { mediaUpload, ticketAttachmentsUpload } from '../middleware/uploadMiddleware.js';
 import { UserRole } from '@prisma/client';
 
 const router = express.Router();
 
 // Public routes
 router.get('/', authMiddleware, ticketController.getAllTickets);
-
-// Käyttäjän omat tiketit - this needs to be BEFORE the /:id route
+// Käyttäjän omat tiketit - this MUST be BEFORE the /:id route
 router.get('/my-tickets', authMiddleware, ticketController.getMyTickets);
 
+// Path param routes must come after specific routes
 router.get('/:id', authMiddleware, requireOwnership, ticketController.getTicketById);
 
 // Protected routes
-router.post('/', authMiddleware, validateTicket, ticketController.createTicket);
+router.post('/', 
+  authMiddleware, 
+  ticketAttachmentsUpload,
+  validateTicket, 
+  ticketController.createTicket
+);
 
 router.post('/:id/comments', 
   authMiddleware, 
@@ -38,7 +43,8 @@ router.put('/:id', authMiddleware, requireOwnership, validateTicket, ticketContr
 router.delete('/:id', authMiddleware, requireOwnership, ticketController.deleteTicket);
 
 // Management-tason reitit (admin ja tukihenkilöt)
-router.get('/', authMiddleware, requireRole(UserRole.SUPPORT), ticketController.getAllTickets);
+// This is a duplicate route - removing it
+// router.get('/', authMiddleware, requireRole(UserRole.SUPPORT), ticketController.getAllTickets);
 router.put('/:id/assign', authMiddleware, requireRole(UserRole.SUPPORT), canModifyTicket, ticketController.assignTicket);
 router.put('/:id/status', authMiddleware, requireRole(UserRole.SUPPORT), canModifyTicket, ticketController.updateTicketStatusWithComment);
 router.put('/:id/take', authMiddleware, requireRole(UserRole.SUPPORT), ticketController.takeTicketIntoProcessing);

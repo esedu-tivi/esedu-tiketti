@@ -59,4 +59,5 @@ const upload = multer({
   }
 });
 
-export const mediaUpload = upload.single('media'); 
+export const mediaUpload = upload.single('media');
+export const ticketAttachmentsUpload = upload.array('attachments', 5); // Allow up to 5 attachments 

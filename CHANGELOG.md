@@ -2,6 +2,25 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 03.03.2025 (Enhanced support staff permissions for media comments)
+
+- Parannettu tukihenkilöiden työnkulkua sallimalla kaikille tukihenkilöille mediakommenttien (kuvat, videot) lisääminen tiketteihin riippumatta siitä, onko tiketti heille osoitettu
+- Päivitetty käyttöliittymä näyttämään mediakommenttipainike kaikille tukihenkilöille kaikkien tikettien yhteydessä
+- Poistettu rajoitus, joka vaati tiketin osoittamista tukihenkilölle ennen mediakommenttien lisäämistä
+- Tukihenkilöt voivat nyt helpommin auttaa toisiaan jakamalla visuaalista materiaalia kaikkiin tiketteihin
+- Päivitetty dokumentaatio vastaamaan uutta ominaisuutta (API-dokumentaatio ja README.md)
+
+## 03.03.2025 (Implemented attachment functionality for ticket creation)
+
+- Lisätty mahdollisuus liittää tiedostoja tiketteihin sitä luodessa
+- Parannettu liitetiedostojen näyttämistä tikettinäkymissä:
+  - Ammattimainen ulkoasu liitetiedostoille grid-layoutilla
+  - Kuvien esikatselu suoraan tiketissä ilman uuteen välilehteen siirtymistä
+  - Kuvien lightbox-näkymä, joka mahdollistaa kuvien katselun täysikokoisena
+  - Hover-efektit ja animaatiot käyttökokemuksen parantamiseksi
+  - Tiedostotyypin mukaan mukautuva näkymä (kuvat, videot, muut tiedostot)
+  - Yhtenäinen tiedostojen käsittely sekä TicketPage että TicketDetailsModal -komponenteissa
+
 ## 03.03.2025 (Implemented media response functionality for ticket comments)
 
 - Lisätty mediaUrl ja mediaType -kentät Comment-malliin mediatiedostojen viittauksia varten

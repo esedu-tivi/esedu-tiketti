@@ -32,14 +32,16 @@ export const ticketService = {
           include: {
             author: true
           }
-        }
+        },
+        attachments: true
       }
     });
   },
 
   // Luo uusi tiketti
   createTicket: async (data: CreateTicketDTO, userId: string) => {
-    return prisma.ticket.create({
+    // Create the ticket with its basic information
+    const ticket = await prisma.ticket.create({
       data: {
         title: data.title,
         description: data.description,
@@ -59,6 +61,47 @@ export const ticketService = {
         category: true
       }
     });
+
+    // If there are attachments, create them and link to the ticket
+    if (data.attachments && data.attachments.length > 0) {
+      for (const attachment of data.attachments) {
+        await prisma.attachment.create({
+          data: {
+            filename: attachment.filename,
+            path: attachment.path,
+            mimetype: attachment.mimetype,
+            size: attachment.size,
+            ticket: {
+              connect: { id: ticket.id }
+            }
+          }
+        });
+      }
+
+      // Re-fetch the ticket with its related data
+      const updatedTicket = await prisma.ticket.findUnique({
+        where: { id: ticket.id },
+        include: {
+          createdBy: true,
+          category: true
+        }
+      });
+
+      // Also fetch the attachments separately
+      const attachments = await prisma.attachment.findMany({
+        where: {
+          ticketId: ticket.id
+        }
+      });
+
+      // Return the ticket with attachments
+      return {
+        ...updatedTicket,
+        attachments
+      };
+    }
+
+    return ticket;
   },
 
   // Päivitä tiketti

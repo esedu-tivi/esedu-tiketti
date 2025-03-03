@@ -30,6 +30,12 @@ export interface CreateTicketDTO {
   priority: Priority;
   categoryId: string;
   responseFormat?: ResponseFormat;
+  attachments?: Array<{
+    filename: string;
+    path: string;
+    mimetype: string;
+    size: number;
+  }>;
 }
 
 export interface UpdateTicketDTO {

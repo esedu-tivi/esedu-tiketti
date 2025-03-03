@@ -14,6 +14,7 @@
 - Mukautettavat ilmoitusasetukset
 - Profiilisivu ja asetukset
 - Vastausmuodon valinta tiketille (TEKSTI, KUVA, VIDEO)
+- Tiedostojen liittäminen tiketteihin (kuvat, videot, muut tiedostot)
 
 ### IT-tuki ja hallinta
 - Kolmiportainen käyttäjähallinta (Opiskelija → Tukihenkilö → Admin)
@@ -25,6 +26,17 @@
 - Automaattiset tilamuutosviestit
 - Mediakommentit tukipyynnöissä (kuvat ja videot)
 - Tiedostonlataus ja -käsittelytoiminnot
+- Tikettiliitteiden hallinnointi ja tarkastelu
+- Joustavampi mediakommentointi: kaikki tukihenkilöt voivat liittää kuvia ja videoita tiketteihin riippumatta siitä, onko tiketti heille osoitettu
+
+### Liitetiedostot ja median käsittely
+- Liitetiedostojen lisääminen tiketteihin niiden luontivaiheessa (max 5 tiedostoa)
+- Tuki eri tiedostotyypeille (kuvat, videot, dokumentit jne.)
+- Kuvien esikatselunäkymä suoraan tikettinäkymässä
+- Lightbox-toiminto kuvien suurempaan tarkasteluun
+- Median responsiivinen esittäminen eri laitteilla
+- Tiedostojen turvallinen käsittely backend-puolella
+- Johdonmukainen liitetiedostojen näyttö sekä yksittäisen tiketin näkymässä että tiketin tietomodalissa
 
 ### Mediavastaukset
 - Kolme vastausmuotoa: TEKSTI, KUVA ja VIDEO

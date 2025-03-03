@@ -140,6 +140,17 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `processingStartedAt`: DateTime? - Käsittelyn aloitusaika (valinnainen)
 - `processingEndedAt`: DateTime? - Käsittelyn päättymisaika (valinnainen)
 - `estimatedCompletionTime`: DateTime? - Arvioitu valmistumisaika (valinnainen)
+- `attachments`: Attachment[] - Tiketin liitetiedostot (valinnainen)
+
+### Attachment (Liitetiedosto)
+- `id`: String (UUID) - Liitetiedoston yksilöllinen tunniste
+- `filename`: String - Tiedoston nimi
+- `path`: String - Tiedoston polku palvelimella
+- `mimetype`: String - Tiedoston MIME-tyyppi
+- `size`: Int - Tiedoston koko tavuina
+- `ticketId`: String - Tiketin tunniste, johon liitetiedosto kuuluu
+- `createdAt`: DateTime - Luontiaika
+- `updatedAt`: DateTime - Viimeisin päivitysaika
 
 ### Category (Kategoria)
 - `id`: String (UUID) - Kategorian yksilöllinen tunniste
@@ -227,6 +238,8 @@ Studio käynnistyy osoitteeseen http://localhost:5555
 - `GET /api/tickets/:id` - Hae yksittäinen tiketti (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
 - `POST /api/tickets` - Luo uusi tiketti
   ```typescript
+  // Käytetään multipart/form-data -muotoa
+  // FormData sisältää:
   {
     title: string;
     description: string;
@@ -235,18 +248,19 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     priority: Priority;
     categoryId: string;
     responseFormat: "TEKSTI" | "KUVA" | "VIDEO";
+    attachments?: File[]; // Tiedostojen lataus, maksimissaan 5 tiedostoa
   }
 
-  // Esimerkki
-  {
-    "title": "Näppäimistö ei toimi",
-    "description": "Luokassa A123 tietokoneen näppäimistö ei reagoi painalluksiin",
-    "device": "HP EliteBook 840 G7",
-    "additionalInfo": "Ongelma alkoi tänään aamulla",
-    "priority": "HIGH",
-    "categoryId": "clsj2n9g0000dtp97zr5lqw3x",
-    "responseFormat": "TEKSTI"
-  }
+  // Esimerkki FormData:
+  // - title: "Näppäimistö ei toimi"
+  // - description: "Luokassa A123 tietokoneen näppäimistö ei reagoi painalluksiin"
+  // - device: "HP EliteBook 840 G7"
+  // - additionalInfo: "Ongelma alkoi tänään aamulla"
+  // - priority: "HIGH"
+  // - categoryId: "clsj2n9g0000dtp97zr5lqw3x"
+  // - responseFormat: "TEKSTI"
+  // - attachments[0]: [File object]
+  // - attachments[1]: [File object]
   ```
 - `PUT /api/tickets/:id` - Päivitä tikettiä (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
   ```typescript
@@ -342,7 +356,7 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     "content": "Näppäimistö vaihdettu uuteen, ongelma korjattu."
   }
   ```
-- `POST /api/tickets/:ticketId/media-comments` - Lisää mediakommentti tikettiin (kuva tai video)
+- `POST /api/tickets/:id/comments/media` - Lisää mediakommentti tikettiin (kuva tai video)
   ```typescript
   // Käytetään multipart/form-data -muotoa
   // FormData sisältää:
@@ -352,6 +366,9 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   // Tuetut tiedostotyypit:
   // - Kuvat: .jpg, .jpeg, .png, .gif, .webp
   // - Videot: .mp4, .webm, .mov
+  
+  // Huom: Kaikilla tukihenkilöillä on oikeus lisätä mediakommentteja tiketteihin,
+  // vaikka tiketti ei olisi heille osoitettu. Tämä mahdollistaa joustavamman tiimityöskentelyn.
 
   // Onnistuneen vastauksen esimerkki
   {

@@ -40,9 +40,23 @@ model Ticket {
   categoryId     String
   comments       Comment[]
   notifications  Notification[]
+  attachments    Attachment[]
   assignedTo     User?          @relation("AssignedTickets", fields: [assignedToId], references: [id])
   category       Category       @relation(fields: [categoryId], references: [id])
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  filename  String
+  path      String
+  mimetype  String
+  size      Int
+  createdAt DateTime @default(now())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
 }
 
 model Comment {
