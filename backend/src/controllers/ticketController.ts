@@ -352,6 +352,23 @@ export const ticketController = {
 
         console.log('Found mentioned users:', mentionedUsers);
 
+        // Hae tiketti ennen kommentin luontia
+        const ticket = await prisma.ticket.findUnique({
+          where: { id }
+        });
+
+        if (!ticket) {
+          return res.status(404).json({ error: 'Tikettiä ei löydy' });
+        }
+
+        // Tarkista käyttäjän oikeudet kommentoida tikettiin
+        if (user.role === 'SUPPORT' && ticket.responseFormat !== 'TEKSTI' && ticket.assignedToId === user.id) {
+          return res.status(400).json({ 
+            error: `Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen.
+                   Käytä media-kommenttitoimintoa vastaamiseen.`
+          });
+        }
+
         // Luo kommentti
         const comment = await prisma.comment.create({
           data: {
@@ -412,6 +429,125 @@ export const ticketController = {
     } catch (error) {
       console.error('Virhe kommentin lisäämisessä:', error);
       res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
+    }
+  },
+
+  // Lisää kommentti mediasisällöllä (kuva tai video)
+  addMediaCommentToTicket: async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { content } = req.body;
+      
+      // Tarkistetaan, että tiedosto on ladattu
+      if (!req.file) {
+        return res.status(400).json({ error: 'Media-tiedosto puuttuu' });
+      }
+      
+      if (!content) {
+        return res.status(400).json({ error: 'Kommentin sisältö puuttuu' });
+      }
+
+      if (!req.user?.email) {
+        return res.status(401).json({ error: 'Käyttäjän tiedot puuttuvat' });
+      }
+
+      // Haetaan käyttäjä sähköpostiosoitteen perusteella
+      const user = await prisma.user.findUnique({
+        where: { email: req.user.email }
+      });
+
+      if (!user) {
+        return res.status(401).json({ error: 'Käyttäjää ei löydy' });
+      }
+      
+      // Haetaan tiketti
+      const ticket = await prisma.ticket.findUnique({
+        where: { id }
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({ error: 'Tikettiä ei löydy' });
+      }
+      
+      // Tarkista, että käyttäjä on tukihenkilö ja on tiketin käsittelijä
+      if (user.role === 'SUPPORT' && ticket.assignedToId !== user.id && user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Vain tiketin käsittelijä voi lisätä mediasisältöä' });
+      }
+      
+      // Määritä mediatyyppi tiedostopäätteen perusteella
+      const mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
+      
+      // Luo tiedostopolku
+      const mediaUrl = `/uploads/${req.file.filename}`;
+      
+      // Luo kommentti mediasisällöllä
+      const comment = await prisma.comment.create({
+        data: {
+          content,
+          mediaUrl,
+          mediaType,
+          ticket: { connect: { id } },
+          author: { connect: { id: user.id } }
+        },
+        include: {
+          author: true,
+          ticket: {
+            select: {
+              title: true,
+              createdById: true
+            }
+          }
+        }
+      });
+      
+      // Lähetä ilmoitus tiketin luojalle
+      if (ticket.createdById !== user.id) {
+        await createNotification(
+          ticket.createdById,
+          'COMMENT_ADDED',
+          `Uusi ${mediaType === 'image' ? 'kuva' : 'video'}-vastaus tiketissä "${ticket.title}"`,
+          id,
+          { commentId: comment.id }
+        );
+      }
+      
+      // Käsitellään maininnat
+      const mentionRegex = /@([a-zA-Z0-9äöåÄÖÅ\s]+)/g;
+      const mentions = content.match(mentionRegex) || [];
+      const mentionedNames = mentions.map((mention: string) => mention.slice(1).trim());
+      
+      if (mentionedNames.length > 0) {
+        const mentionedUsers = await prisma.user.findMany({
+          where: {
+            OR: mentionedNames.map((name: string) => ({
+              name: {
+                equals: name,
+                mode: 'insensitive'
+              }
+            }))
+          }
+        });
+        
+        // Lähetä ilmoitukset mainituille käyttäjille
+        for (const mentionedUser of mentionedUsers) {
+          await createNotification(
+            mentionedUser.id,
+            'MENTIONED',
+            `${user.name} mainitsi sinut kommentissa tiketissä "${ticket.title}"`,
+            id,
+            { 
+              commentId: comment.id,
+              mentionedBy: user.name,
+              mentionedByEmail: user.email
+            }
+          );
+        }
+      }
+      
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error('Virhe media-kommentin lisäämisessä:', error);
+      res.status(500).json({ error: 'Media-kommentin lisääminen epäonnistui' });
     }
   },
 

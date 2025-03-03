@@ -13,6 +13,7 @@
 - Reaaliaikaiset ilmoitukset
 - Mukautettavat ilmoitusasetukset
 - Profiilisivu ja asetukset
+- Vastausmuodon valinta tiketille (TEKSTI, KUVA, VIDEO)
 
 ### IT-tuki ja hallinta
 - Kolmiportainen käyttäjähallinta (Opiskelija → Tukihenkilö → Admin)
@@ -22,6 +23,17 @@
 - Tiketin käsittelyajan seuranta
 - Tiketin siirto toiselle tukihenkilölle
 - Automaattiset tilamuutosviestit
+- Mediakommentit tukipyynnöissä (kuvat ja videot)
+- Tiedostonlataus ja -käsittelytoiminnot
+
+### Mediavastaukset
+- Kolme vastausmuotoa: TEKSTI, KUVA ja VIDEO
+- Kuva- ja videovastausten lähetys
+- Mediasisällön näyttäminen kommenteissa
+- Tiedostojen validointi ja turvallinen käsittely
+- Mediakommenttien merkintä aikajanoilla
+- Responsiivinen median näyttö eri laitteilla
+- Tuki yleisimmille mediatiedostomuodoille (jpg, png, gif, mp4, webm)
 
 ### Ilmoitusjärjestelmä
 - Reaaliaikaiset WebSocket-ilmoitukset
@@ -54,6 +66,7 @@
 - Azure AD integraatio
 - Socket.IO
 - Zod validointi
+- Multer (tiedostojen käsittely)
 
 ### Tietokanta
 - PostgreSQL
@@ -61,6 +74,7 @@
   - Käyttäjät ja roolit
   - Kategoriat
   - Ilmoitukset ja asetukset
+  - Media ja liitetiedostot
 
 ## 📱 Käyttöliittymä
 - Responsiivinen design
@@ -70,6 +84,7 @@
 - Käyttäjäystävälliset ilmoitukset
 - Selkeä profiilisivu
 - Mukautettavat ilmoitusasetukset
+- Mediakomponentit kuva- ja videosisällölle
 
 ## 📚 Dokumentaatio
 - [CHANGELOG.md](./CHANGELOG.md) - Versiohistoria ja muutosloki
@@ -83,6 +98,7 @@
 - Turvallinen istunnonhallinta
 - WebSocket-yhteyden autentikointi
 - Syötteiden validointi ja sanitointi
+- Tiedostojen tyyppi- ja kokovalidaatio
 
 ---
 Kehitetty Etelä-Savon ammattiopiston IT-tuen opiskelijoiden tarpeisiin.

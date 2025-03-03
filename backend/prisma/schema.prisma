@@ -48,6 +48,8 @@ model Ticket {
 model Comment {
   id        String   @id @default(uuid())
   content   String
+  mediaUrl  String?  // URL to the media file (image or video)
+  mediaType String?  // Type of media (image or video)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ticketId  String

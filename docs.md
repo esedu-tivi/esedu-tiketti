@@ -131,6 +131,7 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `additionalInfo`: String? - Lisätiedot (valinnainen)
 - `status`: TicketStatus - Tiketin tila (OPEN, IN_PROGRESS, RESOLVED, CLOSED)
 - `priority`: Priority - Prioriteetti (LOW, MEDIUM, HIGH, CRITICAL)
+- `responseFormat`: ResponseFormat - Vastausmuoto (TEKSTI, KUVA, VIDEO) - määrittää miten tikettiin tulee vastata
 - `createdAt`: DateTime - Luontiaika
 - `updatedAt`: DateTime - Viimeisin päivitysaika
 - `categoryId`: String - Kategorian tunniste
@@ -157,7 +158,9 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 
 ### Comment (Kommentti)
 - `id`: String (UUID) - Kommentin yksilöllinen tunniste
-- `content`: String - Kommentin sisältö
+- `content`: String - Kommentin tekstisisältö
+- `mediaUrl`: String? - Mediasisällön URL-polku (valinnainen)
+- `mediaType`: MediaType? - Mediasisällön tyyppi (IMAGE, VIDEO) (valinnainen)
 - `createdAt`: DateTime - Luontiaika
 - `updatedAt`: DateTime - Viimeisin päivitysaika
 - `ticketId`: String - Tiketin tunniste
@@ -231,6 +234,7 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     additionalInfo?: string;
     priority: Priority;
     categoryId: string;
+    responseFormat: "TEKSTI" | "KUVA" | "VIDEO";
   }
 
   // Esimerkki
@@ -240,7 +244,8 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     "device": "HP EliteBook 840 G7",
     "additionalInfo": "Ongelma alkoi tänään aamulla",
     "priority": "HIGH",
-    "categoryId": "clsj2n9g0000dtp97zr5lqw3x"
+    "categoryId": "clsj2n9g0000dtp97zr5lqw3x",
+    "responseFormat": "TEKSTI"
   }
   ```
 - `PUT /api/tickets/:id` - Päivitä tikettiä (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
@@ -254,6 +259,7 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     priority?: Priority;
     assignedToId?: string;
     categoryId?: string;
+    responseFormat?: ResponseFormat;
   }
 
   // Esimerkki
@@ -261,7 +267,8 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     "status": "IN_PROGRESS",
     "priority": "MEDIUM",
     "assignedToId": "clsj2n9g0000etp97zr5lqw3y",
-    "additionalInfo": "Tukihenkilö käynyt tarkistamassa tilanteen"
+    "additionalInfo": "Tukihenkilö käynyt tarkistamassa tilanteen",
+    "responseFormat": "TEKSTI"
   }
   ```
 - `DELETE /api/tickets/:id` - Poista tiketti (vaatii omistajuuden tai SUPPORT/ADMIN-roolin)
@@ -324,7 +331,7 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   ```
 
 ### Kommentit
-- `POST /api/tickets/:ticketId/comments` - Lisää kommentti tikettiin
+- `POST /api/tickets/:ticketId/comments` - Lisää tekstikommentti tikettiin
   ```typescript
   {
     content: string;
@@ -335,6 +342,33 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     "content": "Näppäimistö vaihdettu uuteen, ongelma korjattu."
   }
   ```
+- `POST /api/tickets/:ticketId/media-comments` - Lisää mediakommentti tikettiin (kuva tai video)
+  ```typescript
+  // Käytetään multipart/form-data -muotoa
+  // FormData sisältää:
+  // - media: File - kuva- tai videotiedosto (max 10 MB)
+  // - content: string - tekstikommentti (valinnainen)
+
+  // Tuetut tiedostotyypit:
+  // - Kuvat: .jpg, .jpeg, .png, .gif, .webp
+  // - Videot: .mp4, .webm, .mov
+
+  // Onnistuneen vastauksen esimerkki
+  {
+    "success": true,
+    "comment": {
+      "id": "clsj2n9g0000gtp97zr5lqw4b",
+      "content": "Tässä kuva uudesta näppäimistöstä.",
+      "mediaUrl": "/uploads/images/keyboard-12345.jpg",
+      "mediaType": "image",
+      "createdAt": "2024-01-31T12:00:00.000Z",
+      "author": {
+        "id": "clsj2n9g0000etp97zr5lqw3y",
+        "name": "Tukihenkilö Testaaja"
+      }
+    }
+  }
+  ```
 - `GET /api/tickets/:ticketId/comments` - Hae tiketin kommentit
   ```typescript
   // Vastauksen esimerkki
@@ -343,6 +377,17 @@ Studio käynnistyy osoitteeseen http://localhost:5555
       {
         "id": "clsj2n9g0000ftp97zr5lqw3z",
         "content": "Näppäimistö vaihdettu uuteen, ongelma korjattu.",
+        "createdAt": "2024-01-31T12:00:00.000Z",
+        "author": {
+          "id": "clsj2n9g0000etp97zr5lqw3y",
+          "name": "Tukihenkilö Testaaja"
+        }
+      },
+      {
+        "id": "clsj2n9g0000gtp97zr5lqw4b",
+        "content": "Tässä kuva uudesta näppäimistöstä.",
+        "mediaUrl": "/uploads/images/keyboard-12345.jpg",
+        "mediaType": "image",
         "createdAt": "2024-01-31T12:00:00.000Z",
         "author": {
           "id": "clsj2n9g0000etp97zr5lqw3y",
@@ -721,14 +766,21 @@ Kaikki syötteet validoidaan ja sanitoidaan automaattisesti:
      additionalInfo?: string | null; // max 1000 merkkiä, valinnainen
      priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
      categoryId: string;  // UUID-muotoinen
-     responseFormat?: "TEKSTI" | "KUVA" | "VIDEO"; // oletuksena "TEKSTI"
+     responseFormat: "TEKSTI" | "KUVA" | "VIDEO"; // Määrittää miten tikettiin tulee vastata, oletuksena "TEKSTI"
    }
    ```
 
 2. Kommentin lisäys:
    ```typescript
+   // Tekstikommentti
    {
      content: string; // 1-1000 merkkiä
+   }
+   
+   // Mediakommentti (multipart/form-data)
+   {
+     media: File; // max 10 MB, tyypit: jpg, jpeg, png, gif (kuva) tai mp4, webm, mov (video)
+     content?: string; // 0-1000 merkkiä, valinnainen
    }
    ```
 
@@ -812,3 +864,30 @@ const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
   font-weight: 500;
 }
 ```
+
+## Media vastaukset
+
+### Toiminnallisuus
+- Tiketille voidaan määrittää haluttu vastausmuoto: TEKSTI, KUVA tai VIDEO
+- Tikettiin voidaan lisätä mediakommentteja (kuvia tai videoita) tekstin lisäksi
+- Mediakommentit näytetään viestikentässä inline-sisältönä
+- Aikajanalla näytetään media-lisäykset selkeästi visuaalisesti korostettuna
+
+### Median lähetys
+- Tukihenkilöt voivat lähettää kuvia ja videoita kommenttien yhteydessä
+- Lähetys tapahtuu tiedoston latauslomakkeella
+- Tuetut tiedostomuodot:
+  - Kuvat: jpg, jpeg, png, gif
+  - Videot: mp4, webm, mov
+- Tiedostokokorajoitus: 10 MB
+
+### Median näyttäminen
+- Kuvat näytetään suoraan viestikentässä
+- Videot näytetään upotetussa soittimessa
+- Klikkaamalla mediaa sen voi avata suurempaan näkymään
+- Aikajanalla on selkeä indikaattori media-lisäyksistä
+
+### Median validointi
+- Järjestelmä tarkistaa, että kuva/video vastaa tiketin määritettyä vastausmuotoa
+- Virheilmoitus näytetään, jos tiedostomuoto ei ole sallittu
+- Tietoturvatarkistukset suoritetaan kaikille ladatuille tiedostoille

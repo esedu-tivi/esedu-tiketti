@@ -152,4 +152,4 @@
   - [ ] Ylläpitäjän ohjeet
 - [ ] Tietoturvaohjeistus
   - [ ] Käyttöoikeuksien hallinta
-  - [ ] Tietoturvaperiaatteet 
+  - [ ] Tietoturvaperiaatteet

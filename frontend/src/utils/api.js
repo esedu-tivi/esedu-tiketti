@@ -180,6 +180,29 @@ export const addComment = async (ticketId, content) => {
   }
 }
 
+// Mediasisältöisen kommentin lisääminen tikettiin (kuva tai video)
+export const addMediaComment = async (ticketId, formData) => {
+  try {
+    const token = await authService.acquireToken()
+    const { data } = await axios.post(
+      `${API_BASE_URL}/tickets/${ticketId}/comments/media`, 
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    )
+    return data
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Median lisääminen epäonnistui')
+    }
+    throw new Error('Median lisääminen epäonnistui')
+  }
+}
+
 // Ota tiketti käsittelyyn
 export const takeTicketIntoProcessing = async (ticketId) => {
   try {

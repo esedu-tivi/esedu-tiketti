@@ -3,17 +3,22 @@ import { ticketController } from '../controllers/ticketController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { requireRole, requireOwnership } from '../middleware/roleMiddleware.js';
 import { canModifyTicket } from '../middleware/checkRole.js';
-import { UserRole } from '@prisma/client';
 import { validateTicket, validateComment } from '../middleware/validationMiddleware.js';
+import { mediaUpload } from '../middleware/uploadMiddleware.js';
+import { UserRole } from '@prisma/client';
 
 const router = express.Router();
 
-// Julkiset reitit (vaativat vain autentikaation)
-router.post('/', 
-  authMiddleware, 
-  validateTicket,
-  ticketController.createTicket
-);
+// Public routes
+router.get('/', authMiddleware, ticketController.getAllTickets);
+
+// Käyttäjän omat tiketit - this needs to be BEFORE the /:id route
+router.get('/my-tickets', authMiddleware, ticketController.getMyTickets);
+
+router.get('/:id', authMiddleware, requireOwnership, ticketController.getTicketById);
+
+// Protected routes
+router.post('/', authMiddleware, validateTicket, ticketController.createTicket);
 
 router.post('/:id/comments', 
   authMiddleware, 
@@ -21,11 +26,14 @@ router.post('/:id/comments',
   ticketController.addCommentToTicket
 );
 
-// Käyttäjän omat tiketit
-router.get('/my-tickets', authMiddleware, ticketController.getMyTickets);
+// Add media comment route
+router.post('/:id/comments/media', 
+  authMiddleware, 
+  mediaUpload,
+  ticketController.addMediaCommentToTicket
+);
 
 // Reitit jotka vaativat omistajuuden tai admin-oikeudet
-router.get('/:id', authMiddleware, requireOwnership, ticketController.getTicketById);
 router.put('/:id', authMiddleware, requireOwnership, validateTicket, ticketController.updateTicket);
 router.delete('/:id', authMiddleware, requireOwnership, ticketController.deleteTicket);
 

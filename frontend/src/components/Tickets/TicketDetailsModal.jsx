@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTicket, addComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
+import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
 import { useAuth } from '../../providers/AuthProvider';
 import axios from 'axios';
 import {
@@ -26,6 +26,8 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  ImageIcon,
+  VideoIcon,
 } from 'lucide-react';
 
 import CommentSection from '../Tickets/CommentSection';
@@ -80,6 +82,17 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         };
       });
       queryClient.invalidateQueries(['ticket', ticketId]);
+    },
+  });
+
+  const addMediaCommentMutation = useMutation({
+    mutationFn: (formData) => addMediaComment(ticketId, formData),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['ticket', ticketId]);
+      setNewComment('');
+    },
+    onError: (error) => {
+      console.error('Median lisääminen epäonnistui:', error.message || 'Median lisääminen epäonnistui');
     },
   });
 
@@ -148,19 +161,16 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     },
   });
 
-  const handleAddComment = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
+  const handleAddComment = async () => {
     if (!newComment.trim()) return;
+    await addCommentMutation.mutateAsync({
+      content: newComment,
+    });
+  };
 
-    try {
-      await addCommentMutation.mutateAsync({
-        content: newComment,
-      });
-
-      setNewComment('');
-    } catch (error) {
-      console.error('Virhe kommentin lisäämisessä:', error);
-    }
+  const handleAddMediaComment = async (formData) => {
+    if (!formData) return;
+    await addMediaCommentMutation.mutateAsync(formData);
   };
 
   const handleTakeIntoProcessing = async () => {
@@ -521,17 +531,27 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         .filter(comment => comment.author?.email !== 'system@esedu.fi')
         .map(comment => {
           const isCreator = comment.author?.id === ticketData.createdById;
+          const hasMedia = comment.mediaUrl && comment.mediaType;
+          const mediaTypeDisplay = comment.mediaType === 'image' ? 'kuva' : 'video';
+
+          // Create title with media info if present
+          const title = isCreator 
+            ? hasMedia ? `Käyttäjän kommentti (${mediaTypeDisplay})` : 'Käyttäjän kommentti'
+            : hasMedia ? `Tukihenkilön kommentti (${mediaTypeDisplay})` : 'Tukihenkilön kommentti';
+
           return {
             id: comment.id,
             type: 'comment',
             date: comment.createdAt,
-            icon: MessageSquare,
+            icon: hasMedia ? (comment.mediaType === 'image' ? ImageIcon : VideoIcon) : MessageSquare,
             color: 'gray',
-            title: isCreator ? 'Käyttäjän kommentti' : 'Tukihenkilön kommentti',
-            details: comment.content,
+            title: title,
+            details: comment.content + (hasMedia ? ` [Liitetty ${mediaTypeDisplay}]` : ''),
             author: comment.author?.name,
             isSystemEvent: false,
-            customColors: !isCreator ? SUPPORT_COLOR : null
+            customColors: !isCreator ? SUPPORT_COLOR : null,
+            hasMedia: hasMedia,
+            mediaType: comment.mediaType
           };
         }),
       ...(ticketData.processingEndedAt ? [{
@@ -583,16 +603,26 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     event.customColors ? event.customColors.text : `text-${event.color === 'transfer' ? 'transfer-500' : `${event.color}-500`}`
                   } fill-white ${!event.isSystemEvent ? 'w-3 h-3' : ''}`} />
                   <div className={`${
-                    event.customColors 
-                      ? `bg-[#92C01F]/10 border border-gray-200` 
-                      : event.isSystemEvent 
-                        ? `${event.color === 'transfer' ? 'bg-transfer-50 border-transfer-200' : `bg-${event.color}-50 border-${event.color}-200`} shadow-sm` 
-                        : `bg-gray-50 border border-gray-200`
+                    event.hasMedia 
+                      ? 'bg-blue-50 border-blue-200 shadow-sm'
+                      : event.customColors 
+                        ? `bg-[#92C01F]/10 border border-gray-200` 
+                        : event.isSystemEvent 
+                          ? `${event.color === 'transfer' ? 'bg-transfer-50 border-transfer-200' : `bg-${event.color}-50 border-${event.color}-200`} shadow-sm` 
+                          : `bg-gray-50 border border-gray-200`
                   } p-${event.isSystemEvent ? '4' : '3'} rounded-lg`}>
                     <div className={`flex items-center gap-2 text-sm ${
-                      event.customColors ? 'text-gray-700' : event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-700' : `text-${event.color}-700`}` : `text-${event.color}-700`
+                      event.hasMedia 
+                        ? 'text-blue-700' 
+                        : event.customColors 
+                          ? 'text-gray-700' 
+                          : event.isSystemMessage 
+                            ? `${event.color === 'transfer' ? 'text-transfer-700' : `text-${event.color}-700`}` 
+                            : `text-${event.color}-700`
                     }`}>
-                      <Icon className={`${event.isSystemEvent ? 'w-4 h-4' : 'w-3.5 h-3.5'} ${event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : ''}`} />
+                      <Icon className={`${event.isSystemEvent ? 'w-4 h-4' : 'w-3.5 h-3.5'} ${
+                        event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : ''
+                      }`} />
                       <span className={`${event.isSystemEvent ? 'font-medium' : ''}`}>{event.title}</span>
                       <span className={event.customColors ? 'text-gray-500' : event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : `text-${event.color}-500`}>•</span>
                       <span className={`${!event.isSystemEvent ? 'text-xs' : ''} ${event.isSystemMessage ? `${event.color === 'transfer' ? 'text-transfer-600' : `text-${event.color}-600`}` : ''}`}>{formatDateTime(event.date)}</span>
@@ -851,6 +881,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 handleAddComment={handleAddComment}
                 addCommentMutation={addCommentMutation}
                 ticket={ticketData}
+                onAddMediaComment={handleAddMediaComment}
               />
             </div>
 

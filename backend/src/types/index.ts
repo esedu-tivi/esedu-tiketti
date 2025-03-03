@@ -47,10 +47,14 @@ export interface UpdateTicketDTO {
 export interface CreateCommentDTO {
   content: string;
   ticketId: string;
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 export interface UpdateCommentDTO {
   content: string;
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 export interface CreateUserDTO {

@@ -2,7 +2,17 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
-# 14.02.2025 (Improved TicketPage and mention functionality)
+## 03.03.2025 (Implemented media response functionality for ticket comments)
+
+- Lisätty mediaUrl ja mediaType -kentät Comment-malliin mediatiedostojen viittauksia varten
+- Luotu tiedostojen lähetysjärjestelmä multer-kirjaston avulla kuvien ja videoiden käsittelyyn
+- Toteutettu backend-reitit ja kontrollerit mediakommenttien käsittelyyn
+- Päivitetty CommentSection-komponentti näyttämään mediasisältöä (kuvat ja videot)
+- Lisätty käyttöliittymä tukihenkilöille mediatiedostojen lähettämiseen kun tiketti vaatii KUVA- tai VIDEO-vastauksen
+- Parannettu kommenttien näyttämistä näyttämään asianmukaiset mediaformaatit
+- Lisätty validointi varmistamaan, että tukihenkilöt vastaavat oikealla mediaformaatilla tiketin vaatimusten mukaisesti
+
+# 03.03.2025 (Improved TicketPage and mention functionality)
 
 ### Added
 - Päivitetty TicketPage-komponentti vastaamaan TicketDetailsModal-toiminnallisuutta:
