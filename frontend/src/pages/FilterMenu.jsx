@@ -6,6 +6,7 @@ import { Label } from "../components/ui/Label";
 import { Checkbox } from "../components/ui/Checkbox";
 import { ChevronDown } from "lucide-react";
 import { fetchCategories } from "../utils/api";
+import '../index.css';
 
 const defaultFilters = {
   status: [],
@@ -21,6 +22,8 @@ const defaultFilters = {
 function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   const [filters, setFilters] = useState(defaultFilters);
   const [categories, setCategories] = useState([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [dateError, setDateError] = useState("");
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -56,6 +59,15 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
       } else {
         newFilters[name]= "";
       }
+
+      if (newFilters.startDate && newFilters.endDate) {
+        if (newFilters.startDate > newFilters.endDate) {
+          setDateError("Alkupäivämäärä ei voi olla myöhemmin kuin päättymispäivämäärä!");
+          newFilters.endDate = newFilters.startDate; // Jos startDate on suurempi kuin endDate, asetetaan endDate samaksi
+        } else {
+          setDateError(""); // Tyhjennetään virheilmoitus
+        }
+      }
       onFilterChange(newFilters);
       return newFilters;
     }); 
@@ -64,26 +76,45 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   // Suodattimien alustus
   const clearFilters = () => {
     setFilters(defaultFilters);
+    setDateError("");
     onFilterChange({});
   };
 
   // Avaa tai sulje suodatinvalikko
   const toggleFilterMenu = () => setIsOpen(!isOpen);
 
+  // Suodatinpalkin hakukentän käsittely
+  const handleSearchChange = (e) => {
+    setSearchInput(e.target.value);
+    handleChange("subject", e.target.value);
+  };
+
   return (
     <div className="container mx-auto mt-0 mb-0 sticky top-0 shadow-md border border-gray-300 rounded-b-md">
       <div
-        className="flex justify-between items-center px-4 py-1 cursor-pointer bg-gradient-to-r from-blue-500 to-indigo-600 rounded-b-md"
+        className="flex items-center gap-3 px-4 py-1 cursor-pointer bg-gradient-to-r from-blue-500 to-indigo-600 rounded-b-md"
         onClick={() => toggleFilterMenu()}
       >
-        <h3 className="text-white text-left font-semibold p-1">
+      <div className="flex items-center gap-3">
+        <h3 className="text-white text-left font-semibold p-1 w-32">
           {isOpen ? "Sulje suodatin" : "Näytä suodatin"}
         </h3>
+
+        <Input 
+        type= "text"
+        placeholder="Hae aiheesta"
+        value={searchInput}
+        onChange={handleSearchChange}
+        onClick={(e) => e.stopPropagation()} // Estää suodatinvalikon avautumisen ja sulkeutumisen kun hakukenttää klikataan
+        className="w-40 md:w-60 h-7 border-1 rounded-full bg-white bg-opacity-30 text-white placeholder-white px-2 py-1 text-sm"
+        />
+      </div>
+      <div className="ml-auto">
         <ChevronDown className={`w-5 h-5 text-white transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
       </div>
+    </div>
 
-      {isOpen && (
-        <div className="sticky top-0 z-10 bg-white mx-auto px-4 shadow-md">
+      <div className={`filter-menu-content ${isOpen ? 'open' : 'closed'}`}>
         <CardContent className="bg-white shadow-md">
           <div className="flex gap-4 flex-wrap">
             <div className="space-y-1">
@@ -195,6 +226,11 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 onChange={(e) => handleChange("startDate", e.target.value)}
                 className="border-2 border-gray-400 rounded hover:border-blue-500"
               />
+              {dateError && (
+                  <p className="absolute text-red-500 text-sm mt-1 whitespace-nowrap">
+                    {dateError}
+                  </p>
+                )}
             </div>
 
             <div className="space-y-1">
@@ -212,11 +248,10 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
           </div>
         </CardContent>
 
-        <CardFooter className="flex justify-between">
+        <CardFooter className="flex justify-between bg-white">
           <Button className="w-28 bg-red-400 text-white text-sm hover:bg-red-500" onClick={clearFilters}>Tyhjennä suodattimet</Button>
         </CardFooter>
       </div>
-      )}
     </div>
   );
 }

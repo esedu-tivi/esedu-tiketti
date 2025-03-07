@@ -57,6 +57,17 @@ body {
   color: var(--primary-color);
 }
 
+/* Filter menu */
+.filter-menu-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.5s ease-out;
+}
+
+.filter-menu-content.open {
+  max-height: 1000px; 
+}
+
 /* Tickets Page */
 .tickets-page {
   background: white;
