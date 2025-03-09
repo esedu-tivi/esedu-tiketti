@@ -209,13 +209,23 @@ export default function Header() {
                 </Link>
 
                 {isSupportOrAdmin && (
-                  <Link
-                    to="/my-work"
-                    className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Työnäkymä
-                  </Link>
+                  <>
+                    <Link
+                      to="/my-work"
+                      className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Työnäkymä
+                    </Link>
+
+                    <Link
+                      to="/admin"
+                      className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Hallintapaneeli
+                    </Link>
+                  </>
                 )}
 
                  <button
