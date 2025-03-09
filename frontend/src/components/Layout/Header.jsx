@@ -147,11 +147,17 @@ export default function Header() {
                   <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md transition-colors">
                     <UserCircle className="w-5 h-5" />
                     <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">{user.name}</span>
-                      <Link to="/profile" className="text-xs hover:underline">
-                   
-                      </Link>
+                      <span className="text-sm font-medium">
+                        <Link 
+                          to="/profile" 
+                          className="text-s text-gray-500 hover:underline"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {user.name}
+                        </Link>
+                      </span>
                     </div>
+
                     <NotificationBell />
                   </div>
                   <button
@@ -183,17 +189,17 @@ export default function Header() {
                 <div className="py-2 text-gray-700 rounded-md pl-2 flex items-center gap-2">
                   <UserCircle className="w-5 h-5" />
                   <div className="flex-1">
-                    <span className="text-sm font-medium">{user.name}</span>
-                    <div>
+                    <span className="text-sm font-medium">
                       <Link 
                         to="/profile" 
-                        className="text-xs text-gray-500 hover:underline"
+                        className="text-s text-gray-500 hover:underline"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-              
+                        {user.name}
                       </Link>
-                    </div>
+                    </span>
                   </div>
+
                   {/* NotificationBell ilman onClick handleria, jotta voidaan klikata avaamaan ilmoitukset */}
                   <div onClick={(e) => e.stopPropagation()}>
                     <NotificationBell />
