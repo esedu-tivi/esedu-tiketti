@@ -102,10 +102,10 @@ export default function UserManagementDialog({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Käyttäjien hallinta</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+      <div className="w-full max-h-[90vh] rounded-lg bg-white p-4 md:p-6 shadow-xl overflow-y-auto max-w-xs sm:max-w-md md:max-w-2xl">
+        <div className="mb-4 md:mb-6 flex items-center justify-between">
+          <h2 className="text-lg md:text-xl font-bold">Käyttäjien hallinta</h2>
           <button onClick={onClose} className="rounded p-2 hover:bg-gray-100">
             ✕
           </button>
@@ -131,52 +131,80 @@ export default function UserManagementDialog({ isOpen, onClose }) {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
           </div>
         ) : (
-          <div className="max-h-96 overflow-y-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-white">
-                <tr className="border-b text-left">
-                  <th className="pb-2">Käyttäjänimi</th>
-                  <th className="pb-2">Sähköposti</th>
-                  <th className="pb-2 text-center">Käyttölupa</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modifiedUsers.map((user) => (
-                  <tr key={user.id} className="border-b">
-                    <td className="py-3">{user.name}</td>
-                    <td className="py-3">{user.email}</td>
-                    <td className="py-3 text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={user.role === 'SUPPORT'}
-                          onChange={(e) =>
-                            handleRoleChange(user.id, e.target.checked)
-                          }
-                          disabled={user.role === 'ADMIN' || saving}
-                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <span className="inline-block min-w-[100px] text-sm text-gray-500">
-                          ({getRoleText(user.role)})
-                        </span>
-                      </div>
-                    </td>
+          <div className="max-h-[50vh] overflow-y-auto">
+            {/* Table for medium and larger screens */}
+            <div className="hidden sm:block">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b text-left">
+                    <th className="pb-2">Käyttäjänimi</th>
+                    <th className="pb-2">Sähköposti</th>
+                    <th className="pb-2 text-center">Käyttölupa</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {modifiedUsers.map((user) => (
+                    <tr key={user.id} className="border-b">
+                      <td className="py-3">{user.name}</td>
+                      <td className="py-3">{user.email}</td>
+                      <td className="py-3 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={user.role === 'SUPPORT'}
+                            onChange={(e) =>
+                              handleRoleChange(user.id, e.target.checked)
+                            }
+                            disabled={user.role === 'ADMIN' || saving}
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="inline-block min-w-[100px] text-sm text-gray-500">
+                            ({getRoleText(user.role)})
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Card layout for mobile screens */}
+            <div className="sm:hidden space-y-4">
+              {modifiedUsers.map((user) => (
+                <div key={user.id} className="border rounded-lg p-3 bg-gray-50">
+                  <div className="font-medium">{user.name}</div>
+                  <div className="text-sm text-gray-600 mb-2">{user.email}</div>
+                  <div className="flex items-center mt-2">
+                    <span className="text-sm mr-2">Tukihenkilö:</span>
+                    <input
+                      type="checkbox"
+                      checked={user.role === 'SUPPORT'}
+                      onChange={(e) =>
+                        handleRoleChange(user.id, e.target.checked)
+                      }
+                      disabled={user.role === 'ADMIN' || saving}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="inline-block ml-2 text-sm text-gray-500">
+                      ({getRoleText(user.role)})
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="mt-6 flex justify-end space-x-4">
+        <div className="mt-6 flex flex-col sm:flex-row sm:justify-end sm:space-x-4 space-y-2 sm:space-y-0">
           <button
             onClick={handleCancel}
             disabled={saving || !hasChanges()}
             className={`rounded-md border border-gray-300 px-4 py-2 text-sm font-medium shadow-sm transition-opacity ${
               hasChanges()
                 ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                : 'pointer-events-none opacity-0'
-            } disabled:opacity-50`}
+                : 'pointer-events-none hidden sm:inline-block sm:opacity-0'
+            } disabled:opacity-50 order-2 sm:order-1`}
           >
             Peru muutokset
           </button>
@@ -186,14 +214,14 @@ export default function UserManagementDialog({ isOpen, onClose }) {
             className={`rounded-md border border-transparent px-4 py-2 text-sm font-medium shadow-sm transition-opacity ${
               hasChanges()
                 ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'pointer-events-none opacity-0'
-            } disabled:opacity-50`}
+                : 'pointer-events-none hidden sm:inline-block sm:opacity-0'
+            } disabled:opacity-50 order-1 sm:order-2`}
           >
             {saving ? 'Tallennetaan...' : 'Tallenna muutokset'}
           </button>
           <button
             onClick={onClose}
-            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 order-3"
           >
             Sulje
           </button>

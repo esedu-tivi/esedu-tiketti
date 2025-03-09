@@ -40,6 +40,12 @@ export const msalConfig = {
   },
 };
 
+// Basic login request for authentication
 export const loginRequest = {
   scopes: ['User.Read'],
+};
+
+// Request for Microsoft Graph API access - use only basic permissions that don't require admin consent
+export const graphRequest = {
+  scopes: ['User.Read'], // Only requesting current user info, no admin consent needed
 }; 

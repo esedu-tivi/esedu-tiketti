@@ -6,19 +6,19 @@ import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../Notifications/NotificationBell';
-import { UserCircle, Menu, X } from 'lucide-react';
+import { PlusCircle, Settings } from 'lucide-react';
 import NewTicketForm from '../Tickets/NewTicketForm';
+import ProfilePicture from '../User/ProfilePicture';
 
 export default function Header() {
-  const { user, userRole, logout } = useAuth();
+  const { user, userRole } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
-  const navigate = useNavigate();
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Tarkistaa onko käyttäjällä hallintaoikeudet (admin tai tukihenkilö)
-  const hasManagementRights = userRole === 'ADMIN' || userRole === 'SUPPORT';
+  const isSupportOrAdmin = userRole === 'ADMIN' || userRole === 'SUPPORT';
 
   const handleRoleChange = async (newRole) => {
     try {
@@ -43,15 +43,7 @@ export default function Header() {
     }
   };
 
-  const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
-
-  const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
-  };
-
-
   const getRoleText = (role) => {
-    console.log('getRoleText - input role:', role);
     switch (role) {
       case 'ADMIN':
         return 'Admin';
@@ -64,134 +56,110 @@ export default function Header() {
     }
   };
 
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case 'ADMIN':
+        return 'bg-purple-100 text-purple-800';
+      case 'SUPPORT':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
 
   return (
-    <header className="bg-white shadow relative">
+    <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center">
-            <Link to="/my-tickets" className="text-xl font-bold text-primary">
-              Tiketti
+          {/* Left section: Logo and navigation */}
+          <div className="flex items-center gap-6">
+            <Link to="/my-tickets" className="text-xl font-bold text-primary flex items-center">
+              <span className="text-primary">Tiketti</span>
             </Link>
-          </div>
 
-          {/* Mobiilivalikon avaus ja ilmoitukset */}
-            <div className="md:hidden flex items-center space-x-4 z-50">
-            <div onClick={(e) => e.stopPropagation()} className="relative z-60 ">
-                <NotificationBell />
-              </div>
-
-              <button
-                onClick={toggleMobileMenu}
-                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
-              >
-                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
-
-          {/* Desktop-navigaatio */}
-          <nav className="hidden md:flex md:space-x-4">
+            {/* Desktop Navigation */}
             {user && (
-              <>
+              <nav className="hidden md:flex md:space-x-1">
                 <Link
                   to="/my-tickets"
-                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                 >
                   Omat tiketit
                 </Link>
 
-                {/* Näytetään työnäkymä tukihenkilöille ja admineille */}
                 {isSupportOrAdmin && (
                   <Link
                     to="/my-work"
-                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     Työnäkymä
                   </Link>
                 )}
 
-                <button
-                  onClick={() => setIsNewTicketOpen(true)}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  Uusi tiketti
-                </button>
-
                 {isSupportOrAdmin && (
                   <Link
                     to="/admin"
-                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     Hallintapaneeli
                   </Link>
                 )}
-              </>
+              </nav>
             )}
-          </nav>
+          </div>
 
-          {/* Käyttäjävalikko desktop */}
-          <div className="hidden md:flex md:items-center md:space-x-4">
-            {user ? (
+          {/* Right section: Actions and user */}
+          <div className="flex items-center gap-2 md:gap-4">
+            {user && (
               <>
-                {/* Development-ympäristön roolin vaihto */}
-                {import.meta.env.VITE_ENVIRONMENT === 'development' && (
-                  <div className="relative">
-                    <select
-                      value={userRole || ''}
-                      onChange={(e) => handleRoleChange(e.target.value)}
-                      disabled={isChangingRole}
-                      className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                    >
-                      <option value="USER">Opiskelija</option>
-                      <option value="SUPPORT">Tukihenkilö</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
-                    {isChangingRole && (
-                      <div className="absolute right-0 top-0 flex h-full w-full items-center justify-center bg-white/50">
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Create Ticket Button - Both Mobile & Desktop */}
+                <button
+                  onClick={() => setIsNewTicketOpen(true)}
+                  className="flex items-center gap-1.5 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border border-green-200"
+                >
+                  <span className="hidden xs:inline">Luo</span>
+                  <span className="hidden xs:inline">tiketti</span>
+                  <PlusCircle size={16} className="flex-shrink-0" />
+                </button>
 
+                {/* Admin: User Management (Desktop only) */}
                 {userRole === 'ADMIN' && (
                   <button
                     onClick={() => setIsUserManagementOpen(true)}
-                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    className="hidden md:flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    Käyttäjien hallinta
+                    <Settings size={16} />
+                    <span>Käyttäjät</span>
                   </button>
                 )}
 
-                <div className="ml-4 flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md transition-colors">
-                    <UserCircle className="w-5 h-5" />
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm font-medium">
-                        <Link 
-                          to="/profile" 
-                          className="text-s text-gray-500 hover:underline"
-                          onClick={() => setMobileMenuOpen(false)}
-                        >
-                          {user.name}
-                        </Link>
-                      </span>
-                    </div>
-
-                    <NotificationBell />
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded"
-                  >
-                    Kirjaudu ulos
-                  </button>
+                {/* Notifications */}
+                <div className="relative">
+                  <NotificationBell />
                 </div>
+                
+                {/* User Profile Link */}
+                <Link 
+                  to="/profile"
+                  className="flex items-center gap-2 rounded-full border border-gray-200 py-1 pl-1 pr-2 hover:bg-gray-50 transition-colors"
+                >
+                  <ProfilePicture 
+                    email={user.username} 
+                    name={user.name} 
+                    size="sm" 
+                  />
+                  <span className="hidden sm:inline text-sm font-medium text-gray-700 max-w-[180px] truncate">
+                    {user.name}
+                  </span>
+                </Link>
               </>
-            ) : (
+            )}
+
+            {/* Login Button for non-authenticated users */}
+            {!user && (
               <Link
                 to="/login"
-                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
               >
                 Kirjaudu sisään
               </Link>
@@ -200,127 +168,28 @@ export default function Header() {
         </div>
       </div>
 
-
-
-      {/* Mobiilivalikko */}
-        {mobileMenuOpen && (
-          <div className="md:hidden bg-white shadow-lg absolute z-40 w-full">
-            <div className="px-4 py-4 space-y-4">
-              {user ? (
-                <>
-                  <div className="py-2 text-gray-700 rounded-md pl-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 py-2 px-3 rounded-md border border-gray-300 hover:border-primary-600 hover:bg-gray-100">
-                      <UserCircle className="w-5 h-5" />
-                      <Link
-                        to="/profile"
-                        className="text-sm font-medium text-gray-700 hover:text-primary-600 hover:underline font-semibold cursor-pointer"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        {user.name}
-                      </Link>
-                    </div>
-
-                    {/* Käyttäjän rooli */}
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        userRole === 'ADMIN'
-                          ? 'bg-purple-100 text-purple-800'
-                          : userRole === 'SUPPORT'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {getRoleText(userRole)}
-                    </span>
-                  </div>
-
-                <Link
-                  to="/my-tickets"
-                  className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Omat tiketit
-                </Link>
-
-                {isSupportOrAdmin && (
-                  <>
-                    <Link
-                      to="/my-work"
-                      className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Työnäkymä
-                    </Link>
-
-                    <Link
-                      to="/admin"
-                      className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Hallintapaneeli
-                    </Link>
-                  </>
-                )}
-
-                {userRole === 'ADMIN' && (
-                  <button
-                    onClick={() => setIsUserManagementOpen(true)}
-                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  >
-                    Käyttäjien hallinta
-                  </button>
-                )}
-
-                 <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                 className="block py-2 text-gray-700 hover:bg-gray-100 rounded-md pl-2"
-                >
-                  Kirjaudu ulos
-                </button>
-
-                <div className="flex justify-center mt-4">
-                <button
-                  onClick={() => {
-                    setIsNewTicketOpen(true);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="bg-blue-600 hover:bg-gray-200 text-white font-semibold py-2 px-4 rounded text-center"
-                >
-                  Uusi tiketti
-                </button>
-              </div>
-              </>
-            ) : (
-              <Link
-                to="/login"
-                className="block py-2 text-center rounded-md bg-primary px-3 text-sm font-medium text-white hover:bg-primary/90"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Kirjaudu sisään
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-
+      {/* User Management Dialog */}
       <UserManagementDialog
         isOpen={isUserManagementOpen}
         onClose={() => setIsUserManagementOpen(false)}
       />
 
+      {/* New Ticket Dialog */}
       {isNewTicketOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl w-full relative">
-            <button
-              onClick={() => setIsNewTicketOpen(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-            >
-              ✖
-            </button>
-            <NewTicketForm onClose={() => setIsNewTicketOpen(false)} />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full relative overflow-hidden">
+            <div className="flex justify-between items-center border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-gray-800">Luo uusi tiketti</h2>
+              <button
+                onClick={() => setIsNewTicketOpen(false)}
+                className="text-gray-500 hover:text-gray-700 p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                ✖
+              </button>
+            </div>
+            <div className="p-6">
+              <NewTicketForm onClose={() => setIsNewTicketOpen(false)} />
+            </div>
           </div>
         </div>
       )}

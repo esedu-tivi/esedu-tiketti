@@ -908,3 +908,54 @@ const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
 - Järjestelmä tarkistaa, että kuva/video vastaa tiketin määritettyä vastausmuotoa
 - Virheilmoitus näytetään, jos tiedostomuoto ei ole sallittu
 - Tietoturvatarkistukset suoritetaan kaikille ladatuille tiedostoille
+
+## Microsoft Graph API Integraatio
+
+### Profiilikuvien hakeminen
+
+Järjestelmä hyödyntää Microsoft Graph API:a käyttäjien profiilikuvien näyttämiseen. 
+
+### Käyttöönotto
+
+Frontend käyttää Microsoft Graph API:a käyttäjien profiilikuvien noutamiseen:
+
+```javascript
+// Haetaan token Graph API:a varten
+const token = await authService.msalInstance.acquireTokenSilent({
+  scopes: ['User.Read'],
+  account: await authService.getActiveAccount(),
+});
+
+// Haetaan profiilikuva
+const response = await axios.get(
+  'https://graph.microsoft.com/v1.0/me/photo/$value',
+  {
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+    },
+    responseType: 'arraybuffer',
+  }
+);
+```
+
+### Fallback-mekanismi
+
+Järjestelmä tukee automaattista fallback-mekanismia, jossa käyttäjien nimikirjaimet näytetään, jos profiilikuvaa ei ole saatavilla:
+
+1. Järjestelmä yrittää hakea käyttäjän profiilikuvan Microsoft Graph API:sta
+2. Jos kuvaa ei ole saatavilla tai käyttäjä ei ole kirjautunut sisään kyseisellä tunnuksella, näytetään nimikirjaimet
+3. Nimikirjaimet muodostetaan käyttäjän etu- ja sukunimen ensimmäisistä kirjaimista
+
+### Välimuisti
+
+Profiilikuvat tallennetaan välimuistiin suorituskykyä parantamiseksi:
+
+1. Kuvia ei haeta uudelleen, jos ne on jo kerran ladattu
+2. Välimuisti tyhjennetään kun käyttäjä kirjautuu ulos
+
+### Käyttöoikeudet
+
+Järjestelmä käyttää vain User.Read-oikeutta, joka ei vaadi erillistä admin-lupaa. Tämä mahdollistaa:
+
+1. Kirjautuneen käyttäjän omien profiilikuvien näyttämisen
+2. Nimikirjaimien näyttämisen muiden käyttäjien tapauksessa

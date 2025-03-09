@@ -1,5 +1,4 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import Header from './components/Layout/Header'
 import Tickets from './pages/Tickets'
 import Login from './pages/Login'
 import AuthGuard from './components/auth/AuthGuard'
@@ -10,7 +9,8 @@ import MyWorkView from './pages/MyWorkView';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './providers/AuthProvider';
 import ProfileView from './pages/ProfileView';
-import TicketPage from './pages/TicketPage'; 
+import TicketPage from './pages/TicketPage';
+import Layout from './components/Layout/Layout';
 
 function App() {
   const { userRole } = useAuth();
@@ -34,62 +34,51 @@ function App() {
           {/* Suojatut käyttäjäreitit */}
           <Route path="/my-tickets" element={
             <AuthGuard>
-              <>
-                <Header />
-                  <MyTickets />
-              </>
+              <Layout>
+                <MyTickets />
+              </Layout>
             </AuthGuard>
           } />
 
           <Route path="/tickets/:id" element={
             <AuthGuard>
-              <>
-                <Header />
+              <Layout>
                 <TicketPage />
-              </>
+              </Layout>
             </AuthGuard>
           } />
                   
-
           {/* Tukihenkilöiden työnäkymä */}
           <Route path="/my-work" element={
             <AuthGuard requiredRole={['SUPPORT', 'ADMIN']}>
-              <>
-                <Header />
-                <main className="container mx-auto px-4 py-8">
-                  <MyWorkView />
-                </main>
-              </>
+              <Layout>
+                <MyWorkView />
+              </Layout>
             </AuthGuard>
           } />
         
           {/* Hallintareitit (admin ja tukihenkilöt) */}
           <Route path="/admin" element={
             <AuthGuard requiredRole="MANAGEMENT">
-              <>
-                <Header />
-                  <Tickets />
-              </>
+              <Layout>
+                <Tickets />
+              </Layout>
             </AuthGuard>
           } />
           
           <Route path="/admin/tickets" element={
             <AuthGuard requiredRole="MANAGEMENT">
-              <>
-                <Header />
-                  <Tickets />
-              </>
+              <Layout>
+                <Tickets />
+              </Layout>
             </AuthGuard>
           } />
 
           <Route path="/profile" element={
             <AuthGuard>
-              <>
-                <Header />
-                <main className="container mx-auto px-4 py-8">
-                  <ProfileView />
-                </main>
-              </>
+              <Layout>
+                <ProfileView />
+              </Layout>
             </AuthGuard>
           } />
 

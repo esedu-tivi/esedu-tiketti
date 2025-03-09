@@ -73,6 +73,8 @@
   - [x] Toast-ilmoitukset (React Hot Toast)
 - [ ] Käyttöliittymän parannukset
   - [x] Responsiivisuus
+    - [x] Käyttäjien hallintadialogin responsiivisuus mobiililaitteilla
+    - [x] Tikettien toimintojen dropdown-valikko
   - [x] Latausanimaatiot (React Query)
   - [x] Virheilmoitukset (React Query)
   - [x] Ilmoitusten ulkoasu

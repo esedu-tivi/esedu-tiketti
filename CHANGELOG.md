@@ -2,6 +2,37 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 09.03.2025 (Added profile pictures and improved responsiveness)
+
+- Lisätty Microsoft-profiilikuvien tuki käyttäjille käyttäen Microsoft Graph API:a
+- Toteutettu profiilikuvien näyttäminen headerissa, käyttäjäprofiilissa ja kommenteissa
+- Lisätty automaattinen fallback käyttäjien nimikirjaimiin, jos profiilikuvaa ei ole saatavilla
+- Parannettu tiketinnäkymän responsiivisuutta mobiililaitteilla
+- Uudistettu kommenttiosion ulkoasua profiilikuvien kanssa selkeämmäksi
+- Paranneltu toimintovalikkoa (dropdown) mobile-käyttöliittymässä
+  - Lisätty fullscreen-overlay mobiililaitteilla
+  - Siirretty valikko näytön alalaitaan mobiililaitteilla
+  - Suurennettu painikkeiden kokoa kosketuskäyttöä varten
+  - Lisätty sulkemispainike mobiiliversioon
+- Parannettu kaikkien lomakkeiden ja komponenttien responsiivisuutta eri näyttökoilla
+- Muokattu ilmoitusasetuksia selkeämmiksi ja responsiivisemmiksi
+
+## 09.03.2025 (Improved ticket actions with dropdown menu)
+
+- Lisätty dropdown-valikko tiketin toiminnoille (Vapauta, Siirrä toiselle, Merkitse ratkaistuksi, Sulje tiketti)
+- Parannettu käyttöliittymän tilankäyttöä korvaamalla useat painikkeet yhdellä toimintovalikolla
+- Toteutettu responsiivinen dropdown-ratkaisu, joka toimii hyvin mobiililaitteilla
+- Lisätty kuvakkeet kaikille toiminnoille selkeyttämään käyttöliittymää
+- Yhtenäistetty tiketin toimintojen käyttöliittymä sekä TicketDetailsModal- että TicketPage-komponenteissa
+
+## 09.03.2025 (Made user management dialog responsive on mobile)
+
+- Päivitetty käyttäjien hallintadialogia responsiiviseksi mobiililaitteilla
+- Lisätty korttipohjainen näkymä mobiililaitteille taulukkonäkymän sijaan
+- Optimoitu painikkeiden asettelu pienillä näytöillä
+- Parannettu dialogin kokoa ja padding-arvoja eri näyttöko'oilla
+- Lisätty mediakyselyt (media queries) responsiisuuden varmistamiseksi
+
 ## 03.03.2025 (Enhanced support staff permissions for media comments)
 
 - Parannettu tukihenkilöiden työnkulkua sallimalla kaikille tukihenkilöille mediakommenttien (kuvat, videot) lisääminen tiketteihin riippumatta siitä, onko tiketti heille osoitettu

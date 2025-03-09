@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getNotificationSettings, updateNotificationSettings } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { Bell, Mail, RefreshCw } from 'lucide-react';
 
 const NotificationSettings = () => {
   const [settings, setSettings] = useState({
@@ -60,21 +61,21 @@ const NotificationSettings = () => {
       : '';
 
     return (
-      <div className="flex items-center justify-between group relative">
-        <div>
-          <label className="text-sm font-medium text-gray-700 flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 group relative p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+        <div className="flex-1">
+          <label className="text-sm font-medium text-gray-700 flex items-center flex-wrap gap-2">
             {label}
             {comingSoon && (
-              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                 Tulossa pian
               </span>
             )}
           </label>
-          <p className="text-sm text-gray-500">
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
             {description}
           </p>
         </div>
-        <div className="relative inline-block w-12 align-middle select-none">
+        <div className="relative inline-block w-12 align-middle select-none flex-shrink-0">
           <input
             type="checkbox"
             checked={settings[field]}
@@ -103,10 +104,8 @@ const NotificationSettings = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex justify-center items-center p-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+      <div className="flex justify-center items-center p-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -152,84 +151,86 @@ const NotificationSettings = () => {
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Ilmoitusasetukset</h2>
+    <form onSubmit={handleSubmit}>
+      <div className="space-y-6">
+        {/* Yleiset ilmoitusasetukset */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Bell size={18} className="text-gray-700" />
+            <h3 className="text-lg font-medium">Yleiset asetukset</h3>
+          </div>
+          <div className="space-y-3">
+            {renderToggle(
+              'emailNotifications',
+              'Sähköposti-ilmoitukset',
+              'Vastaanota ilmoitukset sähköpostitse',
+              true,
+              true
+            )}
+            {renderToggle(
+              'webNotifications',
+              'Selainilmoitukset',
+              'Näytä ilmoitukset selaimessa',
+              false
+            )}
+          </div>
+        </div>
+
+        {/* Ilmoitustyypit */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Mail size={18} className="text-gray-700" />
+            <h3 className="text-lg font-medium">Ilmoita kun</h3>
+          </div>
+          <div className="space-y-3">
+            {notificationTypes.map((type) => (
+              <div key={type.field} className="group relative">
+                {renderToggle(
+                  type.field,
+                  type.label,
+                  type.description,
+                  false,
+                  type.comingSoon
+                )}
+                {type.tooltip && (
+                  <div className="absolute left-0 mt-1 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+                    {type.tooltip}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
         <button
           type="button"
           onClick={fetchSettings}
-          className="text-sm text-gray-600 hover:text-gray-900"
+          className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
         >
-          Päivitä
+          <RefreshCw size={14} />
+          Päivitä asetukset
+        </button>
+        
+        <button
+          type="submit"
+          disabled={saving}
+          className={`w-full sm:w-auto flex justify-center items-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+            saving ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+          }`}
+        >
+          {saving ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+              Tallennetaan...
+            </>
+          ) : (
+            'Tallenna asetukset'
+          )}
         </button>
       </div>
-      
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          {/* Yleiset ilmoitusasetukset */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="text-lg font-medium mb-4">Yleiset asetukset</h3>
-            <div className="space-y-4">
-              {renderToggle(
-                'emailNotifications',
-                'Sähköposti-ilmoitukset',
-                'Vastaanota ilmoitukset sähköpostitse',
-                true,
-                true
-              )}
-              {renderToggle(
-                'webNotifications',
-                'Selainilmoitukset',
-                'Näytä ilmoitukset selaimessa',
-                false
-              )}
-            </div>
-          </div>
-
-          {/* Ilmoitustyypit */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="text-lg font-medium mb-4">Ilmoita kun</h3>
-            <div className="space-y-4">
-              {notificationTypes.map((type) => (
-                <div key={type.field} className="group relative">
-                  {renderToggle(
-                    type.field,
-                    type.label,
-                    type.description,
-                    false,
-                    type.comingSoon
-                  )}
-                  {type.tooltip && (
-                    <div className="absolute left-0 mt-1 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
-                      {type.tooltip}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <button
-            type="submit"
-            disabled={saving}
-            className={`w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
-              saving ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-            }`}
-          >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                Tallennetaan...
-              </>
-            ) : (
-              'Tallenna asetukset'
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
+    </form>
   );
 };
 

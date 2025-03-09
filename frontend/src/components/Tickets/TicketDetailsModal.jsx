@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
 import { useAuth } from '../../providers/AuthProvider';
@@ -29,6 +29,10 @@ import {
   ImageIcon,
   VideoIcon,
   FileIcon,
+  MoreVertical,
+  ChevronsUpDown,
+  Settings,
+  X,
 } from 'lucide-react';
 
 import CommentSection from '../Tickets/CommentSection';
@@ -45,6 +49,8 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [showTicketActions, setShowTicketActions] = useState(false);
+  const ticketActionsRef = useRef(null);
   const queryClient = useQueryClient();
   const { userRole, user } = useAuth();
 
@@ -347,6 +353,19 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     return `${hours}h ${minutes}min`;
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (ticketActionsRef.current && !ticketActionsRef.current.contains(event.target)) {
+        setShowTicketActions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [ticketActionsRef]);
 
   if (isLoading) {
     return (
@@ -658,41 +677,57 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     );
   };
 
+  // Dropdown menu action item component
+  const ActionMenuItem = ({ onClick, icon, label, color = 'gray', disabled = false }) => {
+    const IconComponent = icon;
+    const bgColorClass = `bg-${color}-50 hover:bg-${color}-100`;
+    return (
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-full text-left flex items-center gap-2 px-4 py-3 text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : `${bgColorClass} hover:bg-opacity-80`} rounded-md transition-all duration-150`}
+      >
+        <IconComponent className="w-5 h-5 flex-shrink-0" />
+        <span className="font-medium">{label}</span>
+      </button>
+    );
+  };
+
   return (
     <div
       id="modal-background"
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 md:p-8 overflow-y-auto"
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-y-auto relative"
+        className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto relative shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="border-none shadow-none">
-          <CardHeader className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-t-lg">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-2xl font-semibold tracking-tight">
-                    {ticketData.title || 'Ei määritelty'}
-                  </CardTitle>
-                  <p className="text-sm opacity-80">Tiketti #{ticketData.id || 'Ei määritelty'}</p>
-                </div>
+          <CardHeader className="p-6 md:p-8 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-t-xl">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+              <div className="flex flex-col gap-2">
+                <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
+                  {ticketData.title || 'Ei määritelty'}
+                </CardTitle>
+                <p className="text-sm text-white/90">Tiketti #{ticketData.id || 'Ei määritelty'}</p>
               </div>
-              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 bg-gray-100 ${priorityInfo.color}`}>
-                <PriorityIcon className="w-5 h-5" />
+              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 bg-white/10 backdrop-blur-sm ${priorityInfo.color} self-start`}>
+                <PriorityIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span className="text-sm font-medium">{priorityInfo.text}</span>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center space-x-4">
+          <CardContent className="space-y-6 p-4 sm:p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusInfo.color} ${statusInfo.animation}`}>
                   <StatusIcon className="w-4 h-4" />
                   <span className="text-sm font-medium">{statusInfo.text}</span>
                 </div>
+                
+                {/* User can close their own ticket if not closed/resolved */}
                 {ticketData.createdById === user?.id && 
                  ticketData.status !== 'CLOSED' && 
                  ticketData.status !== 'RESOLVED' && (
@@ -706,58 +741,96 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     {updateStatusMutation.isLoading ? 'Suljetaan...' : 'Sulje tiketti'}
                   </Button>
                 )}
+                
+                {/* Support staff can take open ticket into processing */}
                 {isSupportOrAdmin && ticketData.status === 'OPEN' && !ticketData.assignedToId && (
                   <Button
                     onClick={handleTakeIntoProcessing}
                     disabled={takeIntoProcessingMutation.isLoading}
                     variant="outline"
                     size="sm"
+                    className="bg-primary/10 hover:bg-primary/20"
                   >
                     {takeIntoProcessingMutation.isLoading ? 'Otetaan käsittelyyn...' : 'Ota käsittelyyn'}
                   </Button>
                 )}
+                
+                {/* Ticket actions dropdown for assigned support staff or admin */}
                 {isSupportOrAdmin && 
                   ticketData.status === 'IN_PROGRESS' && 
                   (isAssignedToUser || userRole === 'ADMIN') && (
-                  <div className="flex items-center space-x-2">
+                  <div className="relative" ref={ticketActionsRef}>
                     <Button
-                      onClick={handleReleaseTicket}
-                      disabled={releaseTicketMutation.isLoading}
+                      onClick={() => setShowTicketActions(!showTicketActions)}
                       variant="outline"
                       size="sm"
-                      className="bg-yellow-50 hover:bg-yellow-100"
+                      className="bg-primary/10 hover:bg-primary/20 flex items-center gap-2"
                     >
-                      {releaseTicketMutation.isLoading ? 'Vapautetaan...' : 'Vapauta tiketti'}
+                      <Settings className="w-4 h-4" />
+                      <span className="hidden sm:inline">Toiminnot</span>
+                      <ChevronsUpDown className="w-3 h-3 ml-1 opacity-70" />
                     </Button>
-                    <Button
-                      onClick={() => setShowTransferDialog(true)}
-                      disabled={transferTicketMutation.isLoading}
-                      variant="outline"
-                      size="sm"
-                      className="bg-blue-50 hover:bg-blue-100"
-                    >
-                      {transferTicketMutation.isLoading ? 'Siirretään...' : 'Siirrä toiselle'}
-                    </Button>
-                    <Button
-                      onClick={() => handleStatusChange('RESOLVED')}
-                      disabled={updateStatusMutation.isLoading}
-                      variant="outline"
-                      size="sm"
-                      className="bg-green-50 hover:bg-green-100"
-                    >
-                      Merkitse ratkaistuksi
-                    </Button>
-                    <Button
-                      onClick={() => handleStatusChange('CLOSED')}
-                      disabled={updateStatusMutation.isLoading}
-                      variant="outline"
-                      size="sm"
-                      className="bg-gray-50 hover:bg-gray-100"
-                    >
-                      Sulje tiketti
-                    </Button>
+                    
+                    {/* Background overlay on mobile */}
+                    {showTicketActions && (
+                      <div className="sm:hidden fixed inset-0 bg-black/20 z-40" onClick={() => setShowTicketActions(false)}></div>
+                    )}
+                    
+                    {/* Dropdown menu */}
+                    {showTicketActions && (
+                      <div className="fixed sm:absolute bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:right-auto sm:mt-1 sm:w-56 z-50 bg-white shadow-xl sm:shadow-lg sm:ring-1 sm:ring-black sm:ring-opacity-5 sm:rounded-md focus:outline-none divide-y divide-gray-100 sm:origin-top-left">
+                        <div className="sm:hidden px-4 py-3 border-b font-medium text-gray-700 flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <Settings className="w-4 h-4" />
+                            <span>Toiminnot</span>
+                          </div>
+                          <button 
+                            onClick={() => setShowTicketActions(false)}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        <div className="p-2 space-y-1">
+                          <ActionMenuItem 
+                            onClick={handleReleaseTicket}
+                            disabled={releaseTicketMutation.isLoading}
+                            icon={ArrowRight}
+                            label={releaseTicketMutation.isLoading ? 'Vapautetaan...' : 'Vapauta tiketti'}
+                            color="yellow"
+                          />
+                          <ActionMenuItem 
+                            onClick={() => {
+                              setShowTransferDialog(true);
+                              setShowTicketActions(false);
+                            }}
+                            disabled={transferTicketMutation.isLoading}
+                            icon={User}
+                            label={transferTicketMutation.isLoading ? 'Siirretään...' : 'Siirrä toiselle'}
+                            color="blue"
+                          />
+                        </div>
+                        <div className="p-2 space-y-1">
+                          <ActionMenuItem 
+                            onClick={() => handleStatusChange('RESOLVED')}
+                            disabled={updateStatusMutation.isLoading}
+                            icon={Check}
+                            label="Merkitse ratkaistuksi"
+                            color="green"
+                          />
+                          <ActionMenuItem 
+                            onClick={() => handleStatusChange('CLOSED')}
+                            disabled={updateStatusMutation.isLoading}
+                            icon={Lock}
+                            label="Sulje tiketti"
+                            color="gray"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+                
                 {isSupportOrAdmin && 
                   (ticketData.status === 'RESOLVED' || ticketData.status === 'CLOSED') && (
                   <Button
@@ -771,15 +844,18 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                   </Button>
                 )}
               </div>
-              {ticketData.assignedTo && (
-                <div className="flex items-center space-x-2 text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
-                  <User className="w-4 h-4" />
-                  <span>Käsittelijä: {ticketData.assignedTo.name}</span>
-                </div>
-              )}
+              
+              <div className="flex flex-wrap items-center gap-2">
+                {ticketData.assignedTo && (
+                  <div className="flex items-center space-x-2 text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
+                    <User className="w-4 h-4" />
+                    <span className="truncate max-w-[150px] sm:max-w-none">Käsittelijä: {ticketData.assignedTo.name}</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg shadow-sm">
               {ticketData.processingStartedAt && (
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium text-gray-500">Käsittely aloitettu</h3>
@@ -803,7 +879,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                         timeLeft === 'Ylitetty' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
                       }`}>
                         {timeLeft}
-              </span>
+                      </span>
                     )}
                   </p>
                 </div>
@@ -825,48 +901,48 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             </div>
 
             {ticketData && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 rounded-lg border border-gray-100">
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">
                     Kategoria
                   </h3>
-                  <p>{category}</p>
+                  <p className="mt-1">{category}</p>
                 </div>
 
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Laite</h3>
-                  <p>{ticketData.device ?? 'Ei määritelty'}</p>
+                  <p className="mt-1">{ticketData.device ?? 'Ei määritelty'}</p>
                 </div>
               </div>
             )}
 
-            <div>
+            <div className="bg-white p-4 rounded-lg border border-gray-100">
               <h3 className="text-sm font-medium text-gray-500">
                 Ongelman kuvaus
               </h3>
-              <p className="mt-1 whitespace-pre-wrap">
+              <p className="mt-2 whitespace-pre-wrap text-gray-700 leading-relaxed">
                 {ticketData.description || 'Ei määritelty'}
               </p>
             </div>
 
             {ticketData.additionalInfo && (
-              <div>
+              <div className="bg-white p-4 rounded-lg border border-gray-100">
                 <h3 className="text-sm font-medium text-gray-500">
                   Lisätiedot
                 </h3>
-                <p className="mt-1 whitespace-pre-wrap">
+                <p className="mt-2 whitespace-pre-wrap text-gray-700 leading-relaxed">
                   {ticketData.additionalInfo}
                 </p>
               </div>
             )}
 
             {ticketData.attachments && ticketData.attachments.length > 0 && (
-              <div className="mt-6">
+              <div className="mt-6 bg-white p-4 rounded-lg border border-gray-100">
                 <h3 className="text-sm font-medium text-gray-500 flex items-center mb-3">
                   <FileIcon className="w-4 h-4 mr-1.5 text-gray-400" />
                   Liitteet ({ticketData.attachments.length})
                 </h3>
-                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {ticketData.attachments.map((attachment) => (
                     <div 
                       key={attachment.id} 
@@ -929,12 +1005,12 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
             {/* Image Lightbox */}
             {selectedImage && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-75" onClick={closeLightbox}>
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm" onClick={closeLightbox}>
                 <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
                   <div className="absolute top-4 right-4 z-10">
                     <button 
                       onClick={closeLightbox}
-                      className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70"
+                      className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -952,29 +1028,26 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               </div>
             )}
 
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <User className="w-4 h-4" />
-              <span>
-                Tiketin luonut: <br /> {createdBy}
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-lg border border-gray-100">
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <User className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">
+                  Tiketin luonut: <span className="font-medium text-gray-700">{createdBy}</span>
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <Calendar className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">Luotu: <span className="font-medium text-gray-700">{createdAt}</span></span>
+              </div>
+
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                <span className="truncate">Muokattu: <span className="font-medium text-gray-700">{updatedAt}</span></span>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <Calendar className="w-4 h-4" />
-              <span>Luotu: {createdAt}</span>
-            </div>
-
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <MessageSquare className="w-4 h-4" />
-              <span>Muokattu: {updatedAt}</span>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Vastausmuoto</Label>
-              <p>{ticketData.responseFormat || 'Ei määritelty'}</p>
-            </div>
-
-            <div>
+            <div className="bg-white p-4 rounded-lg border border-gray-100">
               <h3 className="text-sm font-medium text-gray-500">Keskustelu</h3>
               <CommentSection
                 comments={comments.filter(comment => comment.author?.email !== 'system@esedu.fi')}
@@ -990,13 +1063,13 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             <Timeline />
           </CardContent>
 
-          <CardFooter className="flex justify-between items-center">
-            <Button variant="outline" onClick={onClose}>
+          <CardFooter className="flex justify-between items-center p-4 sm:p-6 bg-gray-50 rounded-b-xl border-t border-gray-100">
+            <Button variant="outline" onClick={onClose} className="shadow-sm hover:shadow transition-shadow">
               Sulje
             </Button>
             <Button
                 onClick={() => window.open(`/tickets/${ticketData.id}`, '_blank')}
-                className="bg-gray-200 hover:bg-gray-300 text-black border-gray-400"
+                className="bg-gray-200 hover:bg-gray-300 text-black border-gray-400 shadow-sm hover:shadow transition-shadow"
               >
                 <ArrowRight className="w-4 h-4 mr-2" />
                 Avaa linkkinä

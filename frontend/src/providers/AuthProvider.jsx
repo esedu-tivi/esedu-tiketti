@@ -3,6 +3,7 @@ import { MsalProvider } from '@azure/msal-react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { msalConfig } from '../config/msal';
 import { authService } from '../services/authService';
+import { userService } from '../services/userService';
 import axios from 'axios';
 
 const AuthContext = createContext(null);
@@ -53,6 +54,10 @@ export function AuthProvider({ children }) {
     if (account) {
       console.log('Handling user account:', account);
       setUser(account);
+      
+      // Set the current user email in userService for profile picture fetching
+      userService.currentUserEmail = account.username;
+      
       try {
         await authService.handleAuthenticationSuccess(account);
         // Haetaan käyttäjän rooli kun käyttäjä on autentikoitu
@@ -108,6 +113,10 @@ export function AuthProvider({ children }) {
       return;
     }
     try {
+      // Clear profile picture cache before logout
+      userService.clearProfileCache();
+      userService.currentUserEmail = null;
+      
       await msalInstance.logoutRedirect();
       setUser(null);
       setUserRole(null);
