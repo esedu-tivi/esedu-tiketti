@@ -149,7 +149,7 @@ export default function Header() {
                     <div className="flex flex-col items-start">
                       <span className="text-sm font-medium">{user.name}</span>
                       <Link to="/profile" className="text-xs hover:underline">
-                        Hallinnoi profiilia
+                   
                       </Link>
                     </div>
                     <NotificationBell />
@@ -190,7 +190,7 @@ export default function Header() {
                         className="text-xs text-gray-500 hover:underline"
                         onClick={() => setMobileMenuOpen(false)}
                       >
-                        Hallinnoi profiilia
+              
                       </Link>
                     </div>
                   </div>
