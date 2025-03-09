@@ -49,6 +49,22 @@ export default function Header() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+
+  const getRoleText = (role) => {
+    console.log('getRoleText - input role:', role);
+    switch (role) {
+      case 'ADMIN':
+        return 'Admin';
+      case 'SUPPORT':
+        return 'Tukihenkilö';
+      case 'USER':
+        return 'Opiskelija';
+      default:
+        return 'Opiskelija';
+    }
+  };
+
+
   return (
     <header className="bg-white shadow relative">
       <div className="container mx-auto px-4">
@@ -59,15 +75,19 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* Mobiilivalikon toggle-painike */}
-          <div className="md:hidden">
-            <button
-              onClick={toggleMobileMenu}
-              className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
-            >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
+          {/* Mobiilivalikon avaus ja ilmoitukset */}
+            <div className="md:hidden flex items-center space-x-4 z-50">
+            <div onClick={(e) => e.stopPropagation()} className="relative z-60 ">
+                <NotificationBell />
+              </div>
+
+              <button
+                onClick={toggleMobileMenu}
+                className="p-2 text-gray-700 hover:bg-gray-100 rounded-md"
+              >
+                {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+            </div>
 
           {/* Desktop-navigaatio */}
           <nav className="hidden md:flex md:space-x-4">
@@ -180,31 +200,39 @@ export default function Header() {
         </div>
       </div>
 
+
+
       {/* Mobiilivalikko */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white shadow-lg absolute z-50 w-full">
-          <div className="px-4 py-4 space-y-4">
-            {user ? (
-              <>
-                <div className="py-2 text-gray-700 rounded-md pl-2 flex items-center gap-2">
-                  <UserCircle className="w-5 h-5" />
-                  <div className="flex-1">
-                    <span className="text-sm font-medium">
-                      <Link 
-                        to="/profile" 
-                        className="text-s text-gray-500 hover:underline"
+        {mobileMenuOpen && (
+          <div className="md:hidden bg-white shadow-lg absolute z-40 w-full">
+            <div className="px-4 py-4 space-y-4">
+              {user ? (
+                <>
+                  <div className="py-2 text-gray-700 rounded-md pl-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 py-2 px-3 rounded-md border border-gray-300 hover:border-primary-600 hover:bg-gray-100">
+                      <UserCircle className="w-5 h-5" />
+                      <Link
+                        to="/profile"
+                        className="text-sm font-medium text-gray-700 hover:text-primary-600 hover:underline font-semibold cursor-pointer"
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {user.name}
                       </Link>
+                    </div>
+
+                    {/* Käyttäjän rooli */}
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        userRole === 'ADMIN'
+                          ? 'bg-purple-100 text-purple-800'
+                          : userRole === 'SUPPORT'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {getRoleText(userRole)}
                     </span>
                   </div>
-
-                  {/* NotificationBell ilman onClick handleria, jotta voidaan klikata avaamaan ilmoitukset */}
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <NotificationBell />
-                  </div>
-                </div>
 
                 <Link
                   to="/my-tickets"
@@ -232,6 +260,15 @@ export default function Header() {
                       Hallintapaneeli
                     </Link>
                   </>
+                )}
+
+                {userRole === 'ADMIN' && (
+                  <button
+                    onClick={() => setIsUserManagementOpen(true)}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  >
+                    Käyttäjien hallinta
+                  </button>
                 )}
 
                  <button
