@@ -171,14 +171,26 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
-    await addCommentMutation.mutateAsync({
-      content: newComment,
-    });
+    try {
+      await addCommentMutation.mutateAsync({
+        content: newComment,
+      });
+    } catch (error) {
+      console.error('Virhe kommentin lisäämisessä:', error);
+      // Rethrow the error so it can be caught by the CommentSection component
+      throw error;
+    }
   };
 
   const handleAddMediaComment = async (formData) => {
     if (!formData) return;
-    await addMediaCommentMutation.mutateAsync(formData);
+    try {
+      await addMediaCommentMutation.mutateAsync(formData);
+    } catch (error) {
+      console.error('Virhe media-kommentin lisäämisessä:', error);
+      // Rethrow the error so it can be caught by the CommentSection component
+      throw error;
+    }
   };
 
   const handleTakeIntoProcessing = async () => {
@@ -1050,7 +1062,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
             <div className="bg-white p-4 rounded-lg border border-gray-100">
               <h3 className="text-sm font-medium text-gray-500">Keskustelu</h3>
               <CommentSection
-                comments={comments.filter(comment => comment.author?.email !== 'system@esedu.fi')}
+                comments={(ticketData.comments || []).filter(comment => comment.author?.email !== 'system@esedu.fi')}
                 newComment={newComment}
                 setNewComment={setNewComment}
                 handleAddComment={handleAddComment}

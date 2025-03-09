@@ -892,6 +892,12 @@ const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
 
 ### Median lähetys
 - Tukihenkilöt voivat lähettää kuvia ja videoita kommenttien yhteydessä
+  - Tiketeissä, jotka vaativat mediavastausta (KUVA/VIDEO), tukihenkilön on lähetettävä mediavastaus ennen tekstikommentteja
+  - Järjestelmä antaa selkeän virheilmoituksen, jos yritetään lähettää tekstikommentti ennen mediavastausta
+  - Kun mediavastaus on annettu, tekstikommenttien lähettäminen on mahdollista
+- Tiketin luojat voivat lisätä mediasisältöä (kuvia ja videoita) kommentteihin missä tahansa vaiheessa tikettiprosessia
+  - Mediakommentin lisäys onnistuu "Lisää media" -painikkeella
+  - Tiedostot valitaan käyttäjän laitteelta
 - Lähetys tapahtuu tiedoston latauslomakkeella
 - Tuetut tiedostomuodot:
   - Kuvat: jpg, jpeg, png, gif
@@ -908,6 +914,9 @@ const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
 - Järjestelmä tarkistaa, että kuva/video vastaa tiketin määritettyä vastausmuotoa
 - Virheilmoitus näytetään, jos tiedostomuoto ei ole sallittu
 - Tietoturvatarkistukset suoritetaan kaikille ladatuille tiedostoille
+- Järjestelmä tunnistaa automaattisesti, kun tukihenkilö on jo lisännyt mediavastauksen tikettiin:
+  - Backend tarkistaa onko käyttäjä jo lisännyt mediavastauksen ennen tekstikommentin hyväksymistä
+  - Frontend näyttää selkeät ohjeet ja virheilmoitukset käyttäjälle
 
 ## Microsoft Graph API Integraatio
 

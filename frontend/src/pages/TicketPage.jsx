@@ -180,6 +180,7 @@ export default function TicketPage() {
       setNewComment('');
     } catch (error) {
       console.error('Virhe kommentin lisäämisessä:', error);
+      throw error;
     }
   };
 
@@ -188,6 +189,7 @@ export default function TicketPage() {
       await addMediaCommentMutation.mutateAsync(formData);
     } catch (error) {
       console.error('Virhe media-kommentin lisäämisessä:', error);
+      throw error;
     }
   };
 
@@ -1040,7 +1042,7 @@ export default function TicketPage() {
           <div className="bg-white p-4 rounded-lg border border-gray-100">
             <h3 className="text-sm font-medium text-gray-500">Keskustelu</h3>
             <CommentSection
-              comments={comments.filter(comment => comment.author?.email !== 'system@esedu.fi')}
+              comments={(ticketData.comments || []).filter(comment => comment.author?.email !== 'system@esedu.fi')}
               newComment={newComment}
               setNewComment={setNewComment}
               handleAddComment={handleAddComment}

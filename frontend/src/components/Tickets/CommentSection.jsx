@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
@@ -94,9 +94,23 @@ export default function CommentSection({
   const { user, userRole } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [showMediaForm, setShowMediaForm] = useState(false);
   const [mediaFile, setMediaFile] = useState(null);
   const [selectedMedia, setSelectedMedia] = useState(null);
+  const [hasAddedMediaResponse, setHasAddedMediaResponse] = useState(false);
+
+  // Check if support staff has already added a media response
+  useEffect(() => {
+    if (userRole === 'SUPPORT' || userRole === 'ADMIN') {
+      const hasMedia = comments.some(comment => 
+        comment.author?.id === user?.id && 
+        comment.mediaUrl && 
+        (comment.mediaType === 'image' || comment.mediaType === 'video')
+      );
+      setHasAddedMediaResponse(hasMedia);
+    }
+  }, [comments, user?.id, userRole]);
 
   const canComment = () => {
     if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
@@ -124,8 +138,28 @@ export default function CommentSection({
   };
 
   const canAddMediaComment = () => {
+    // Allow ticket creators to add media comments
+    if (ticket.createdById === user?.id) {
+      return ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED';
+    }
+    
     // All support staff and admins can add media comments if they can comment at all
     return (userRole === 'SUPPORT' || userRole === 'ADMIN') && canComment();
+  };
+
+  const canAddTextComment = () => {
+    // For ticket creators, they can always add text comments if the ticket is open
+    if (ticket.createdById === user?.id) {
+      return ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED';
+    }
+    
+    // For support staff handling tickets requiring media, they need to add a media response first
+    if (shouldUseMediaResponse()) {
+      return hasAddedMediaResponse;
+    }
+    
+    // Otherwise, use the standard commenting rules
+    return canComment();
   };
 
   const getCommentDisabledMessage = () => {
@@ -141,6 +175,9 @@ export default function CommentSection({
         ticket.status === 'IN_PROGRESS' && 
         ticket.assignedToId !== user?.id) {
       return 'Vain tiketin käsittelijä voi kommentoida';
+    }
+    if (shouldUseMediaResponse() && !hasAddedMediaResponse) {
+      return 'Lisää ensin mediavastaus (kuva/video) ennen tekstikommentteja';
     }
     return '';
   };
@@ -163,14 +200,31 @@ export default function CommentSection({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Clear any previous messages
+    setSuccessMessage('');
+    setErrorMessage('');
 
-    await handleAddComment();
-
-    if (!addCommentMutation.isError) {
+    try {
+      await handleAddComment();
+      
       setSuccessMessage('Kommentti lisätty! 🎉');
-      setTimeout(() => setSuccessMessage(''), 1500);
+      setTimeout(() => setSuccessMessage(''), 3000);
       setShowForm(false);
       setNewComment('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      // Check if the error is about requiring media response
+      if (error.message && (
+          error.message.includes('vaatii kuvan sisältävän vastauksen') || 
+          error.message.includes('vaatii videon sisältävän vastauksen')
+        )) {
+        setErrorMessage(`Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen ensin. Käytä "Lisää media" -painiketta.`);
+        setTimeout(() => setErrorMessage(''), 5000);
+      } else {
+        setErrorMessage('Virhe kommentin lisäämisessä. Yritä uudelleen.');
+        setTimeout(() => setErrorMessage(''), 3000);
+      }
     }
   };
 
@@ -183,21 +237,36 @@ export default function CommentSection({
   const handleMediaSubmit = async (e) => {
     e.preventDefault();
     
+    // Clear any previous messages
+    setSuccessMessage('');
+    setErrorMessage('');
+    
     if (!mediaFile || !newComment.trim()) {
       return;
     }
     
-    const formData = new FormData();
-    formData.append('media', mediaFile);
-    formData.append('content', newComment);
-    
-    await onAddMediaComment(formData);
-    
-    setSuccessMessage(`${mediaFile.type.startsWith('image') ? 'Kuva' : 'Video'} lisätty! 🎉`);
-    setTimeout(() => setSuccessMessage(''), 1500);
-    setShowMediaForm(false);
-    setNewComment('');
-    setMediaFile(null);
+    try {
+      const formData = new FormData();
+      formData.append('media', mediaFile);
+      formData.append('content', newComment);
+      
+      await onAddMediaComment(formData);
+      
+      // If this is a support user adding a media response for the first time, mark it
+      if (shouldUseMediaResponse() && !hasAddedMediaResponse) {
+        setHasAddedMediaResponse(true);
+      }
+      
+      setSuccessMessage(`${mediaFile.type.startsWith('image') ? 'Kuva' : 'Video'} lisätty! 🎉`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setShowMediaForm(false);
+      setNewComment('');
+      setMediaFile(null);
+    } catch (error) {
+      console.error('Error adding media comment:', error);
+      setErrorMessage('Virhe mediasisällön lisäämisessä. Yritä uudelleen.');
+      setTimeout(() => setErrorMessage(''), 3000);
+    }
   };
 
   const handleMediaClick = (media) => {
@@ -302,21 +371,30 @@ export default function CommentSection({
         </div>
       )}
 
+      {errorMessage && (
+        <div className="mt-2 p-3 text-red-700 bg-red-50 border border-red-200 rounded-lg shadow-sm flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
         {!showForm && !showMediaForm ? (
           <>
             <Button 
               variant="outline" 
               onClick={() => setShowForm(true)}
-              disabled={!canComment() || (shouldUseMediaResponse() && userRole === 'SUPPORT')}
-              title={!canComment() ? getCommentDisabledMessage() : undefined}
+              disabled={!canAddTextComment()}
+              title={!canAddTextComment() ? getCommentDisabledMessage() : undefined}
               className="shadow-sm hover:shadow transition-shadow w-full sm:w-auto"
             >
               + Lisää tekstikommentti
             </Button>
             
-            {/* Show media response button always for all support staff */}
-            {(userRole === 'SUPPORT' || userRole === 'ADMIN') && (
+            {/* Show media button for both ticket creator and support staff */}
+            {(canAddMediaComment()) && (
               <Button
                 variant="default"
                 onClick={() => setShowMediaForm(true)}
@@ -345,7 +423,7 @@ export default function CommentSection({
             {showForm && (
               <Button
                 type="submit"
-                disabled={!canComment() || addCommentMutation.isLoading || !newComment.trim()}
+                disabled={!canAddTextComment() || addCommentMutation.isLoading || !newComment.trim()}
                 onClick={handleSubmit}
                 className="shadow-sm hover:shadow transition-shadow w-full sm:w-auto"
               >
@@ -424,10 +502,10 @@ export default function CommentSection({
         </div>
       )}
       
-      {shouldUseMediaResponse() && userRole === 'SUPPORT' && !showMediaForm && (
+      {shouldUseMediaResponse() && !hasAddedMediaResponse && (
         <div className="text-sm text-blue-700 bg-blue-50 p-3 mt-2 rounded-lg border border-blue-200 flex items-center gap-2">
           {ticket.responseFormat === 'KUVA' ? <ImageIcon className="w-4 h-4" /> : <VideoIcon className="w-4 h-4" />}
-          <p>Tämä tiketti vaatii mediavastauksen ({ticket.responseFormat.toLowerCase()}).</p>
+          <p>Tämä tiketti vaatii mediavastauksen ({ticket.responseFormat.toLowerCase()}). Lisää se ennen tekstikommentteja.</p>
         </div>
       )}
     </div>

@@ -379,10 +379,23 @@ export const ticketController = {
 
         // Tarkista käyttäjän oikeudet kommentoida tikettiin
         if (user.role === 'SUPPORT' && ticket.responseFormat !== 'TEKSTI' && ticket.assignedToId === user.id) {
-          return res.status(400).json({ 
-            error: `Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen.
-                   Käytä media-kommenttitoimintoa vastaamiseen.`
+          // Tarkista onko käyttäjä jo lisännyt mediavastauksen
+          const existingMediaComments = await prisma.comment.findMany({
+            where: {
+              ticketId: id,
+              authorId: user.id,
+              mediaUrl: { not: null },
+              mediaType: { not: null }
+            }
           });
+          
+          // Jos mediavastausta ei ole vielä lisätty, estä tekstikommentin lisääminen
+          if (existingMediaComments.length === 0) {
+            return res.status(400).json({ 
+              error: `Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen.
+                     Käytä media-kommenttitoimintoa vastaamiseen.`
+            });
+          }
         }
 
         // Luo kommentti
@@ -485,9 +498,22 @@ export const ticketController = {
         return res.status(404).json({ error: 'Tikettiä ei löydy' });
       }
       
-      // Tarkista, että käyttäjä on tukihenkilö ja on tiketin käsittelijä
+      // Tarkista käyttöoikeudet:
+      // 1. Tukihenkilöt (SUPPORT) ja järjestelmänvalvojat (ADMIN) voivat lisätä mediasisältöä
+      // 2. Tiketin luoja voi lisätä mediasisältöä omaan tikettiinsä
       if (user.role !== 'SUPPORT' && user.role !== 'ADMIN' && ticket.createdById !== user.id) {
         return res.status(403).json({ error: 'Vain tukihenkilöt, järjestelmänvalvojat tai tiketin luoja voivat lisätä mediasisältöä' });
+      }
+      
+      // Tiketin luoja voi lisätä mediasisältöä vain, jos tiketti ei ole suljettu tai ratkaistu
+      if (ticket.createdById === user.id && (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED')) {
+        return res.status(403).json({ error: 'Et voi lisätä mediasisältöä suljettuun tai ratkaistuun tikettiin' });
+      }
+      
+      // Tukihenkilö voi lisätä mediasisältöä vain, jos tiketti on osoitettu hänelle
+      // Poikkeus: admin voi aina lisätä mediasisältöä
+      if (user.role === 'SUPPORT' && ticket.status === 'IN_PROGRESS' && ticket.assignedToId !== user.id) {
+        return res.status(403).json({ error: 'Vain tiketin käsittelijä voi lisätä mediasisältöä' });
       }
       
       // Määritä mediatyyppi tiedostopäätteen perusteella

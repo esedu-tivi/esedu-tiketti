@@ -109,6 +109,8 @@
   - [x] Kuva- ja videokommenttien käsittely
   - [x] Kaikki tukihenkilöt voivat lisätä mediakommentteja kaikkiin tiketteihin
   - [x] Käyttöliittymän terminologian yhtenäistäminen: "kuva/video" -> "media"
+  - [x] Tiketin luojat voivat lisätä mediasisältöä (kuvat, videot) kommentteihin
+  - [x] Tukihenkilöiden on lisättävä mediavastaus ennen tekstikommentin lisäämistä tiketeissä, jotka vaativat mediasisällön
 
 ### WebSocket ja ilmoitukset
 - [x] WebSocket-integraatio

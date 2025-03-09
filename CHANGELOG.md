@@ -2,6 +2,20 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 09.03.2025 (Improved media comment handling in tickets)
+
+- Paranneltu mediakommenttien työnkulkua tiketeissä:
+  - Tukihenkilöiden on nyt lisättävä mediavastaus (kuva/video) ensin ennen tekstikommentteja tiketeissä, jotka vaativat mediaa
+  - Lisätty selkeä käyttäjäpalaute, kun yritetään lisätä tekstikommenttia ennen mediaa
+  - Toteutettu automaattinen tunnistus, kun mediavastaus on jo annettu
+- Lisätty mediakommenttien tuki tiketin luojille: 
+  - Tiketin luojat voivat nyt lisätä kuvia ja videoita kommentteihin missä tahansa vaiheessa tiketin käsittelyä
+  - Paranneltu mediasisällön näyttämistä kommenteissa selkeämmäksi
+- Paranneltu virheenhallintaa kommentoinnissa:
+  - Lisätty käyttäjäystävälliset virheilmoitukset suoraan käyttöliittymään
+  - Tarkennettu ohjeistus median lisäämisestä selkeämmäksi
+  - Pidennetty virheilmoitusten näyttöaikaa käyttökokemuksen parantamiseksi
+
 ## 09.03.2025 (Added profile pictures and improved responsiveness)
 
 - Lisätty Microsoft-profiilikuvien tuki käyttäjille käyttäen Microsoft Graph API:a
