@@ -76,9 +76,12 @@ class AuthService {
   async handleAuthenticationSuccess(account) {
     if (!account) return;
 
+    console.log('Handling user account:', account);
+
     const userData = {
       email: account.username,
       name: `${account.name}`,
+      jobTitle: account.idTokenClaims?.jobTitle || null,
     };
 
     try {

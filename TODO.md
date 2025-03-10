@@ -18,6 +18,8 @@
   - [x] Käyttöliittymän mukauttaminen roolin mukaan
   - [x] Tukihenkilö-roolin toiminnallisuus
   - [x] Admin-käyttäjien hallintapaneeli
+  - [x] Käyttäjien hakutoiminto hallintapaneelissa
+  - [x] Käyttäjien ryhmätietojen (jobTitle) näyttäminen badgeina hallintapaneelissa ja profiilisivulla
 
 ## Frontend
 ### Tikettinäkymät
@@ -71,10 +73,11 @@
   - [x] Select-komponentti
   - [x] Form-komponentit
   - [x] Toast-ilmoitukset (React Hot Toast)
-- [ ] Käyttöliittymän parannukset
+- [x] Käyttöliittymän parannukset
   - [x] Responsiivisuus
     - [x] Käyttäjien hallintadialogin responsiivisuus mobiililaitteilla
     - [x] Tikettien toimintojen dropdown-valikko
+    - [x] Käyttäjänhallinta-painike admin-käyttäjille mobiilinavigaatiossa
   - [x] Latausanimaatiot (React Query)
   - [x] Virheilmoitukset (React Query)
   - [x] Ilmoitusten ulkoasu

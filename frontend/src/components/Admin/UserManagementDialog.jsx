@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Alert } from '../ui/Alert';
 import { authService } from '../../services/authService';
+import { Search } from 'lucide-react';
 
 export default function UserManagementDialog({ isOpen, onClose }) {
   const [users, setUsers] = useState([]);
@@ -9,6 +10,7 @@ export default function UserManagementDialog({ isOpen, onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -86,6 +88,10 @@ export default function UserManagementDialog({ isOpen, onClose }) {
     setModifiedUsers(users);
   };
 
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value);
+  };
+
   const getRoleText = (role) => {
     switch (role) {
       case 'ADMIN':
@@ -98,6 +104,27 @@ export default function UserManagementDialog({ isOpen, onClose }) {
         return role;
     }
   };
+
+  // Small badge component for jobTitle
+  const JobTitleBadge = ({ jobTitle }) => {
+    if (!jobTitle) return null;
+    
+    return (
+      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+        {jobTitle}
+      </span>
+    );
+  };
+
+  // Filter users based on search query
+  const filteredUsers = modifiedUsers.filter(user => {
+    const query = searchQuery.toLowerCase();
+    return (
+      user.name?.toLowerCase().includes(query) || 
+      user.email?.toLowerCase().includes(query) ||
+      user.jobTitle?.toLowerCase().includes(query)
+    );
+  });
 
   if (!isOpen) return null;
 
@@ -126,6 +153,39 @@ export default function UserManagementDialog({ isOpen, onClose }) {
           </p>
         </div>
 
+        {/* Search Input */}
+        <div className="mb-4 relative">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="w-full py-2 pl-10 pr-4 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="Etsi käyttäjiä nimellä, sähköpostilla tai ryhmällä..."
+              value={searchQuery}
+              onChange={handleSearch}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <div className="mt-2 text-sm text-gray-500">
+              {filteredUsers.length === 0 ? (
+                <span>Ei tuloksia hakusanalla "{searchQuery}"</span>
+              ) : (
+                <span>Löytyi {filteredUsers.length} käyttäjää</span>
+              )}
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
@@ -143,55 +203,77 @@ export default function UserManagementDialog({ isOpen, onClose }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {modifiedUsers.map((user) => (
-                    <tr key={user.id} className="border-b">
-                      <td className="py-3">{user.name}</td>
-                      <td className="py-3">{user.email}</td>
-                      <td className="py-3 text-center">
-                        <div className="flex items-center justify-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={user.role === 'SUPPORT'}
-                            onChange={(e) =>
-                              handleRoleChange(user.id, e.target.checked)
-                            }
-                            disabled={user.role === 'ADMIN' || saving}
-                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="inline-block min-w-[100px] text-sm text-gray-500">
-                            ({getRoleText(user.role)})
-                          </span>
-                        </div>
+                  {filteredUsers.length > 0 ? (
+                    filteredUsers.map((user) => (
+                      <tr key={user.id} className="border-b">
+                        <td className="py-3">
+                          <div className="flex items-center">
+                            <span>{user.name}</span>
+                            <JobTitleBadge jobTitle={user.jobTitle} />
+                          </div>
+                        </td>
+                        <td className="py-3">{user.email}</td>
+                        <td className="py-3 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            <input
+                              type="checkbox"
+                              checked={user.role === 'SUPPORT'}
+                              onChange={(e) =>
+                                handleRoleChange(user.id, e.target.checked)
+                              }
+                              disabled={user.role === 'ADMIN' || saving}
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <span className="inline-block min-w-[100px] text-sm text-gray-500">
+                              ({getRoleText(user.role)})
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="3" className="py-4 text-center text-gray-500">
+                        Ei käyttäjiä tai hakutuloksia.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Card layout for mobile screens */}
             <div className="sm:hidden space-y-4">
-              {modifiedUsers.map((user) => (
-                <div key={user.id} className="border rounded-lg p-3 bg-gray-50">
-                  <div className="font-medium">{user.name}</div>
-                  <div className="text-sm text-gray-600 mb-2">{user.email}</div>
-                  <div className="flex items-center mt-2">
-                    <span className="text-sm mr-2">Tukihenkilö:</span>
-                    <input
-                      type="checkbox"
-                      checked={user.role === 'SUPPORT'}
-                      onChange={(e) =>
-                        handleRoleChange(user.id, e.target.checked)
-                      }
-                      disabled={user.role === 'ADMIN' || saving}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <span className="inline-block ml-2 text-sm text-gray-500">
-                      ({getRoleText(user.role)})
-                    </span>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <div key={user.id} className="border rounded-lg p-3 bg-gray-50">
+                    <div className="font-medium flex items-center flex-wrap">
+                      <span>{user.name}</span>
+                      <JobTitleBadge jobTitle={user.jobTitle} />
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">{user.email}</div>
+                    <div className="flex items-center mt-2">
+                      <span className="text-sm mr-2">Tukihenkilö:</span>
+                      <input
+                        type="checkbox"
+                        checked={user.role === 'SUPPORT'}
+                        onChange={(e) =>
+                          handleRoleChange(user.id, e.target.checked)
+                        }
+                        disabled={user.role === 'ADMIN' || saving}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <span className="inline-block ml-2 text-sm text-gray-500">
+                        ({getRoleText(user.role)})
+                      </span>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="py-4 text-center text-gray-500">
+                  Ei käyttäjiä tai hakutuloksia.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}

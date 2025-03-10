@@ -2,6 +2,34 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+## 10.03.2025 (Added jobTitle badges to User Management dialog)
+
+- Lisätty käyttäjien ryhmätiedot (jobTitle) näkyviin käyttäjänhallintadialogiin
+  - Ryhmätieto näytetään pienenä badgena käyttäjän nimen vieressä
+  - Tieto haetaan Microsoft-kirjautumisen yhteydessä MSAL-tokenista
+  - Tietokantarakennetta päivitetty tallentamaan jobTitle-kenttä
+  - Hakutoiminto etsii myös ryhmätiedon perusteella
+  - Toteutettu sekä työpöytä- että mobiiliversioissa
+- Lisätty ryhmätieto myös käyttäjän profiilisivulle
+  - Näytetään visuaalisena badgena roolitiedon vieressä
+  - Lisätty myös profiilitietoihin omana kenttänään
+
+## 10.03.2025 (Added search functionality to User Management dialog)
+
+- Lisätty hakutoiminto käyttäjänhallintadialogiin
+  - Mahdollisuus hakea käyttäjiä nimen tai sähköpostin perusteella
+  - Hakukenttä ja tulosten suodatus reaaliajassa
+  - Hakutulosten määrän näyttäminen
+  - Hakutulosten tyhjentäminen -painike
+  - Tyylitelty yhtenäisesti muun käyttöliittymän kanssa
+
+## 10.03.2025 (Added User Management button for admins in mobile view)
+
+- Lisätty Käyttäjänhallinta-painike admin-käyttäjille mobiilinavigaatioon
+  - Painike avaa käyttäjänhallintadialogin suoraan mobiilinavigaatiosta
+  - Muokattu mobiilinavigaation asettelua admin-käyttäjille (5 painiketta 4:n sijaan)
+  - Varmistettu yhtenäinen käyttökokemus työpöytä- ja mobiiliversioiden välillä
+
 ## 09.03.2025 (Improved media comment handling in tickets)
 
 - Paranneltu mediakommenttien työnkulkua tiketeissä:

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import NotificationSettings from '../components/Notifications/NotificationSettings';
 import { useAuth } from '../providers/AuthProvider';
-import { UserCircle, LogOut, Mail, User, Award, Edit, Settings } from 'lucide-react';
+import { UserCircle, LogOut, Mail, User, Award, Edit, Settings, Briefcase } from 'lucide-react';
 import axios from 'axios';
 import { authService } from '../services/authService';
 import ProfilePicture from '../components/User/ProfilePicture';
@@ -9,6 +9,31 @@ import ProfilePicture from '../components/User/ProfilePicture';
 const ProfileView = () => {
   const { user, userRole, logout } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
+  const [userData, setUserData] = useState(null);
+  
+  // Fetch full user data including jobTitle
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = await authService.acquireToken();
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/users/me`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        setUserData(response.data);
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+    
+    if (user) {
+      fetchUserData();
+    }
+  }, [user]);
   
   const getRoleText = (role) => {
     switch (role) {
@@ -77,12 +102,20 @@ const ProfileView = () => {
                   <Mail size={16} />
                   <span>{user?.email}</span>
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
                     getRoleBadgeClass(userRole)
                   }`}>
                     {getRoleText(userRole)}
                   </span>
+                  
+                  {/* Job Title Badge */}
+                  {userData?.jobTitle && (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium border bg-green-100 text-green-800 border-green-200 flex items-center gap-1">
+                      <Briefcase size={14} />
+                      {userData.jobTitle}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -111,6 +144,14 @@ const ProfileView = () => {
                     <label className="block text-sm font-medium text-gray-500">Rooli</label>
                     <p className="mt-1 text-lg text-gray-900">{getRoleText(userRole)}</p>
                   </div>
+                  
+                  {/* Job Title in details section */}
+                  {userData?.jobTitle && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Ryhmä</label>
+                      <p className="mt-1 text-lg text-gray-900">{userData.jobTitle}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               

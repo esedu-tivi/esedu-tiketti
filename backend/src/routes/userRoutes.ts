@@ -19,6 +19,7 @@ router.get('/me', authMiddleware, async (req, res) => {
         id: true,
         email: true,
         name: true,
+        jobTitle: true,
         role: true
       }
     });
@@ -42,6 +43,7 @@ router.get('/', authMiddleware, requireRole(UserRole.ADMIN), async (req, res) =>
         id: true,
         email: true,
         name: true,
+        jobTitle: true,
         role: true
       },
       orderBy: {
@@ -149,6 +151,7 @@ router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.A
         id: true,
         email: true,
         name: true,
+        jobTitle: true,
         role: true
       },
       orderBy: {

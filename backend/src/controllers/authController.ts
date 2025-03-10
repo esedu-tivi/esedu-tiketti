@@ -5,6 +5,7 @@ import { TypedRequest } from '../types/index.js';
 interface LoginRequestBody {
   email: string;
   name: string;
+  jobTitle?: string;
 }
 
 const prisma = new PrismaClient();
@@ -12,7 +13,7 @@ const prisma = new PrismaClient();
 export const authController = {
   handleLogin: async (req: TypedRequest<LoginRequestBody>, res: Response) => {
     try {
-      const { email, name } = req.body;
+      const { email, name, jobTitle } = req.body;
 
       if (!email || !name) {
         return res.status(400).json({ error: 'Email and name are required' });
@@ -29,9 +30,21 @@ export const authController = {
           data: {
             email,
             name,
+            jobTitle,
             role: 'USER', // Oletuksena normaali käyttäjä
           }
         });
+      } else {
+        // Päivitä käyttäjän tiedot, jos ne ovat muuttuneet
+        if (user.name !== name || user.jobTitle !== jobTitle) {
+          user = await prisma.user.update({
+            where: { email },
+            data: {
+              name,
+              jobTitle,
+            }
+          });
+        }
       }
 
       res.json({ user });
