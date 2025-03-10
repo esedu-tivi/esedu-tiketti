@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { fetchTickets } from '../utils/api';
 import TicketList from '../components/Tickets/TicketList';
+import TicketListView from '../components/Tickets/TicketListView';
 import { Alert } from '../components/ui/Alert';
 import UserManagementDialog from '../components/Admin/UserManagementDialog';
 import FilterMenu from './FilterMenu';
 import { useQuery } from '@tanstack/react-query';
+import { List, Grid } from 'lucide-react';
 
 export default function Tickets() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const { user, userRole } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState('card');
 
   const {
     data: ticketsData,
@@ -48,13 +51,31 @@ export default function Tickets() {
           setIsOpen={setIsFilterMenuOpen}
         />
       <div className="container mx-auto p-4 mt-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Kaikki tiketit</h1>
             <p className="mt-1 text-sm text-gray-500">
               Hallinnoi ja seuraa kaikkia tikettejä
             </p>
           </div>
+
+            {/* Ikonit näkymän vaihtamiseen */}
+            <div className="ml-auto flex gap-4">
+              <button 
+                className={`p-2 ${viewMode === 'card' ? 'text-blue-500' : 'text-gray-500'}`}
+                onClick={() => setViewMode('card')}
+                title="Korttinäkymä"
+              >
+                <Grid size={20} />
+              </button>
+              <button 
+                className={`p-2 ${viewMode === 'list' ? 'text-blue-500' : 'text-gray-500'}`}
+                onClick={() => setViewMode('list')}
+                title="Listanäkymä"
+              >
+                <List size={20} />
+              </button>
+            </div>
 
           {userRole === 'ADMIN' && (
             <button
@@ -71,7 +92,13 @@ export default function Tickets() {
             <p className="text-gray-500">Ei tikettejä</p>
           </div>
         ) : (
-          <TicketList tickets={tickets} isLoading={isLoading} error={error} />
+          <div className="mt-4">
+            {viewMode === 'card' ? (
+              <TicketList tickets={tickets} isLoading={isLoading} error={error} />
+            ) : (
+              <TicketListView tickets={tickets} isLoading={isLoading} error={error} />
+            )}
+          </div>
         )}
 
         <UserManagementDialog

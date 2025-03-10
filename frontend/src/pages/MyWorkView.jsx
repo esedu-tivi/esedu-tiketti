@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { fetchTickets } from '../utils/api';
 import TicketList from '../components/Tickets/TicketList';
+import TicketListView from '../components/Tickets/TicketListView';
 import { Alert } from '../components/ui/Alert';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
+import { List, Grid } from 'lucide-react';
 
 export default function MyWorkView() {
   const { user } = useAuth();
+  const [viewMode, setViewMode] = useState('card');
 
   // Query for tickets that are IN_PROGRESS and assigned to the current user
   const {
@@ -90,12 +93,32 @@ export default function MyWorkView() {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Oma työnäkymä</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Hallinnoi käsittelyssä olevia ja avoimia tikettejä
-        </p>
+      <div className="mb-6 flex items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Oma työnäkymä</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Hallinnoi käsittelyssä olevia ja avoimia tikettejä
+          </p>
       </div>
+
+      {/* Ikonit näkymän vaihtamiseen */}
+      <div className="ml-auto flex gap-4">
+            <button 
+              className={`p-2 ${viewMode === 'card' ? 'text-blue-500' : 'text-gray-500'}`}
+              onClick={() => setViewMode('card')}
+              title="Korttinäkymä"
+            >
+              <Grid size={20} />
+            </button>
+            <button 
+              className={`p-2 ${viewMode === 'list' ? 'text-blue-500' : 'text-gray-500'}`}
+              onClick={() => setViewMode('list')}
+              title="Listanäkymä"
+            >
+              <List size={20} />
+            </button>
+          </div>
+        </div>
 
       <Tabs defaultValue="in-progress" className="w-full">
         <TabsList>
@@ -112,15 +135,11 @@ export default function MyWorkView() {
 
         <TabsContent value="in-progress">
           <div className="mt-4">
-            {inProgressTickets.length === 0 ? (
-              <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">
-                <p className="text-gray-500">Ei käsittelyssä olevia tikettejä</p>
-              </div>
+            {viewMode === 'card' ? (
+              <TicketList tickets={inProgressTickets} isLoading={isLoadingInProgress} error={inProgressError} 
+              />
             ) : (
-              <TicketList 
-                tickets={inProgressTickets} 
-                isLoading={isLoadingInProgress} 
-                error={inProgressError} 
+              <TicketListView tickets={inProgressTickets} isLoading={isLoadingInProgress} error={inProgressError} 
               />
             )}
           </div>
@@ -128,15 +147,11 @@ export default function MyWorkView() {
 
         <TabsContent value="unassigned">
           <div className="mt-4">
-            {unassignedTickets.length === 0 ? (
-              <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">
-                <p className="text-gray-500">Ei avoimia tikettejä</p>
-              </div>
+            {viewMode === 'card' ? (
+              <TicketList tickets={unassignedTickets} isLoading={isLoadingUnassigned} error={unassignedError} 
+              />
             ) : (
-              <TicketList 
-                tickets={unassignedTickets} 
-                isLoading={isLoadingUnassigned} 
-                error={unassignedError} 
+              <TicketListView tickets={unassignedTickets} isLoading={isLoadingUnassigned} error={unassignedError} 
               />
             )}
           </div>
@@ -144,15 +159,11 @@ export default function MyWorkView() {
 
         <TabsContent value="history">
           <div className="mt-4">
-            {historyTickets.length === 0 ? (
-              <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">
-                <p className="text-gray-500">Ei käsiteltyjä tikettejä</p>
-              </div>
+            {viewMode === 'card' ? (
+              <TicketList tickets={historyTickets} isLoading={isLoadingHistory} error={historyError} 
+              />
             ) : (
-              <TicketList 
-                tickets={historyTickets} 
-                isLoading={isLoadingHistory} 
-                error={historyError} 
+              <TicketListView tickets={historyTickets} isLoading={isLoadingHistory} error={historyError} 
               />
             )}
           </div>
