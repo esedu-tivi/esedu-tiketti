@@ -2,6 +2,28 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 10.03.2025 (Optimized Microsoft Graph API profile picture integration)
+
+- Optimized profile picture fetching to reduce API calls to Microsoft Graph:
+  - Profile pictures are now cached in the database
+  - Microsoft Graph API is only called when necessary:
+    - When a user first logs in
+    - Once a week during login to refresh the profile picture
+    - Once a day when visiting the profile page (if needed)
+  - Added frontend caching using localStorage to track last refresh time
+- Improved loading performance by checking for cached profile pictures first
+- Maintained the ability to display profile pictures throughout the application
+- Added informative message on profile page about Microsoft synchronization
+
+## 10.03.2025 (Integrated profile pictures with Microsoft Graph API)
+
+- Modified the profile picture system to exclusively use Microsoft Graph API
+- Added backend caching to store Microsoft profile pictures in the database
+- Removed the ability for users to upload custom profile pictures
+- Synchronizes profile pictures when users log in and visit their profile page
+- Added profile pictures to user interfaces throughout the application
+- Profile pictures are now displayed for all users across the system
+
 ## 10.03.2025 (Added jobTitle badges to User Management dialog)
 
 - Lisätty käyttäjien ryhmätiedot (jobTitle) näkyviin käyttäjänhallintadialogiin

@@ -161,6 +161,8 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `id`: String (UUID) - Käyttäjän yksilöllinen tunniste
 - `email`: String - Sähköpostiosoite
 - `name`: String - Nimi
+- `jobTitle`: String? - Käyttäjän työtehtävä tai ryhmä (valinnainen)
+- `profilePicture`: String? - Profiilikuva base64-koodattuna (valinnainen)
 - `role`: UserRole - Rooli (ADMIN, SUPPORT, USER)
 - `createdAt`: DateTime - Luontiaika
 - `updatedAt`: DateTime - Viimeisin päivitysaika
@@ -423,7 +425,9 @@ Studio käynnistyy osoitteeseen http://localhost:5555
     "id": "clsj2n9g0000etp97zr5lqw3y",
     "email": "testi.kayttaja@esedulainen.fi",
     "name": "Testi Käyttäjä",
-    "role": "USER"
+    "jobTitle": "Ryhmä323...",
+    "role": "USER",
+    "profilePicture": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAA..." // Vain jos saatavilla
   }
   ```
 - `GET /api/users` - Hae kaikki käyttäjät (vaatii ADMIN-roolin)
@@ -435,6 +439,7 @@ Studio käynnistyy osoitteeseen http://localhost:5555
         "id": "clsj2n9g0000etp97zr5lqw3y",
         "email": "testi.kayttaja@esedulainen.fi",
         "name": "Testi Käyttäjä",
+        "jobTitle": "Ryhmä323...",
         "role": "USER"
       },
       {
@@ -456,6 +461,43 @@ Studio käynnistyy osoitteeseen http://localhost:5555
   // Esimerkki
   {
     "role": "SUPPORT"
+  }
+  ```
+- `GET /api/users/profile-picture/:userId` - Hae käyttäjän profiilikuva ID:n perusteella
+  ```typescript
+  // Vastauksen esimerkki
+  {
+    "profilePicture": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAA..."
+  }
+  
+  // Virhetilanteet (404 Not Found):
+  {
+    "error": "User not found"
+  }
+  {
+    "error": "Profile picture not found"
+  }
+  ```
+- `GET /api/users/profile-picture/by-email/:email` - Hae käyttäjän profiilikuva sähköpostin perusteella
+  ```typescript
+  // Vastauksen esimerkki on sama kuin userId-versiossa
+  ```
+- `POST /api/users/profile-picture/microsoft` - Päivitä kirjautuneen käyttäjän profiilikuva Microsoft Graph API:sta (vain autentikoituneille käyttäjille)
+  ```typescript
+  // Request body
+  {
+    "graphAccessToken": "eyJ0eXAiOiJKV1QiLCJub25jZSI6IkFRQ..." // Microsoft Graph API:n access token
+  }
+  
+  // Vastauksen esimerkki
+  {
+    "profilePicture": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAA...",
+    "message": "Profile picture updated successfully from Microsoft"
+  }
+  
+  // Mikäli profiilikuvaa ei löydy Microsoftista
+  {
+    "message": "No profile picture available from Microsoft"
   }
   ```
 
@@ -607,6 +649,22 @@ Huomioitavaa:
    - Varmista että kaikki riippuvuudet on asennettu
    - Tarkista että `tsconfig.json` on ajan tasalla
    - Kokeile käynnistää TypeScript-palvelin uudelleen VS Codessa 
+
+4. Profiilikuvien ongelmat
+   - **Profiilikuvat eivät päivity**: Tyhjennä localStorage-tiedot selaimessa
+     ```javascript
+     // Selaimen konsolissa
+     localStorage.removeItem('lastProfilePictureRefresh');
+     ```
+   - **Profiilikuvat eivät näy**: Tarkista että Microsoft Graph API:n oikeudet ovat oikein
+     - Tarkista että käyttäjällä on profiilikuva Microsoft-tilillään
+   - **Tietokantavirhe profiilikuvakentässä**: Aja migraatiot uudelleen
+     ```bash
+     npx prisma migrate dev --name add_profile_picture_field
+     ```
+   - **Vain oma profiilikuva näkyy**: Tämä on odotettua käyttäytymistä ensikäynnistyksen jälkeen
+     - Profiilikuvat tallentuvat tietokantaan käyttäjien kirjautuessa sisään
+     - Kuvat muille käyttäjille tulevat saataville vain kun he kirjautuvat
 
 ## Päivitysohjeet
 
@@ -778,8 +836,8 @@ Kaikki syötteet validoidaan ja sanitoidaan automaattisesti:
    ```typescript
    {
      title: string;       // 5-100 merkkiä
-     description: string; // 10-2000 merkkiä
-     device?: string;     // max 100 merkkiä, valinnainen
+     description: string;   // 10-2000 merkkiä
+     device?: string;    // max 100 merkkiä, valinnainen
      additionalInfo?: string | null; // max 1000 merkkiä, valinnainen
      priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
      categoryId: string;  // UUID-muotoinen
@@ -920,51 +978,137 @@ const comment = "Hei @Matti Meikäläinen, voisitko tarkistaa tämän?";
 
 ## Microsoft Graph API Integraatio
 
-### Profiilikuvien hakeminen
+### Profiilikuvien hakeminen ja välimuistitus
 
-Järjestelmä hyödyntää Microsoft Graph API:a käyttäjien profiilikuvien näyttämiseen. 
+Järjestelmä hyödyntää Microsoft Graph API:a käyttäjien profiilikuvien näyttämiseen ja tallentaa ne tietokantaan välimuistiin. 
 
-### Käyttöönotto
+#### Profiilikuvien synkronointi
 
-Frontend käyttää Microsoft Graph API:a käyttäjien profiilikuvien noutamiseen:
+Järjestelmä seuraa optimoitua prosessia profiilikuvien noutamisessa:
+
+1. **Kirjautumisen yhteydessä**:
+   - Järjestelmä tarkistaa, milloin käyttäjän profiilikuva on viimeksi päivitetty
+   - Profiilikuva noudetaan Microsoft Graph API:sta vain jos:
+     - Sitä ei ole vielä haettu koskaan, tai
+     - Edellisestä päivityksestä on kulunut yli viikko (7 päivää)
+
+2. **Profiilinäkymässä**:
+   - Profiilikuva päivitetään Microsoftista vain jos edellisestä päivityksestä on kulunut yli vuorokausi (24 tuntia)
+   - Muutoin käytetään tietokannassa jo olevaa välimuistissa olevaa kuvaa
+
+3. **Muualla sovelluksessa**:
+   - Profiilikuvat haetaan aina ensin tietokannasta (backend API)
+   - Microsoft Graph API:a käytetään vain jos kuvaa ei löydy tietokannasta JA kyseessä on kirjautunut käyttäjä
+
+#### Tekninen toteutus
+
+Frontend käyttää optimoitua logiikkaa kuvien noutamiseen:
 
 ```javascript
-// Haetaan token Graph API:a varten
-const token = await authService.msalInstance.acquireTokenSilent({
-  scopes: ['User.Read'],
-  account: await authService.getActiveAccount(),
-});
+// Tarkistetaan milloin profiilikuva on viimeksi päivitetty
+const lastRefresh = localStorage.getItem('lastProfilePictureRefresh');
+const now = Date.now();
+const oneWeekInMs = 7 * 24 * 60 * 60 * 1000; // 7 päivää millisekunteina
 
-// Haetaan profiilikuva
-const response = await axios.get(
-  'https://graph.microsoft.com/v1.0/me/photo/$value',
-  {
-    headers: {
-      Authorization: `Bearer ${token.accessToken}`,
-    },
-    responseType: 'arraybuffer',
-  }
-);
+// Päivitetään vain jos on kulunut yli viikko
+if (!lastRefresh || (now - parseInt(lastRefresh, 10)) > oneWeekInMs) {
+  // Haetaan token Graph API:a varten
+  const graphToken = await userService.getGraphToken();
+  
+  // Päivitetään profiilikuva backendin kautta (tallentuu tietokantaan)
+  await userService.updateProfilePictureFromMicrosoft(true); // force refresh
+  
+  // Päivitetään viimeisimmän päivityksen aikaleima
+  localStorage.setItem('lastProfilePictureRefresh', now.toString());
+}
 ```
+
+Backend tallentaa profiilikuvat tietokantaan:
+
+```typescript
+// User-malli sisältää profiilikuvan
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  name            String
+  jobTitle        String?
+  profilePicture  String?   // URL to the user's profile picture
+  // ... muut kentät
+}
+```
+
+### Muiden käyttäjien kuvien näyttäminen
+
+Järjestelmä näyttää kaikkien käyttäjien profiilikuvat:
+
+1. Kirjautuneen käyttäjän kuva haetaan ja tallennetaan Microsoft Graph API:sta
+2. Muiden käyttäjien kuvat noudetaan tietokannasta (ei suoraa Microsoft Graph -kutsua)
+3. Kaikki kuvat tallennetaan tietokantaan, joten ne ovat käytettävissä kaikille käyttäjille
+
+### Profiilikuvien käyttöliittymä
+
+Profiilikuvat näkyvät yhtenäisesti koko järjestelmässä:
+
+1. Käyttäjän profiilisivulla (suurempana versiona)
+2. Navigaatiopalkissa (pienenä versiona)
+3. Kommenteissa ja tikettiketjussa
+4. Käyttäjähallinnassa
+
+Käyttäjän profiilisivulla näkyy selkeä viesti, että profiilikuva on synkronoitu Microsoft-tililtä.
 
 ### Fallback-mekanismi
 
-Järjestelmä tukee automaattista fallback-mekanismia, jossa käyttäjien nimikirjaimet näytetään, jos profiilikuvaa ei ole saatavilla:
+Järjestelmä näyttää käyttäjän nimikirjaimet, jos profiilikuvaa ei ole saatavilla:
 
-1. Järjestelmä yrittää hakea käyttäjän profiilikuvan Microsoft Graph API:sta
-2. Jos kuvaa ei ole saatavilla tai käyttäjä ei ole kirjautunut sisään kyseisellä tunnuksella, näytetään nimikirjaimet
+1. Järjestelmä yrittää hakea käyttäjän profiilikuvan tietokannasta
+2. Jos kuvaa ei ole saatavilla, näytetään nimikirjaimet värillisissä ympyröissä
 3. Nimikirjaimet muodostetaan käyttäjän etu- ja sukunimen ensimmäisistä kirjaimista
 
-### Välimuisti
+### Suorituskyky ja optimointi
 
-Profiilikuvat tallennetaan välimuistiin suorituskykyä parantamiseksi:
+Profiilikuvien käsittely on optimoitu:
 
-1. Kuvia ei haeta uudelleen, jos ne on jo kerran ladattu
-2. Välimuisti tyhjennetään kun käyttäjä kirjautuu ulos
+1. Microsoft Graph API -kutsuja tehdään vain kun tarpeellista:
+   - Kirjautuessa (kerran viikossa)
+   - Profiilisivulla (kerran päivässä)
+   - Kun kuvaa ei löydy tietokannasta
+
+2. Useita välimuistitasoja:
+   - Tietokanta (pitkäaikainen välimuisti)
+   - Frontend-muistissa (istuntokohtainen välimuisti)
+   - LocalStorage (päivityssyklien hallinta)
+
+3. Base64-koodatut kuvat:
+   - Kuvat tallennetaan base64-koodattuna tietokantaan
+   - Ei tarvetta erillisille tiedostoille palvelimella
+   - Tehokas tiedonsiirto rajapintakutsuissa
 
 ### Käyttöoikeudet
 
-Järjestelmä käyttää vain User.Read-oikeutta, joka ei vaadi erillistä admin-lupaa. Tämä mahdollistaa:
+Järjestelmä käyttää Microsoft Graph API:n User.Read-oikeutta, joka ei vaadi erillistä admin-lupaa. Tämä mahdollistaa:
 
 1. Kirjautuneen käyttäjän omien profiilikuvien näyttämisen
-2. Nimikirjaimien näyttämisen muiden käyttäjien tapauksessa
+2. Kuvien tallentamisen tietokantaan muiden käyttäjien nähtäville
+
+### Käyttäjän profiilikuvien päivitys
+
+Profiilikuvat päivitetään automaattisesti käyttäjän kirjautuessa:
+
+1. Kirjautumisen yhteydessä järjestelmä tarkistaa, milloin käyttäjän profiilikuva on viimeksi päivitetty (tallennetaan localStorage:een)
+2. Jos edellisestä päivityksestä on kulunut yli viikko tai kuvaa ei ole aiemmin haettu, järjestelmä päivittää profiilikuvan Microsoft Graph API:sta
+3. Profiilikuva tallennetaan tietokantaan, josta se on saatavilla kaikille käyttäjille
+
+Profiilikuvien päivityssykliä on optimoitu:
+- Kirjautumisessa: päivitys kerran viikossa
+- Profiilisivulla: päivitys kerran päivässä
+- Muualla sovelluksessa: käytetään välimuistissa olevaa kuvaa
+
+Jos kohtaat ongelmia profiilikuvien kanssa:
+```bash
+# Tyhjennä localStorage (selaimessa)
+localStorage.removeItem('lastProfilePictureRefresh');
+
+# Välimuistin tyhjennys (kirjautumisen jälkeen)
+# Frontend konsolissa
+userService.clearProfileCache();
+```

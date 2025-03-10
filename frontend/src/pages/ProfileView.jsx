@@ -5,11 +5,13 @@ import { UserCircle, LogOut, Mail, User, Award, Edit, Settings, Briefcase } from
 import axios from 'axios';
 import { authService } from '../services/authService';
 import ProfilePicture from '../components/User/ProfilePicture';
+import { userService } from '../services/userService';
 
 const ProfileView = () => {
   const { user, userRole, logout } = useAuth();
   const [isChangingRole, setIsChangingRole] = useState(false);
   const [userData, setUserData] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0); // Used to force re-render of ProfilePicture
   
   // Fetch full user data including jobTitle
   useEffect(() => {
@@ -34,6 +36,43 @@ const ProfileView = () => {
       fetchUserData();
     }
   }, [user]);
+  
+  // Load profile picture, but only fetch from Microsoft if needed
+  useEffect(() => {
+    const loadProfilePicture = async () => {
+      if (!user?.username) return;
+      
+      try {
+        // Check if we should refresh from Microsoft Graph API
+        // Only refresh once a day (86400000 ms = 24 hours)
+        const lastRefresh = localStorage.getItem('lastProfilePictureRefresh');
+        const now = Date.now();
+        const shouldRefreshFromMicrosoft = !lastRefresh || (now - parseInt(lastRefresh, 10)) > 86400000;
+        
+        if (shouldRefreshFromMicrosoft) {
+          console.log('Refreshing profile picture from Microsoft Graph API');
+          // Clear local cache but keep the backend cache
+          userService.clearProfileCache();
+          
+          // Fetch and store from Microsoft Graph API
+          await userService.updateProfilePictureFromMicrosoft();
+          
+          // Update the last refresh timestamp
+          localStorage.setItem('lastProfilePictureRefresh', now.toString());
+          
+          // Force re-render of ProfilePicture component
+          setRefreshKey(prevKey => prevKey + 1);
+        } else {
+          console.log('Using cached profile picture');
+          // Just use the cached version - will be loaded when ProfilePicture renders
+        }
+      } catch (error) {
+        console.error('Error with profile picture:', error);
+      }
+    };
+    
+    loadProfilePicture();
+  }, [user?.username]);
   
   const getRoleText = (role) => {
     switch (role) {
@@ -90,12 +129,18 @@ const ProfileView = () => {
           {/* Header with background */}
           <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-8 text-white">
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
-              <ProfilePicture 
-                email={user?.username} 
-                name={user?.name} 
-                size="xl" 
-                className="border-4 border-white shadow-lg"
-              />
+              <div className="relative">
+                <ProfilePicture 
+                  key={refreshKey} // Force re-render when refreshKey changes
+                  email={user?.username} 
+                  name={user?.name} 
+                  size="xl" 
+                  className="border-4 border-white shadow-lg"
+                />
+                <p className="mt-2 text-sm text-white/80">
+                  Profiilikuva synkronoitu Microsoft-tililtäsi
+                </p>
+              </div>
               <div className="flex-1">
                 <h1 className="text-2xl font-bold">{user?.name}</h1>
                 <div className="flex flex-wrap items-center gap-2 mt-1 text-white/80">
@@ -193,7 +238,7 @@ const ProfileView = () => {
             </div>
           </div>
         </div>
-
+        
         {/* Notification settings card */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">

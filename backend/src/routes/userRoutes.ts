@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient, UserRole } from '@prisma/client';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { requireRole } from '../middleware/roleMiddleware.js';
+import { getProfilePicture, getProfilePictureByEmail, updateProfilePictureFromMicrosoft } from '../controllers/userController.js';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -164,5 +165,10 @@ router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.A
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// Profile picture routes - using Microsoft Graph API
+router.post('/profile-picture/microsoft', authMiddleware, updateProfilePictureFromMicrosoft);
+router.get('/profile-picture/:userId', getProfilePicture);
+router.get('/profile-picture/by-email/:email', getProfilePictureByEmail);
 
 export default router; 

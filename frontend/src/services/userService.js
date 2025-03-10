@@ -45,9 +45,12 @@ class UserService {
   }
 
   /**
-   * Fetches the user's profile picture from Microsoft Graph API
+   * Fetches the user's profile picture
+   * For the current user: try to get it from Microsoft Graph API and cache it on the backend
+   * For other users: try to get it from the backend cache
+   * 
    * @param {string} userEmail - The email of the user
-   * @returns {Promise<string>} - The profile picture URL as a base64 data URL or null
+   * @returns {Promise<string>} - The profile picture URL or null
    */
   async getUserProfilePicture(userEmail) {
     // Return from cache if available
@@ -55,48 +58,149 @@ class UserService {
       return this.profileCache.get(userEmail);
     }
 
-    // Only fetch profile picture for the current user to avoid permission issues
-    if (userEmail !== this.currentUserEmail) {
-      this.profileCache.set(userEmail, null);
-      return null;
-    }
-    
     try {
-      const token = await this.getGraphToken();
-      if (!token) {
-        this.profileCache.set(userEmail, null);
-        return null;
-      }
+      // First try to get the profile picture from our backend cache
+      const token = await authService.acquireToken();
+      const apiUrl = import.meta.env.VITE_API_URL;
       
       try {
-        // Use the /me endpoint which only works for the current user
         const response = await axios.get(
-          `${this.graphEndpoint}/me/photo/$value`,
+          `${apiUrl}/users/profile-picture/by-email/${encodeURIComponent(userEmail)}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
             },
-            responseType: 'arraybuffer',
           }
         );
         
-        // Convert arraybuffer to base64
-        const base64 = this.arrayBufferToBase64(response.data);
-        const dataUrl = `data:image/jpeg;base64,${base64}`;
-        
-        // Cache the result
-        this.profileCache.set(userEmail, dataUrl);
-        return dataUrl;
+        const profilePicture = response.data.profilePicture;
+        this.profileCache.set(userEmail, profilePicture);
+        return profilePicture;
       } catch (error) {
-        console.error('Error fetching profile picture:', error);
-        // Cache null to avoid repeated failed requests
-        this.profileCache.set(userEmail, null);
-        return null;
+        // If we get a 404, that means the user doesn't have a profile picture in our backend cache
+        // If this is the current user, fetch from Microsoft Graph and cache it
+        if (userEmail === this.currentUserEmail) {
+          return this.updateProfilePictureFromMicrosoft();
+        } else {
+          // For other users, just return null - we can't fetch their Microsoft photos directly
+          this.profileCache.set(userEmail, null);
+          return null;
+        }
       }
     } catch (error) {
       console.error('Error in getUserProfilePicture:', error);
       this.profileCache.set(userEmail, null);
       return null;
+    }
+  }
+  
+  /**
+   * Fetches and updates the current user's profile picture from Microsoft Graph API
+   * Also caches it on the backend for other users to see
+   * If a profile picture already exists in the backend, it will be returned without fetching from Microsoft
+   * @param {boolean} forceRefresh - Whether to force a refresh from Microsoft even if a cached version exists
+   * @returns {Promise<string>} - The profile picture URL or null
+   */
+  async updateProfilePictureFromMicrosoft(forceRefresh = false) {
+    try {
+      // First check if we already have a profile picture in our backend
+      if (!forceRefresh) {
+        try {
+          const backendToken = await authService.acquireToken();
+          const apiUrl = import.meta.env.VITE_API_URL;
+          
+          const response = await axios.get(
+            `${apiUrl}/users/profile-picture/by-email/${encodeURIComponent(this.currentUserEmail)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${backendToken}`,
+              },
+            }
+          );
+          
+          // If we successfully got a picture from the backend, use that
+          if (response.data.profilePicture) {
+            console.log('Using profile picture from backend cache');
+            this.profileCache.set(this.currentUserEmail, response.data.profilePicture);
+            return response.data.profilePicture;
+          }
+        } catch (error) {
+          // If we get an error, continue to fetch from Microsoft
+          console.log('No cached profile picture found, fetching from Microsoft');
+        }
+      }
+      
+      // Get Microsoft Graph access token
+      const graphToken = await this.getGraphToken();
+      if (!graphToken) {
+        this.profileCache.set(this.currentUserEmail, null);
+        return null;
+      }
+      
+      // Get backend access token
+      const backendToken = await authService.acquireToken();
+      const apiUrl = import.meta.env.VITE_API_URL;
+
+      // Send the Microsoft Graph token to our backend to fetch and cache the profile picture
+      const response = await axios.post(
+        `${apiUrl}/users/profile-picture/microsoft`,
+        { graphAccessToken: graphToken },
+        {
+          headers: {
+            Authorization: `Bearer ${backendToken}`,
+          },
+        }
+      );
+      
+      // If we got a profile picture, cache and return it
+      if (response.data.profilePicture) {
+        this.profileCache.set(this.currentUserEmail, response.data.profilePicture);
+        return response.data.profilePicture;
+      }
+      
+      // No profile picture available
+      this.profileCache.set(this.currentUserEmail, null);
+      return null;
+    } catch (error) {
+      console.error('Error in updateProfilePictureFromMicrosoft:', error);
+      this.profileCache.set(this.currentUserEmail, null);
+      return null;
+    }
+  }
+
+  /**
+   * Uploads a profile picture to the backend
+   * @param {File} file - The image file to upload
+   * @returns {Promise<Object>} - Response with the profile picture URL
+   */
+  async uploadProfilePicture(file) {
+    try {
+      const token = await authService.acquireToken();
+      const apiUrl = import.meta.env.VITE_API_URL;
+      
+      const formData = new FormData();
+      formData.append('media', file);
+      
+      const response = await axios.post(
+        `${apiUrl}/users/profile-picture`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      // Clear the cache for the current user
+      if (this.currentUserEmail) {
+        this.profileCache.delete(this.currentUserEmail);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      throw error;
     }
   }
 

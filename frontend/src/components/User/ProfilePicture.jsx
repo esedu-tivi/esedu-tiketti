@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 
 /**
- * A component that displays a user's profile picture or initials if no picture is available
+ * A component that displays a user's profile picture from Microsoft Graph API (cached in the backend)
+ * or shows their initials if no picture is available
  */
 const ProfilePicture = ({ 
   email, 
@@ -14,7 +15,6 @@ const ProfilePicture = ({
   const [profilePicture, setProfilePicture] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [isCurrentUser, setIsCurrentUser] = useState(false);
 
   // Size mappings
   const sizeClasses = {
@@ -30,30 +30,24 @@ const ProfilePicture = ({
   const initials = userService.getUserInitials(name);
 
   useEffect(() => {
-    // Check if this is the current user
-    const checkCurrentUser = async () => {
-      if (email === userService.currentUserEmail) {
-        setIsCurrentUser(true);
-        setLoading(true);
-        
-        try {
-          const picture = await userService.getUserProfilePicture(email);
-          setProfilePicture(picture);
-        } catch (err) {
-          console.error('Error fetching profile picture:', err);
-          setError(true);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        // Not the current user, don't try to fetch
-        setIsCurrentUser(false);
+    const fetchProfilePicture = async () => {
+      if (!email) return;
+      
+      setLoading(true);
+      
+      try {
+        const picture = await userService.getUserProfilePicture(email);
+        setProfilePicture(picture);
+      } catch (err) {
+        console.error('Error fetching profile picture:', err);
+        setError(true);
+      } finally {
         setLoading(false);
       }
     };
 
     if (email) {
-      checkCurrentUser();
+      fetchProfilePicture();
     }
   }, [email]);
 
@@ -69,8 +63,8 @@ const ProfilePicture = ({
     );
   }
 
-  // Profile picture available (only for current user)
-  if (isCurrentUser && profilePicture) {
+  // Profile picture available
+  if (profilePicture) {
     return (
       <img 
         src={profilePicture} 

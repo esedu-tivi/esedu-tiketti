@@ -63,6 +63,24 @@ export function AuthProvider({ children }) {
         // Haetaan käyttäjän rooli kun käyttäjä on autentikoitu
         const role = await fetchUserRole(account.username);
         console.log('User role set to:', role);
+
+        // Check if we should refresh the profile picture from Microsoft
+        const lastRefresh = localStorage.getItem('lastProfilePictureRefresh');
+        const now = Date.now();
+        const oneWeekInMs = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+        
+        // Refresh if:
+        // 1. We've never refreshed before or
+        // 2. It's been more than a week since the last refresh
+        if (!lastRefresh || (now - parseInt(lastRefresh, 10)) > oneWeekInMs) {
+          console.log('Fetching profile picture from Microsoft during login');
+          await userService.updateProfilePictureFromMicrosoft(true); // Force refresh from Microsoft
+          localStorage.setItem('lastProfilePictureRefresh', now.toString());
+        } else {
+          // Just load from backend cache
+          console.log('Using cached profile picture from backend');
+          await userService.updateProfilePictureFromMicrosoft(false); // Don't force refresh
+        }
       } catch (error) {
         console.error('Failed to sync user with backend:', error);
       }
