@@ -61,8 +61,9 @@ const TicketListView = ({ tickets = [], isLoading, error }) => {
       {!tickets || tickets.length === 0 ? (
         <p>Ei tikettejä näytettäväksi</p>
       ) : (
-        <div className="w-full">
-          <div className="grid grid-cols-[2fr_1fr_auto_1fr] border-b border-gray-300 text-m font-semibold bg-gray-100 p-2">
+        <div className="w-full overflow-x-auto">
+          {/* Header row - hide column labels on small screens except for title */}
+          <div className="hidden md:grid md:grid-cols-[2fr_1fr_auto_1fr] border-b border-gray-300 text-m font-semibold bg-gray-100 p-2">
             <span>Otsikko</span>
             <span>Prioriteetti</span>
             <span>Status</span>
@@ -81,16 +82,46 @@ const TicketListView = ({ tickets = [], isLoading, error }) => {
               return (
                 <li
                   key={ticket.id}
-                  className="grid grid-cols-[2fr_1fr_auto_1fr] text-s border-b border-gray-200 cursor-pointer p-1 
+                  className="flex flex-col md:grid md:grid-cols-[2fr_1fr_auto_1fr] text-s border-b border-gray-200 cursor-pointer p-2 
                   hover:bg-gray-100 hover:shadow-sm transition-shadow duration-200"
                   onClick={() => setSelectedTicketId(ticket.id)}
                 >
-                  <span className='text-blue-600'>{ticket.title}</span>
-                  <span className={`flex items-center gap-1 w-fit w-[100px] ${priorityInfo.color}`}>
+                  {/* Mobile and Desktop view for title */}
+                  <span className='text-blue-600 font-medium'>{ticket.title}</span>
+                  
+                  {/* Mobile view - inline display with labels */}
+                  <div className="flex flex-wrap gap-2 mt-2 md:hidden">
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-500 mr-1">Prioriteetti:</span>
+                      <span className={`flex items-center gap-1 text-xs px-1 py-0.5 rounded ${priorityInfo.color}`}>
+                        <priorityInfo.icon className="w-3 h-3" />
+                        {priorityInfo.text}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-500 mr-1">Status:</span>
+                      <span className={`inline-block text-xs text-white px-2 py-0.5 rounded-full ${statusClass}`}>
+                        {ticket.status === 'OPEN'
+                          ? 'Avoin'
+                          : ticket.status === 'IN_PROGRESS'
+                          ? 'Käsittelyssä'
+                          : ticket.status === 'RESOLVED'
+                          ? 'Ratkaistu'
+                          : 'Suljettu'}
+                      </span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-500 mr-1">Päivämäärä:</span>
+                      <span className="text-xs">{createdDate}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Desktop view */}
+                  <span className={`hidden md:flex items-center gap-1 w-fit ${priorityInfo.color}`}>
                     <priorityInfo.icon className="w-3 h-3" />
                     {priorityInfo.text}
                   </span>
-                  <span className={`inline-block px-2 py-0.5 rounded-full w-[100px] text-center ${statusClass}`}>
+                  <span className={`hidden md:inline-block px-2 py-0.5 rounded-full w-[100px] text-center text-white ${statusClass}`}>
                     {ticket.status === 'OPEN'
                       ? 'Avoin'
                       : ticket.status === 'IN_PROGRESS'
@@ -99,7 +130,7 @@ const TicketListView = ({ tickets = [], isLoading, error }) => {
                       ? 'Ratkaistu'
                       : 'Suljettu'}
                   </span>
-                  <span className="text-right">{createdDate}</span>
+                  <span className="hidden md:block text-right">{createdDate}</span>
                 </li>
               );
             })}

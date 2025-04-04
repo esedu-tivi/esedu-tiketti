@@ -59,20 +59,23 @@ export default function MyTickets() {
           </div>
 
           {/* Ikonit näkymän vaihtamiseen */}
-          <div className="ml-auto flex gap-4">
+          <div className="ml-auto flex gap-2 sm:gap-4 items-center">
+            <span className="hidden sm:inline text-xs text-gray-500 mr-1">Näkymä:</span>
             <button 
-              className={`p-2 ${viewMode === 'card' ? 'text-blue-500' : 'text-gray-500'}`}
+              className={`p-1.5 sm:p-2 rounded-md ${viewMode === 'card' ? 'bg-blue-100 text-blue-600' : 'text-gray-500'}`}
               onClick={() => setViewMode('card')}
               title="Korttinäkymä"
+              aria-label="Korttinäkymä"
             >
-              <Grid size={20} />
+              <Grid size={18} />
             </button>
             <button 
-              className={`p-2 ${viewMode === 'list' ? 'text-blue-500' : 'text-gray-500'}`}
+              className={`p-1.5 sm:p-2 rounded-md ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-500'}`}
               onClick={() => setViewMode('list')}
               title="Listanäkymä"
+              aria-label="Listanäkymä"
             >
-              <List size={20} />
+              <List size={18} />
             </button>
           </div>
         </div>

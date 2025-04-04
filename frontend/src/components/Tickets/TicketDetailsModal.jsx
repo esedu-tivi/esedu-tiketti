@@ -33,15 +33,103 @@ import {
   ChevronsUpDown,
   Settings,
   X,
+  ExternalLink,
 } from 'lucide-react';
 
 import CommentSection from '../Tickets/CommentSection';
+
+// Add keyframe animations
+import { keyframes, css } from '@emotion/react';
+import { Global } from '@emotion/react';
+
+// Custom animation styles
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`;
+
+const fadeInDelayed = keyframes`
+  0% { opacity: 0; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+`;
+
+const slideUp = keyframes`
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+`;
+
+// Add these animation classes to Tailwind (normally you'd do this in tailwind.config.js)
+// But for our demo, we'll inject them with inline styles
+const animationStyles = css`
+  .animate-fadeIn {
+    animation: ${fadeIn} 0.3s ease-out forwards;
+  }
+  .animate-fadeInDelayed {
+    animation: ${fadeInDelayed} 0.6s ease-out forwards;
+  }
+  .animate-slideUp {
+    animation: ${slideUp} 0.4s ease-out forwards;
+  }
+  .hover\:scale-102:hover {
+    transform: scale(1.02);
+  }
+`;
 
 const SUPPORT_COLOR = {
   bg: 'bg-[#92C01F]',
   bgLight: 'bg-[#92C01F]/10',
   text: 'text-[#92C01F]',
   border: 'border-[#92C01F]/20'
+};
+
+const TabButton = ({ isActive, onClick, icon, label, badge = null }) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-3 flex items-center gap-2 transition-all duration-200 font-medium relative group ${
+        isActive 
+          ? 'text-blue-600' 
+          : 'text-gray-500 hover:text-gray-700'
+      }`}
+    >
+      <div className={`flex items-center gap-2 ${isActive ? '' : 'group-hover:translate-y-[-1px] transition-transform'}`}>
+        <div className={`${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'} transition-colors duration-200`}>
+          {icon}
+        </div>
+        <span>{label}</span>
+        {badge && (
+          <span className={`text-xs px-2 py-0.5 rounded-full transition-colors duration-200 ${
+            isActive 
+              ? 'bg-blue-100 text-blue-600' 
+              : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+          }`}>
+            {badge}
+          </span>
+        )}
+      </div>
+      {isActive ? (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t"></div>
+      ) : (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-transparent group-hover:bg-gray-200 transition-colors duration-200 rounded-t"></div>
+      )}
+    </button>
+  );
+};
+
+const StatusBadge = ({ status, icon: Icon, color, animation }) => {
+  // Extract the color name from the color class (e.g., 'bg-blue-100 text-blue-800' -> 'blue')
+  const colorName = color.match(/bg-(\w+)-\d+/)?.[1] || 'gray';
+  
+  return (
+    <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full ${color} ${animation} shadow-sm backdrop-filter backdrop-blur-sm transition-all duration-300 hover:shadow-md group relative overflow-hidden`}>
+      <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-50"></div>
+      <div className={`p-1 rounded-full bg-${colorName}-200/30 backdrop-blur-lg flex items-center justify-center`}>
+        <Icon className="w-3.5 h-3.5" />
+      </div>
+      <span className="text-sm font-medium group-hover:translate-x-0.5 transition-transform relative z-10">{status}</span>
+    </div>
+  );
 };
 
 export default function TicketDetailsModal({ ticketId, onClose }) {
@@ -53,6 +141,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const ticketActionsRef = useRef(null);
   const queryClient = useQueryClient();
   const { userRole, user } = useAuth();
+  const [activeTab, setActiveTab] = useState('details');
 
   const {
     data: ticket,
@@ -507,7 +596,14 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     );
   };
 
-  const Timeline = () => {
+  const Timeline = ({ showTimeline = false }) => {
+    // If showTimeline is passed as true, we don't need the toggle button
+    const [localShowTimeline, setLocalShowTimeline] = useState(showTimeline);
+
+    useEffect(() => {
+      setLocalShowTimeline(showTimeline);
+    }, [showTimeline]);
+
     // Yhdistetään kaikki tapahtumat yhteen aikajanaan
     const allEvents = [
       {
@@ -613,9 +709,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     const commentCount = allEvents.filter(e => !e.isSystemEvent).length;
 
     return (
-      <div className="mt-8">
+      <div className="mt-4">
+        {!showTimeline && (
         <button
-          onClick={() => setShowTimeline(!showTimeline)}
+            onClick={() => setLocalShowTimeline(!localShowTimeline)}
           className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
         >
           <div className="flex items-center gap-2">
@@ -627,15 +724,16 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               <span className="text-gray-500">{commentCount} kommenttia)</span>
             </div>
           </div>
-          {showTimeline ? (
+            {localShowTimeline ? (
             <ChevronUp className="w-5 h-5 text-gray-500" />
           ) : (
             <ChevronDown className="w-5 h-5 text-gray-500" />
           )}
         </button>
+        )}
 
-        {showTimeline && (
-          <div className="mt-4 relative pl-8 space-y-4 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
+        {(showTimeline || localShowTimeline) && (
+          <div className={`${!showTimeline ? 'mt-4' : ''} relative pl-8 space-y-4 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200`}>
             {allEvents.map((event, index) => {
               const Icon = event.icon;
               return (
@@ -697,9 +795,11 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
       <button
         onClick={onClick}
         disabled={disabled}
-        className={`w-full text-left flex items-center gap-2 px-4 py-3 text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : `${bgColorClass} hover:bg-opacity-80`} rounded-md transition-all duration-150`}
+        className={`w-full text-left flex items-center gap-3 px-4 py-3 text-sm ${disabled ? 'opacity-50 cursor-not-allowed' : `${bgColorClass} hover:bg-opacity-80`} rounded-md transition-all duration-200 group`}
       >
-        <IconComponent className="w-5 h-5 flex-shrink-0" />
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-${color}-100 text-${color}-700 group-hover:scale-110 transition-transform`}>
+          <IconComponent className="w-4 h-4 flex-shrink-0" />
+        </div>
         <span className="font-medium">{label}</span>
       </button>
     );
@@ -708,36 +808,82 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   return (
     <div
       id="modal-background"
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 md:p-8 overflow-y-auto"
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 sm:p-6 md:p-8 overflow-y-auto animate-fadeIn"
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto relative shadow-2xl"
+        className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto relative shadow-2xl transform transition-all duration-300 ease-in-out animate-slideUp"
         onClick={(e) => e.stopPropagation()}
       >
         <Card className="border-none shadow-none">
-          <CardHeader className="p-6 md:p-8 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-t-xl">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+          <CardHeader className="p-6 md:p-8 bg-gradient-to-r from-blue-800 via-indigo-800 to-indigo-900 text-white rounded-t-xl relative overflow-hidden">
+            <div className="absolute inset-0 bg-pattern opacity-5"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/10 to-transparent"></div>
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/5 via-transparent to-transparent"></div>
+            <div className="absolute top-4 right-4 z-20">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onClose} 
+                className="bg-white/15 border-white/20 text-white hover:bg-white/25 rounded-full w-8 h-8 p-0 flex items-center justify-center shadow-sm backdrop-blur-sm transition-all duration-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="relative z-10 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
               <div className="flex flex-col gap-2">
-                <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight">
-                  {ticketData.title || 'Ei määritelty'}
-                </CardTitle>
-                <p className="text-sm text-white/90">Tiketti #{ticketData.id || 'Ei määritelty'}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 w-11 h-11 bg-white/15 rounded-full flex items-center justify-center shadow-lg ring-1 ring-white/20">
+                    <MessageSquare className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+                      <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white/95">
+                        {ticketData.title || 'Ei määritelty'}
+                      </CardTitle>
+                      <span className="bg-white/25 px-2 py-0.5 rounded-md text-xs font-mono font-medium shadow-inner hidden sm:inline-block text-white">#{ticketData.id || 'Ei määritelty'}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-white/75">
+                      <span className="bg-white/25 px-2 py-0.5 rounded-md text-xs font-mono font-medium shadow-inner sm:hidden text-white">#{ticketData.id || 'Ei määritelty'}</span>
+                      <span className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-white/80" /> 
+                        <span>{new Date(ticketData.createdAt).toLocaleDateString('fi-FI')}</span>
+                      </span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/30"></span>
+                      <span className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-white/80" />
+                        <span>{ticketData.createdBy?.name || 'Ei määritelty'}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg border-2 bg-white/10 backdrop-blur-sm ${priorityInfo.color} self-start`}>
-                <PriorityIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm font-medium">{priorityInfo.text}</span>
+              <div className="flex items-center gap-3 mt-2 md:mt-0">
+                <div className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-full shadow-md backdrop-blur-sm transition-all duration-300 self-start ${
+                  priorityInfo.color === 'text-green-600' ? 'bg-green-800/30 text-green-50 border border-green-500/30' :
+                  priorityInfo.color === 'text-yellow-600' ? 'bg-yellow-700/30 text-yellow-50 border border-yellow-500/30' :
+                  priorityInfo.color === 'text-orange-600' ? 'bg-orange-800/30 text-orange-50 border border-orange-500/30' :
+                  priorityInfo.color === 'text-red-600' ? 'bg-red-800/30 text-red-50 border border-red-500/30' :
+                  'bg-blue-800/30 text-blue-50 border border-blue-500/30'
+                }`}>
+                  <div className="flex-shrink-0 p-1 rounded-full bg-white/15 flex items-center justify-center">
+                    <PriorityIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-sm font-medium tracking-wide whitespace-nowrap">{priorityInfo.text}</span>
+                </div>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-6 p-4 sm:p-6 md:p-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${statusInfo.color} ${statusInfo.animation}`}>
-                  <StatusIcon className="w-4 h-4" />
-                  <span className="text-sm font-medium">{statusInfo.text}</span>
-                </div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4 sticky top-0 bg-white z-20 py-3 border-b border-gray-100 mb-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusBadge 
+                  status={statusInfo.text}
+                  icon={StatusIcon}
+                  color={statusInfo.color}
+                  animation={statusInfo.animation}
+                />
                 
                 {/* User can close their own ticket if not closed/resolved */}
                 {ticketData.createdById === user?.id && 
@@ -748,8 +894,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     disabled={updateStatusMutation.isLoading}
                     variant="outline"
                     size="sm"
-                    className="bg-gray-50 hover:bg-gray-100"
+                    className="bg-gray-50 hover:bg-gray-100 shadow-sm border-gray-200 hover:shadow-md transition-all"
                   >
+                    <Lock className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
                     {updateStatusMutation.isLoading ? 'Suljetaan...' : 'Sulje tiketti'}
                   </Button>
                 )}
@@ -761,8 +908,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     disabled={takeIntoProcessingMutation.isLoading}
                     variant="outline"
                     size="sm"
-                    className="bg-primary/10 hover:bg-primary/20"
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-sm hover:shadow-md transition-all"
                   >
+                    <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                     {takeIntoProcessingMutation.isLoading ? 'Otetaan käsittelyyn...' : 'Ota käsittelyyn'}
                   </Button>
                 )}
@@ -776,31 +924,33 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                       onClick={() => setShowTicketActions(!showTicketActions)}
                       variant="outline"
                       size="sm"
-                      className="bg-primary/10 hover:bg-primary/20 flex items-center gap-2"
+                      className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-200 shadow-sm hover:shadow-md transition-all flex items-center gap-2"
                     >
-                      <Settings className="w-4 h-4" />
+                      <div className="bg-indigo-100 p-1 rounded-full">
+                        <Settings className="w-3 h-3 text-indigo-600" />
+                      </div>
                       <span className="hidden sm:inline">Toiminnot</span>
-                      <ChevronsUpDown className="w-3 h-3 ml-1 opacity-70" />
+                      <ChevronsUpDown className="w-3 h-3 ml-0.5 opacity-70" />
                     </Button>
                     
                     {/* Background overlay on mobile */}
                     {showTicketActions && (
-                      <div className="sm:hidden fixed inset-0 bg-black/20 z-40" onClick={() => setShowTicketActions(false)}></div>
+                      <div className="sm:hidden fixed inset-0 bg-black/20 z-40 backdrop-blur-sm" onClick={() => setShowTicketActions(false)}></div>
                     )}
                     
                     {/* Dropdown menu */}
                     {showTicketActions && (
-                      <div className="fixed sm:absolute bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:right-auto sm:mt-1 sm:w-56 z-50 bg-white shadow-xl sm:shadow-lg sm:ring-1 sm:ring-black sm:ring-opacity-5 sm:rounded-md focus:outline-none divide-y divide-gray-100 sm:origin-top-left">
+                      <div className="fixed sm:absolute bottom-0 left-0 right-0 sm:bottom-auto sm:left-auto sm:right-auto sm:mt-2 sm:w-64 z-50 bg-white shadow-xl sm:shadow-lg sm:ring-1 sm:ring-black/5 sm:rounded-lg focus:outline-none divide-y divide-gray-100 sm:origin-top-left animate-fadeIn">
                         <div className="sm:hidden px-4 py-3 border-b font-medium text-gray-700 flex justify-between items-center">
                           <div className="flex items-center gap-2">
-                            <Settings className="w-4 h-4" />
+                            <Settings className="w-4 h-4 text-indigo-500" />
                             <span>Toiminnot</span>
                           </div>
                           <button 
                             onClick={() => setShowTicketActions(false)}
-                            className="p-1 text-gray-400 hover:text-gray-600"
+                            className="p-1.5 text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
                           >
-                            <X className="w-5 h-5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                         <div className="p-2 space-y-1">
@@ -850,8 +1000,9 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     disabled={updateStatusMutation.isLoading}
                     variant="outline"
                     size="sm"
-                    className="bg-blue-50 hover:bg-blue-100"
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 shadow-sm hover:shadow-md transition-all"
                   >
+                    <ArrowRight className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                     Avaa tiketti uudelleen
                   </Button>
                 )}
@@ -859,102 +1010,104 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               
               <div className="flex flex-wrap items-center gap-2">
                 {ticketData.assignedTo && (
-                  <div className="flex items-center space-x-2 text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full">
-                    <User className="w-4 h-4" />
-                    <span className="truncate max-w-[150px] sm:max-w-none">Käsittelijä: {ticketData.assignedTo.name}</span>
+                  <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full shadow-sm border border-blue-100 hover:shadow-md transition-all">
+                    <div className="bg-blue-100 p-1 rounded-full">
+                      <User className="w-3.5 h-3.5 text-blue-600" />
                   </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg shadow-sm">
-              {ticketData.processingStartedAt && (
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-gray-500">Käsittely aloitettu</h3>
-                  <p className="text-sm">{formatDateTime(ticketData.processingStartedAt)}</p>
-                </div>
-              )}
-              
-              {ticketData.estimatedCompletionTime && (
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-gray-500">Arvioitu valmistuminen</h3>
-                  <p className="text-sm">
-                    {new Date(ticketData.estimatedCompletionTime).toLocaleString('fi-FI', {
-                      day: 'numeric',
-                      month: 'numeric',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                    {timeLeft && (
-                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                        timeLeft === 'Ylitetty' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                      }`}>
-                        {timeLeft}
+                    <span className="truncate max-w-[150px] sm:max-w-none font-medium">
+                      Käsittelijä: {ticketData.assignedTo.name}
                       </span>
-                    )}
-                  </p>
                 </div>
-              )}
-
-              {ticketData.processingEndedAt && (
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-gray-500">Käsittely päättynyt</h3>
-                  <p className="text-sm">{formatDateTime(ticketData.processingEndedAt)}</p>
+                )}
                 </div>
-              )}
-
-              {ticketData.processingStartedAt && ticketData.processingEndedAt && (
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-gray-500">Käsittelyaika</h3>
-                  <p className="text-sm">{calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}</p>
-                </div>
-              )}
             </div>
 
-            {ticketData && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 rounded-lg border border-gray-100">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Kategoria
-                  </h3>
-                  <p className="mt-1">{category}</p>
+            {/* Tabs */}
+            <div className="border-b border-gray-200">
+              <div className="flex space-x-1">
+                <TabButton 
+                  isActive={activeTab === 'details'}
+                  onClick={() => setActiveTab('details')}
+                  icon={<InfoIcon className="w-4 h-4" />}
+                  label="Tiedot"
+                />
+                <TabButton 
+                  isActive={activeTab === 'conversation'}
+                  onClick={() => setActiveTab('conversation')}
+                  icon={<MessageSquare className="w-4 h-4" />}
+                  label="Keskustelu"
+                  badge={comments.filter(comment => comment.author?.email !== 'system@esedu.fi').length || null}
+                />
+                <TabButton 
+                  isActive={activeTab === 'attachments'}
+                  onClick={() => setActiveTab('attachments')}
+                  icon={<FileIcon className="w-4 h-4" />}
+                  label="Liitteet"
+                  badge={ticketData.attachments?.length || null}
+                />
+                <TabButton 
+                  isActive={activeTab === 'timeline'}
+                  onClick={() => setActiveTab('timeline')}
+                  icon={<History className="w-4 h-4" />}
+                  label="Aikajana"
+                />
+                </div>
                 </div>
 
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Laite</h3>
-                  <p className="mt-1">{ticketData.device ?? 'Ei määritelty'}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white p-4 rounded-lg border border-gray-100">
-              <h3 className="text-sm font-medium text-gray-500">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Main content area - changes based on active tab */}
+              <div className={`md:col-span-2 space-y-6 ${activeTab !== 'details' && activeTab !== 'conversation' ? 'hidden' : ''}`}>
+                {/* Details tab content */}
+                {activeTab === 'details' && (
+                  <>
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeIn">
+                      <h3 className="text-base font-medium text-gray-700 mb-4 flex items-center">
+                        <InfoIcon className="w-4 h-4 mr-2 text-blue-500" />
                 Ongelman kuvaus
               </h3>
-              <p className="mt-2 whitespace-pre-wrap text-gray-700 leading-relaxed">
+                      <p className="whitespace-pre-wrap text-gray-700 leading-relaxed">
                 {ticketData.description || 'Ei määritelty'}
               </p>
             </div>
 
             {ticketData.additionalInfo && (
-              <div className="bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="text-sm font-medium text-gray-500">
+                      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeInDelayed">
+                        <h3 className="text-base font-medium text-gray-700 mb-4 flex items-center">
+                          <MessageSquare className="w-4 h-4 mr-2 text-blue-500" />
                   Lisätiedot
                 </h3>
-                <p className="mt-2 whitespace-pre-wrap text-gray-700 leading-relaxed">
+                        <p className="whitespace-pre-wrap text-gray-700 leading-relaxed">
                   {ticketData.additionalInfo}
                 </p>
               </div>
-            )}
+                    )}
+                  </>
+                )}
 
-            {ticketData.attachments && ticketData.attachments.length > 0 && (
-              <div className="mt-6 bg-white p-4 rounded-lg border border-gray-100">
-                <h3 className="text-sm font-medium text-gray-500 flex items-center mb-3">
-                  <FileIcon className="w-4 h-4 mr-1.5 text-gray-400" />
+                {/* Conversation tab content */}
+                {activeTab === 'conversation' && (
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeIn">
+                    <CommentSection
+                      comments={(ticketData.comments || []).filter(comment => comment.author?.email !== 'system@esedu.fi')}
+                      newComment={newComment}
+                      setNewComment={setNewComment}
+                      handleAddComment={handleAddComment}
+                      addCommentMutation={addCommentMutation}
+                      ticket={ticketData}
+                      onAddMediaComment={handleAddMediaComment}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Attachments tab content - Full width when active */}
+              {activeTab === 'attachments' && ticketData.attachments && ticketData.attachments.length > 0 && (
+                <div className="md:col-span-3 bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                  <h3 className="text-base font-medium text-gray-700 mb-4 flex items-center">
+                    <FileIcon className="w-4 h-4 mr-2 text-blue-500" />
                   Liitteet ({ticketData.attachments.length})
                 </h3>
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                   {ticketData.attachments.map((attachment) => (
                     <div 
                       key={attachment.id} 
@@ -1015,18 +1168,117 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
               </div>
             )}
 
+              {/* Timeline tab content - Full width when active */}
+              {activeTab === 'timeline' && (
+                <div className="md:col-span-3 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                  <Timeline showTimeline={true} />
+                </div>
+              )}
+
+              {/* Right sidebar - Only shown on details and conversation tabs */}
+              {(activeTab === 'details' || activeTab === 'conversation') && (
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeIn">
+                    <h3 className="text-base font-medium text-gray-700 mb-4 flex items-center">
+                      <InfoIcon className="w-4 h-4 mr-2 text-blue-500" />
+                      Tiketin tiedot
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Kategoria</span>
+                        <span className="text-sm font-medium">{category}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Laite</span>
+                        <span className="text-sm font-medium">{ticketData.device ?? 'Ei määritelty'}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Luonut</span>
+                        <span className="text-sm font-medium">{createdBy}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Luotu</span>
+                        <span className="text-sm font-medium">{createdAt}</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-500">Muokattu</span>
+                        <span className="text-sm font-medium">{updatedAt}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeInDelayed">
+                    <h3 className="text-base font-medium text-gray-700 mb-4 flex items-center">
+                      <Clock className="w-4 h-4 mr-2 text-blue-500" />
+                      Aikajana
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      {ticketData.processingStartedAt && (
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm text-gray-500">Käsittely aloitettu</span>
+                          <span className="text-sm font-medium">{formatDateTime(ticketData.processingStartedAt)}</span>
+                        </div>
+                      )}
+                      
+                      {ticketData.estimatedCompletionTime && (
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm text-gray-500">Arvioitu valmistuminen</span>
+                          <div className="text-right">
+                            <span className="text-sm font-medium">
+                              {new Date(ticketData.estimatedCompletionTime).toLocaleString('fi-FI', {
+                                day: 'numeric',
+                                month: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {timeLeft && (
+                              <div className={`mt-1 px-2 py-0.5 rounded-full text-xs inline-block ${
+                                timeLeft === 'Ylitetty' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                              }`}>
+                                {timeLeft}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {ticketData.processingEndedAt && (
+                        <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                          <span className="text-sm text-gray-500">Käsittely päättynyt</span>
+                          <span className="text-sm font-medium">{formatDateTime(ticketData.processingEndedAt)}</span>
+                        </div>
+                      )}
+                      
+                      {ticketData.processingStartedAt && ticketData.processingEndedAt && (
+                        <div className="flex justify-between items-center py-2">
+                          <span className="text-sm text-gray-500">Käsittelyaika</span>
+                          <span className="text-sm font-medium">{calculateProcessingTime(ticketData.processingStartedAt, ticketData.processingEndedAt)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Image Lightbox */}
             {selectedImage && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm" onClick={closeLightbox}>
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-95 backdrop-blur-md" onClick={closeLightbox}>
                 <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
                   <div className="absolute top-4 right-4 z-10">
                     <button 
                       onClick={closeLightbox}
-                      className="bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors"
+                      className="bg-black/50 text-white p-2 rounded-full hover:bg-opacity-70 transition-colors"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
+                      <X className="h-6 w-6" />
                     </button>
                   </div>
                   <img 
@@ -1039,53 +1291,44 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 </div>
               </div>
             )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white p-4 rounded-lg border border-gray-100">
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <User className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">
-                  Tiketin luonut: <span className="font-medium text-gray-700">{createdBy}</span>
-                </span>
-              </div>
-
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <Calendar className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">Luotu: <span className="font-medium text-gray-700">{createdAt}</span></span>
-              </div>
-
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <MessageSquare className="w-4 h-4 flex-shrink-0" />
-                <span className="truncate">Muokattu: <span className="font-medium text-gray-700">{updatedAt}</span></span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-lg border border-gray-100">
-              <h3 className="text-sm font-medium text-gray-500">Keskustelu</h3>
-              <CommentSection
-                comments={(ticketData.comments || []).filter(comment => comment.author?.email !== 'system@esedu.fi')}
-                newComment={newComment}
-                setNewComment={setNewComment}
-                handleAddComment={handleAddComment}
-                addCommentMutation={addCommentMutation}
-                ticket={ticketData}
-                onAddMediaComment={handleAddMediaComment}
-              />
-            </div>
-
-            <Timeline />
           </CardContent>
 
-          <CardFooter className="flex justify-between items-center p-4 sm:p-6 bg-gray-50 rounded-b-xl border-t border-gray-100">
-            <Button variant="outline" onClick={onClose} className="shadow-sm hover:shadow transition-shadow">
-              Sulje
+          <CardFooter className="flex justify-between items-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 rounded-b-xl border-t border-gray-200">
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={onClose} 
+                className="shadow-sm hover:shadow transition-shadow flex items-center gap-2 bg-white hover:bg-gray-50"
+              >
+                <X className="w-4 h-4" />
+                <span>Sulje</span>
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => window.print()}
+                variant="outline"
+                className="shadow-sm hover:shadow-md transition-all hidden sm:flex items-center gap-2 bg-white hover:bg-gray-50 border-gray-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>Tulosta</span>
             </Button>
             <Button
                 onClick={() => window.open(`/tickets/${ticketData.id}`, '_blank')}
-                className="bg-gray-200 hover:bg-gray-300 text-black border-gray-400 shadow-sm hover:shadow transition-shadow"
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md transition-all group relative"
               >
-                <ArrowRight className="w-4 h-4 mr-2" />
-                Avaa linkkinä
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-700 opacity-0 group-hover:opacity-100 rounded-md transition-opacity duration-300"></div>
+                <span className="relative flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Avaa linkkinä</span>
+                </span>
               </Button>
+            </div>
           </CardFooter>
         </Card>
       </div>

@@ -11,6 +11,7 @@ import { useAuth } from './providers/AuthProvider';
 import ProfileView from './pages/ProfileView';
 import TicketPage from './pages/TicketPage';
 import Layout from './components/Layout/Layout';
+import AITools from './pages/AITools';
 
 function App() {
   const { userRole } = useAuth();
@@ -70,6 +71,15 @@ function App() {
             <AuthGuard requiredRole="MANAGEMENT">
               <Layout>
                 <Tickets />
+              </Layout>
+            </AuthGuard>
+          } />
+
+          {/* Tekoälytyökalut (vain admin) */}
+          <Route path="/ai-tools" element={
+            <AuthGuard requiredRole="ADMIN">
+              <Layout>
+                <AITools />
               </Layout>
             </AuthGuard>
           } />

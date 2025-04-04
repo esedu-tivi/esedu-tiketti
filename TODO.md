@@ -137,6 +137,25 @@
 - [x] Virhekäsittelyn perusrakenne
 - [ ] Lokitus ja monitorointi
 
+## Tekoälyominaisuudet
+- [x] AI-tikettien generointijärjestelmä
+  - [x] LangChain.js integraatio
+  - [x] OpenAI API integraatio
+  - [x] Tikettien generointi opetuskäyttöön
+  - [x] Tiketin tietojen parametrisointi (kompleksisuus, kategoria, käyttäjäprofiili)
+- [x] AI-työkalujen käyttöliittymä
+  - [x] AI Tools -sivu admin- ja tukikäyttäjille
+  - [x] Tikettigeneraattorin käyttöliittymä
+  - [x] Generointiparametrien lomake
+- [x] AI-dokumentaatio
+  - [x] Tekninen dokumentaatio (ai-docs.md)
+  - [x] Käyttöohje tikettigeneraattoriin
+- [ ] Lisäominaisuudet
+  - [ ] Tikettien luokittelu tekoälyn avulla
+  - [ ] Vastausehdotusten generointi tukihenkilöille
+  - [ ] Tietämyskannan integraatio
+  - [ ] Tikettihistorian analyysi
+
 ## Tuotantoon vienti
 - [x] Docker-konfiguraatio
   - [x] docker-compose.yml

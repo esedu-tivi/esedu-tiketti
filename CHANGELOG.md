@@ -2,6 +2,66 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 12.03.2025 (Improved AI documentation structure)
+
+- Selkeytetty tekoälydokumentaation rakennetta:
+  - Virtaviivaistettu ai-docs.md sisältöä poistamalla päällekkäisyyksiä
+  - Tiivistetty tikettigeneraattorin kuvaus yleiseksi esittelyksi
+  - Ohjattu käyttäjät erillisiin agenttidokumentteihin yksityiskohtia varten
+  - Parannettu linkkejä dokumenttien välillä navigoinnin helpottamiseksi
+
+# 12.03.2025 (Restructured AI agent documentation)
+
+- Uudistettu tekoälyagenttien dokumentaatiorakennetta:
+  - Luotu erillinen `ai-agents` hakemisto yksityiskohtaiselle agenttidokumentaatiolle
+  - Siirretty tikettien generaattorin dokumentaatio omaan tiedostoonsa `ticketGenerator.md`
+  - Luotu `index.md` hakemistosivu, joka listaa kaikki saatavilla ja tulevat agentit
+  - Päivitetty pääasiallinen `ai-docs.md` dokumentaatio viittaamaan uuteen rakenteeseen
+  - Parannettu dokumentaatiorakennetta tulevien agenttien lisäämisen helpottamiseksi
+
+# 12.03.2025 (Fixed responseFormat parameter in AI ticket generator and improved documentation)
+
+- Korjattu tekoälygeneraattorin vastausmuodon (responseFormat) käsittely:
+  - Korjattu bug, jossa käyttäjän valitsemaa vastausmuotoa ei huomioitu
+  - Lisätty responseFormat-parametrin validointi
+  - Päivitetty aiController välittämään responseFormat-parametri agentille
+  - Lisätty lokiviestit vastausmuodon käsittelyn seurantaan
+- Paranneltu tekoälydokumentaatiota:
+  - Luotu erillinen ai-agents.md -dokumentti tekoälyagenttien dokumentaatiota varten
+  - Siirretty agenttien yksityiskohtainen dokumentaatio erilliseen tiedostoon
+  - Päivitetty yleinen ai-docs.md viittaamaan uuteen agenttidokumentaatioon
+  - Lisätty ohjeistusta vastausmuoto-ongelmien ratkaisuun
+
+# 11.03.2025 (Korjattu tekoälytyökalujen kieliasetus ja konfiguraation käyttö)
+
+- Paranneltu tekoälytyökalujen suomenkielistä toteutusta:
+  - Muutettu tikettien generointipromptit tuottamaan sisältöä suomeksi
+  - Lisätty selkeät ohjeet suomen kielen käyttöön prompteissa
+  - Varmistettu asianmukaisen IT-terminologian käyttö suomeksi
+- Optimoitu AI_CONFIG-konfiguraation hyödyntämistä:
+  - Lisätty automaattinen prioriteettien määritys vaikeustason perusteella (helppo → LOW, jne.)
+  - Implementoitu kuvauksen maksimipituuden rajoitus konfiguraation mukaisesti
+  - Parannettu vastausformaatin validointia hyödyntäen konfiguraatiomäärityksiä
+  - Lisätty virheenkäsittely puuttuville tai virheellisille parametreille
+- Päivitetty tekoälytyökalujen dokumentaatiota (ai-docs.md):
+  - Lisätty osio kieliasetusten selventämiseksi
+  - Dokumentoitu konfiguraation käyttö tarkemmin
+  - Lisätty esimerkkejä keskeisimmistä konfiguraatioasetuksista
+
+# 11.03.2025 (Implemented AI ticket generator and tools infrastructure)
+
+- Lisätty tekoälytyökalut järjestelmään:
+  - Toteutettu AI-tikettien generointijärjestelmä koulutuskäyttöön
+  - Integroitu LangChain.js-kirjasto tekoälysovelluksia varten
+  - Lisätty backend API tikettigeneraattorin käyttöön
+  - Luotu käyttöliittymä AI-työkaluille (/ai-tools)
+  - Näytetään AI-työkalujen linkit navigaatioissa admin- ja tukikäyttäjille
+  - Lisätty kattava dokumentaatio tekoälyominaisuuksista (ai-docs.md)
+- Paranneltu järjestelmän modulaarisuutta:
+  - Erotettu tekoälykomponentit omiin tiedostoihinsa
+  - Lisätty konfiguraatiojärjestelmä AI-mallin asetuksille
+  - Toteutettu parametrisoitavat promptit tekoälyominaisuuksia varten
+
 # 10.03.2025 (Optimized Microsoft Graph API profile picture integration)
 
 - Optimized profile picture fetching to reduce API calls to Microsoft Graph:

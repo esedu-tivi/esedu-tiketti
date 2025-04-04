@@ -45,6 +45,7 @@ model Ticket {
   attachments    Attachment[]
   assignedTo     User?          @relation("AssignedTickets", fields: [assignedToId], references: [id])
   category       Category       @relation(fields: [categoryId], references: [id])
+  isAiGenerated  Boolean        @default(false)
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
 }
 
@@ -72,7 +73,7 @@ model Comment {
   authorId  String
   author    User     @relation(fields: [authorId], references: [id])
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
-
+  isAiGenerated Boolean @default(false)
   @@index([ticketId])
   @@index([authorId])
 }
@@ -82,6 +83,7 @@ model Category {
   name        String   @unique
   description String?
   tickets     Ticket[]
+  knowledgeArticles KnowledgeArticle[]
 }
 
 enum UserRole {
@@ -150,4 +152,17 @@ model NotificationSettings {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   user                 User     @relation(fields: [userId], references: [id])
+}
+
+model KnowledgeArticle {
+  id            String   @id @default(uuid())
+  title         String
+  content       String   @db.Text
+  categoryId    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  relatedTicketIds String[]
+  complexity    String?
+  isAiGenerated Boolean  @default(false)
+  category      Category @relation(fields: [categoryId], references: [id])
 }

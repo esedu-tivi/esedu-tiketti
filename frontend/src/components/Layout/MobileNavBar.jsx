@@ -8,7 +8,8 @@ import {
   User, 
   Settings,
   Briefcase,
-  Users
+  Users,
+  Sparkles
 } from 'lucide-react';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 
@@ -80,6 +81,19 @@ export default function MobileNavBar() {
                 <Settings size={24} className={`mb-1 ${isActive('/admin') ? 'text-primary' : 'text-gray-500'}`} />
                 <span className="text-[10px]">Hallinta</span>
                 {isActive('/admin') && (
+                  <div className="absolute -top-[2px] left-1/2 transform -translate-x-1/2 w-8 h-1 bg-primary rounded-full" />
+                )}
+              </div>
+            </Link>
+          )}
+          
+          {/* AI Tools for Admin only */}
+          {userRole === 'ADMIN' && (
+            <Link to="/ai-tools" className={getNavItemClass('/ai-tools')}>
+              <div className="relative w-full h-full flex flex-col items-center justify-center">
+                <Sparkles size={24} className={`mb-1 ${isActive('/ai-tools') ? 'text-primary' : 'text-yellow-500'}`} />
+                <span className="text-[10px]">Tekoäly</span>
+                {isActive('/ai-tools') && (
                   <div className="absolute -top-[2px] left-1/2 transform -translate-x-1/2 w-8 h-1 bg-primary rounded-full" />
                 )}
               </div>

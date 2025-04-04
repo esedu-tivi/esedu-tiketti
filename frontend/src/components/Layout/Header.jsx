@@ -6,9 +6,10 @@ import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../Notifications/NotificationBell';
-import { PlusCircle, Settings } from 'lucide-react';
+import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon } from 'lucide-react';
 import NewTicketForm from '../Tickets/NewTicketForm';
 import ProfilePicture from '../User/ProfilePicture';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header() {
   const { user, userRole } = useAuth();
@@ -104,6 +105,16 @@ export default function Header() {
                     Hallintapaneeli
                   </Link>
                 )}
+                
+                {userRole === 'ADMIN' && (
+                  <Link
+                    to="/ai-tools"
+                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center"
+                  >
+                    <Sparkles size={16} className="mr-1 text-yellow-500" />
+                    Tekoälytyökalut
+                  </Link>
+                )}
               </nav>
             )}
           </div>
@@ -115,11 +126,10 @@ export default function Header() {
                 {/* Create Ticket Button - Both Mobile & Desktop */}
                 <button
                   onClick={() => setIsNewTicketOpen(true)}
-                  className="flex items-center gap-1.5 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full text-sm font-medium transition-colors border border-green-200"
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white px-3 py-1.5 rounded-full text-sm font-medium transition-colors shadow-md hover:shadow-lg"
                 >
-                  <span className="hidden xs:inline">Luo</span>
-                  <span className="hidden xs:inline">tiketti</span>
-                  <PlusCircle size={16} className="flex-shrink-0" />
+                  <TicketIcon size={16} className="flex-shrink-0" />
+                  <span className="hidden xs:inline">Luo tiketti</span>
                 </button>
 
                 {/* Admin: User Management (Desktop only) */}
@@ -176,22 +186,7 @@ export default function Header() {
 
       {/* New Ticket Dialog */}
       {isNewTicketOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full relative overflow-hidden">
-            <div className="flex justify-between items-center border-b px-6 py-4">
-              <h2 className="text-lg font-bold text-gray-800">Luo uusi tiketti</h2>
-              <button
-                onClick={() => setIsNewTicketOpen(false)}
-                className="text-gray-500 hover:text-gray-700 p-1 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                ✖
-              </button>
-            </div>
-            <div className="p-6">
-              <NewTicketForm onClose={() => setIsNewTicketOpen(false)} />
-            </div>
-          </div>
-        </div>
+        <NewTicketForm onClose={() => setIsNewTicketOpen(false)} />
       )}
     </header>
   );

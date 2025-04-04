@@ -3,6 +3,7 @@ import { ticketService } from '../services/ticketService.js';
 import { TypedRequest, CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
 import { PrismaClient, TicketStatus, Priority, UserRole } from '@prisma/client';
 import { createNotification } from './notificationController.js';
+import axios from 'axios';
 
 const prisma = new PrismaClient();
 
@@ -370,7 +371,10 @@ export const ticketController = {
 
         // Hae tiketti ennen kommentin luontia
         const ticket = await prisma.ticket.findUnique({
-          where: { id }
+          where: { id },
+          include: {
+            category: true
+          }
         });
 
         if (!ticket) {
@@ -406,24 +410,29 @@ export const ticketController = {
             author: { connect: { id: user.id } }
           },
           include: {
-            author: true,
-            ticket: {
-              select: {
-                title: true,
-                createdById: true
-              }
-            }
+            author: true
           }
         });
 
         console.log('Created comment:', comment);
 
+        // Get the ticket information again to ensure it has all needed properties
+        const ticketDetails = await prisma.ticket.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            title: true,
+            createdById: true,
+            isAiGenerated: true
+          }
+        });
+
         // Lähetä ilmoitus tiketin luojalle, jos kommentoija on eri henkilö
-        if (comment.ticket && comment.ticket.createdById !== user.id) {
+        if (ticketDetails && ticketDetails.createdById !== user.id) {
           const creatorNotification = await createNotification(
-            comment.ticket.createdById,
+            ticketDetails.createdById,
             'COMMENT_ADDED',
-            `Uusi kommentti tiketissä "${comment.ticket.title}"`,
+            `Uusi kommentti tiketissä "${ticketDetails.title}"`,
             id,
             { commentId: comment.id }
           );
@@ -436,7 +445,7 @@ export const ticketController = {
           const mentionNotification = await createNotification(
             mentionedUser.id,
             'MENTIONED',
-            `${user.name} mainitsi sinut kommentissa tiketissä "${comment.ticket?.title}"`,
+            `${user.name} mainitsi sinut kommentissa tiketissä "${ticketDetails?.title}"`,
             id,
             { 
               commentId: comment.id,
@@ -445,6 +454,50 @@ export const ticketController = {
             }
           );
           console.log('Created mention notification:', mentionNotification);
+        }
+
+        // Check if this is an AI-generated ticket and the comment is from a support agent
+        // If so, trigger an AI response as the ticket creator
+        if (
+          ticketDetails?.isAiGenerated && 
+          (user.role === 'SUPPORT' || user.role === 'ADMIN') &&
+          user.id !== ticketDetails.createdById
+        ) {
+          try {
+            console.log('AI-generated ticket detected, generating user response...');
+            
+            // Make a request to the AI controller to generate a response
+            // We do this in a non-blocking way so the comment is returned immediately
+            setTimeout(async () => {
+              try {
+                const apiUrl = process.env.API_URL || 'http://localhost:3000';
+                const token = req.headers.authorization?.split(' ')[1];
+                
+                await axios.post(
+                  `${apiUrl}/api/ai/tickets/${id}/generate-response`, 
+                  {
+                    ticketId: id,
+                    commentText: content,
+                    supportUserId: user.id
+                  },
+                  {
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    }
+                  }
+                );
+                console.log('AI response successfully generated');
+              } catch (innerError) {
+                console.error('Error in async AI response generation:', innerError);
+              }
+            }, 10); // Small timeout to ensure the main response is sent first
+            
+            console.log('AI response generation initiated');
+          } catch (aiError) {
+            // Log the error but don't fail the comment creation
+            console.error('Failed to generate AI response:', aiError);
+          }
         }
 
         res.status(201).json(comment);
