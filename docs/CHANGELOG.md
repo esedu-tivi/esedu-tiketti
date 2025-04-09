@@ -2,6 +2,16 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 10.04.2025 (Containerized backend application with Docker)
+
+- Lisätty Docker-kontitus backend-sovellukselle:
+  - Luotu Dockerfile backend-sovellukselle multi-stage buildilla
+  - Päivitetty docker-compose.yml sisältämään sekä backend- että PostgreSQL-kontit
+  - Siirretty tarvittavat kehitysriippuvuudet (@prisma/client, langchain, ym.) tuotantoriippuvuuksiksi Docker-kontissa
+  - Toteutettu automaattinen tietokannan migraatioiden suoritus kontin käynnistyessä
+  - Lisätty volumet tietokannan ja upload-tiedostojen persistoimiseksi
+  - Päivitetty dokumentaatio Docker-konttien käytöstä (docs.md)
+
 # 12.03.2025 (Improved AI documentation structure)
 
 - Selkeytetty tekoälydokumentaation rakennetta:

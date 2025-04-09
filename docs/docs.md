@@ -13,7 +13,7 @@ git clone [repositorion-url]
 cd esedu-tiketti
 ```
 
-3. Asenna ja käynnistä backend:
+3. Asenna ja käynnistä backend (vaihtoehto 1 - kehitystilassa):
 ```bash
 cd backend
 npm install
@@ -26,6 +26,19 @@ Tämä:
 - Käynnistää Prisma Studion (http://localhost:5555)
 - Käynnistää backend-palvelimen (http://localhost:3001)
 
+   **TAI**
+
+   Asenna ja käynnistä backend ja tietokanta (vaihtoehto 2 - Docker konteissa):
+```bash
+cd backend
+docker-compose up -d
+```
+Tämä:
+- Käynnistää PostgreSQL-tietokannan Docker-kontissa (`esedu-tiketti-db`)
+- Käynnistää backend-palvelimen Docker-kontissa (`esedu-tiketti-backend`)
+- Ajaa tietokannan migraatiot automaattisesti
+- Backend-palvelin käynnistyy osoitteeseen http://localhost:3001
+
 4. Asenna ja käynnistä frontend (uudessa terminaalissa):
 ```bash
 cd frontend
@@ -33,6 +46,67 @@ npm install
 npm run dev
 ```
 Frontend käynnistyy osoitteeseen http://localhost:5173
+
+## Docker-konttien käyttö
+
+Järjestelmä tukee sekä PostgreSQL-tietokannan että backend-palvelimen ajamista Docker-konteissa.
+
+### Docker-arkkitehtuuri:
+
+```
+┌─────────────────────────┐      ┌─────────────────────────┐
+│  Backend Container      │      │  PostgreSQL Container   │
+│  (Node.js + Express)    │◄────►│  (esedu-tiketti-db)     │
+│  (esedu-tiketti-backend)│      │                         │
+│  Port: 3001             │      │  Port: 5432 (internal)  │
+└─────────────────────────┘      └─────────────────────────┘
+```
+
+### Docker-konttien käynnistäminen:
+
+```bash
+cd backend
+docker-compose up -d
+```
+
+### Docker-konttien sammuttaminen:
+
+```bash
+cd backend
+docker-compose down
+```
+
+### Docker-konttien uudelleenrakentaminen:
+
+Jos teet muutoksia koodiin tai riippuvuuksiin, sinun täytyy rakentaa Docker-image uudelleen:
+
+```bash
+cd backend
+docker-compose up --build -d
+```
+
+### Lokien seuraaminen:
+
+```bash
+# Molempien konttien lokit
+docker-compose logs -f
+
+# Vain backend-kontin lokit
+docker-compose logs -f backend
+
+# Vain postgres-kontin lokit
+docker-compose logs -f postgres
+```
+
+### Tärkeät huomiot Docker-käytössä:
+
+1. **Ympäristömuuttujat:** Varmista, että `.env`-tiedostossa on määritelty oikeat tietokantayhteysasetukset. Docker-ympäristössä backendillä on oma `.env`-tiedosto kontissa.
+
+2. **Tietokantayhteys:** Docker-konttien välinen tietokantayhteys käyttää `postgres`-palvelunimeä ja porttia `5432`, kun taas kehitysympäristössä käytetään `localhost`-yhteyttä ja porttia `5434`.
+
+3. **Tiedostojen pysyvyys:** Tietokanta tallentaa tiedot Docker volumeen `postgres_data`, jotta tiedot säilyvät konttien uudelleenkäynnistysten välillä. Ladatut tiedostot (`uploads`-kansio) jaetaan host-järjestelmän ja kontin välillä.
+
+4. **Päivitykset:** Jos päivität backendin riippuvuuksia (package.json), muista rakentaa kontit uudelleen `--build`-parametrilla.
 
 ## Käyttäjäroolit ja oikeudet
 

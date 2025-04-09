@@ -160,6 +160,7 @@
 - [x] Docker-konfiguraatio
   - [x] docker-compose.yml
   - [x] PostgreSQL kontti
+  - [x] Backend kontti
 - [x] Tietokannan migraatiot
   - [x] Automaattinen migraatioiden ajo
   - [x] Prisma Client generointi

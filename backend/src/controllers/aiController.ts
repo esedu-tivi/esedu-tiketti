@@ -46,13 +46,17 @@ export const aiController = {
         categoryId: ticketData.categoryId,
         responseFormat: ticketData.responseFormat,
         attachments: [],
-        // Add a flag to indicate this is an AI-generated training ticket
-        isAiGenerated: true,
         // Store the user profile for later reference in conversations
       };
       
       // Create the ticket first
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
+      
+      // Explicitly mark the ticket as AI-generated after creation
+      await prisma.ticket.update({
+        where: { id: ticket.id! }, // Assuming ticket.id is definitely present
+        data: { isAiGenerated: true },
+      });
       
       // Generate and store a solution for this ticket
       const solution = await ticketGenerator.generateSolution(ticket.id!);
@@ -161,7 +165,15 @@ export const aiController = {
 
           createdById: ticket.createdById
         },
-        comments: ticket.comments,
+        comments: ticket.comments.map(comment => ({
+          // Map Prisma Comment to expected structure (text, userId, ticketId)
+          id: comment.id,
+          text: comment.content, 
+          userId: comment.authorId,
+          ticketId: comment.ticketId,
+          createdAt: comment.createdAt,
+          isAiGenerated: comment.isAiGenerated
+        })),
         newSupportComment: commentText,
         supportUserId,
         solution: solution?.content || null
