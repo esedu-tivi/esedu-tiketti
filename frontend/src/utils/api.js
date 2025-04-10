@@ -80,6 +80,7 @@ export const createTicket = async (ticketData) => {
   formData.append('priority', mapPriorityToEnum(ticketData.priority));
   formData.append('categoryId', ticketData.categoryId);
   formData.append('responseFormat', mapContentTypeToResponseFormat(ticketData.contentType));
+  formData.append('userProfile', ticketData.userProfile || 'student');
   
   // Add any attachments if present
   if (ticketData.attachment && ticketData.attachment.length > 0) {

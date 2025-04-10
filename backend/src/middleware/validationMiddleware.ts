@@ -41,7 +41,13 @@ const ticketSchema = z.object({
     .transform((val) => val ? sanitizeHtml(val) : val),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
   categoryId: z.string().uuid('Virheellinen kategoria ID'),
-  responseFormat: z.enum(['TEKSTI', 'KUVA', 'VIDEO']).default('TEKSTI')
+  responseFormat: z.enum(['TEKSTI', 'KUVA', 'VIDEO']).default('TEKSTI'),
+  userProfile: z
+    .string()
+    .max(100, 'Käyttäjäprofiili on liian pitkä')
+    .optional()
+    .nullable()
+    .transform((val) => val ? sanitizeHtml(val) : val)
 });
 
 // Middleware kommenttien validointiin
@@ -63,7 +69,7 @@ export const validateComment = (req: Request, res: Response, next: NextFunction)
 // Tikettien validointi
 export const validateTicket = (req: Request, res: Response, next: NextFunction) => {
   // For multipart form data, the body is provided as strings in form fields
-  const { title, description, device, additionalInfo, priority, categoryId, responseFormat } = req.body;
+  const { title, description, device, additionalInfo, priority, categoryId, responseFormat, userProfile } = req.body;
   
   try {
     // Create a data object with the correct types
@@ -74,7 +80,8 @@ export const validateTicket = (req: Request, res: Response, next: NextFunction) 
       additionalInfo: additionalInfo || null,
       priority: priority as Priority,
       categoryId,
-      responseFormat: responseFormat as ResponseFormat || 'TEKSTI'
+      responseFormat: responseFormat as ResponseFormat || 'TEKSTI',
+      userProfile: userProfile || null
     };
     
     // Basic validation

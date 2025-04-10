@@ -143,6 +143,7 @@
   - [x] OpenAI API integraatio
   - [x] Tikettien generointi opetuskäyttöön
   - [x] Tiketin tietojen parametrisointi (kompleksisuus, kategoria, käyttäjäprofiili)
+  - [x] Selkeät ratkaisut tiketteihin sisältäen tiedon mikä lopulta korjasi ongelman
 - [x] AI-työkalujen käyttöliittymä
   - [x] AI Tools -sivu admin- ja tukikäyttäjille
   - [x] Tikettigeneraattorin käyttöliittymä
@@ -185,3 +186,31 @@
 - [ ] Tietoturvaohjeistus
   - [ ] Käyttöoikeuksien hallinta
   - [ ] Tietoturvaperiaatteet
+
+## Uusia tehtäviä
+- ~~Muokata TODO.md TODO-listan mukaiseksi~~
+- ~~Luoda nyt/tulevan viikon aikana jonkinnäköinen Github Action workflow työkalulla, joka hoitaa järjestelmän automaattisen peilauksen kehitysympäristöstä tuotantoympäristöön (esim. jokainen push master-haaraan käynnistää uuden buildin ja se pushaa koodin tuotantoympäristöön)~~
+- ~~Dokumentoida AI toiminnot tikettien generointiin ja keskusteluihin~~
+- ~~Jatkaa Backendpuolen testien kirjoitusta~~
+- ~~Dockerization palvelulle/deployaukselle~~
+- ~~Jatkaa Chat.tsx komponentin refaktorointia omiin pienempiin komponentteihin~~
+- ~~Käyttöliittymään käyttäjäprofiili sivu~~
+- ~~Julkista rajapintaa testaamaan Swagger UI/dokumentaatio~~
+- ~~Backendiin lokien käyttö (kirjoitetaan hyvät lokit tiedostoon (info, warning, error))~~
+- ~~Refaktoroida UserController käyttämään DTO:ita~~
+- ~~Refaktoroida TicketController käyttämään DTO:ita~~
+- ~~Luoda oma router tiedostot eri reiteille, esim. userRouter.ts, jossa määritellään user-reitit~~
+- ~~Luoda Singleton tyyppinen SessionManager joka vastaa sessioista~~
+- ~~Luoda Servicet (UserService, TicketService)~~
+- ~~AWS:n Cloudfront integroiminen dokumentaatiosta löytyneen cloud-init.yml mukaan~~
+- ~~Implementoida kommentointi tiketteihin~~
+- ~~Julkisten tikettien visualisointi ja haku~~
+- ~~AI tikettien luomisen implementointi~~
+- ~~AI chatin implementointi~~
+- ~~Tikettien hakuominaisuus~~
+- ~~Yleinen siistiminen ja refaktorointi~~
+- Luoda ChatAgent-dokumentaatio ~~(docs/ai-agents/chatAgent.md)~~
+- Luoda TicketGenerator-dokumentaatio (docs/ai-agents/ticketGenerator.md)
+- Redis cachen käyttöönotto
+- Rate limiting (bottien varalta)
+- ~~Mobiilioptimointi~~

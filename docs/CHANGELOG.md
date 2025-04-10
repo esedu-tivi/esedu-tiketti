@@ -2,6 +2,23 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 10.04.2025 (Implemented chat agent for AI tickets and improved solution format)
+
+- Toteutettu ChatAgent keskustelemaan tukihenkilöiden kanssa AI-generoiduissa tiketeissä:
+  - Uusi tekoälyagentti, joka simuloi käyttäjää tikettikeskusteluissa
+  - Agentti arvioi, kuinka lähellä tukihenkilön ehdotus on oikeaa ratkaisua
+  - Agentti osoittaa tilanteeseen sopivia tunteita (turhautuminen, kiitollisuus) keskustelussa
+  - Automaattinen aktivointi kun tukihenkilö kommentoi AI-generoitua tikettiä
+  - Luotu dokumentaatio chatAgent-toiminnallisuudesta
+
+- Parannettu tekoälyn tikettien ratkaisugeneraattoria:
+  - Korjattu ongelma, jossa tikettigeneraattori ei määritellyt selkeästi mikä toimenpide lopulta ratkaisi ongelman
+  - Luotu erillinen SOLUTION_GENERATOR_PROMPT-tiedosto parempaa modulaarisuutta varten
+  - Päivitetty ratkaisupromptia sisältämään selkeä osio "Mikä lopulta korjasi ongelman"
+  - Muokattu ratkaisun otsikkorakennetta sisältämään sekä ongelma että ratkaisu
+  - Paranneltu ratkaisujen jäsentelyä analyysistä konkreettiseen ratkaisuun
+  - Tehty tietokantaintegraatio tunnistamaan ja käyttämään ratkaisun otsikkomuotoa
+
 # 10.04.2025 (Containerized backend application with Docker)
 
 - Lisätty Docker-kontitus backend-sovellukselle:

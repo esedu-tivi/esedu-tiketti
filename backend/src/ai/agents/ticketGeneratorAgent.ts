@@ -1,6 +1,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { TICKET_GENERATOR_PROMPT } from "../prompts/ticketGeneratorPrompt.js";
 import CONVERSATION_PROMPT from "../prompts/conversationPrompt.js";
+import SOLUTION_GENERATOR_PROMPT from "../prompts/solutionGeneratorPrompt.js";
 import { AI_CONFIG } from "../config.js";
 import { PrismaClient, Priority, ResponseFormat } from '@prisma/client';
 import { z } from "zod";
@@ -33,6 +34,7 @@ interface GeneratedTicket {
   additionalInfo: string;
   priority: Priority;
   responseFormat: ResponseFormat;
+  userProfile: string;
   categoryId: string;
   createdById: string;
   assignedToId: string | null;
@@ -95,6 +97,7 @@ export class TicketGeneratorAgent {
     assignToId?: string; // Optional: Assign ticket to a specific support person
     responseFormat?: string; // Optional: Specify the desired response format
   }): Promise<GeneratedTicket> {
+    console.log('TicketGeneratorAgent: generateTicket called with params:', JSON.stringify(params, null, 2)); // DEBUG LOG
     try {
       // Set default values if not provided
       const complexity = params.complexity || 'moderate';
@@ -102,7 +105,7 @@ export class TicketGeneratorAgent {
       const userProfile = params.userProfile || 'student';
       const userProvidedResponseFormat = params.responseFormat; // Store to use later
       
-      console.log('Generating ticket with parameters:', { 
+      console.log('TicketGeneratorAgent: Using effective parameters:', { // DEBUG LOG
         complexity, 
         category, 
         userProfile,
@@ -111,16 +114,19 @@ export class TicketGeneratorAgent {
       
       // Ensure all required prompt variables are provided and valid
       if (!complexity || !category || !userProfile) {
+        console.error('TicketGeneratorAgent: Missing required parameters', { complexity, category, userProfile }); // DEBUG LOG
         throw new Error('Missing required parameters for ticket generation');
       }
       
       // Validate complexity is one of the allowed values
       if (!AI_CONFIG.trainingTickets.complexityLevels.includes(complexity)) {
+        console.error('TicketGeneratorAgent: Invalid complexity level:', complexity); // DEBUG LOG
         throw new Error(`Invalid complexity level. Must be one of: ${AI_CONFIG.trainingTickets.complexityLevels.join(', ')}`);
       }
       
       // Validate responseFormat if provided
       if (userProvidedResponseFormat && !AI_CONFIG.trainingTickets.responseFormats.includes(userProvidedResponseFormat)) {
+        console.error('TicketGeneratorAgent: Invalid response format:', userProvidedResponseFormat); // DEBUG LOG
         throw new Error(`Invalid response format. Must be one of: ${AI_CONFIG.trainingTickets.responseFormats.join(', ')}`);
       }
       
@@ -132,7 +138,7 @@ export class TicketGeneratorAgent {
       
       if (isUuid) {
         // If it's a UUID, find by ID
-        console.log('Looking up category by ID:', category);
+        console.log('TicketGeneratorAgent: Looking up category by ID:', category); // DEBUG LOG
         categoryRecord = await prisma.category.findUnique({
           where: {
             id: category
@@ -140,7 +146,7 @@ export class TicketGeneratorAgent {
         });
       } else {
         // Otherwise, find by name (original behavior)
-        console.log('Looking up category by name:', category);
+        console.log('TicketGeneratorAgent: Looking up category by name:', category); // DEBUG LOG
         categoryRecord = await prisma.category.findFirst({
           where: {
             name: {
@@ -152,6 +158,7 @@ export class TicketGeneratorAgent {
       }
       
       if (!categoryRecord) {
+        console.error('TicketGeneratorAgent: Category not found:', category); // DEBUG LOG
         throw new Error(`Category "${category}" not found`);
       }
       
@@ -159,13 +166,15 @@ export class TicketGeneratorAgent {
       const categoryName = categoryRecord.name;
       
       // Format the prompt with provided parameters
-      const formattedMessages = await TICKET_GENERATOR_PROMPT.formatMessages({
+      const promptParams = { // DEBUG LOG
         complexity: complexity.trim(),
         category: categoryName.trim(), // Use the category name for the prompt
         userProfile: userProfile.trim(),
-      });
+      };
+      console.log('TicketGeneratorAgent: Formatting prompt with params:', JSON.stringify(promptParams, null, 2)); // DEBUG LOG
+      const formattedMessages = await TICKET_GENERATOR_PROMPT.formatMessages(promptParams);
       
-      console.log('Using formatted prompt for ticket generation');
+      console.log('TicketGeneratorAgent: Invoking LLM for ticket generation...'); // DEBUG LOG
       
       // Call the language model to generate ticket content
       const response = await this.model.invoke(formattedMessages);
@@ -174,7 +183,7 @@ export class TicketGeneratorAgent {
       const outputInstructions = outputParser.getFormatInstructions();
       const rawTicketData = response.content;
       
-      console.log('Received raw response from LLM');
+      console.log('TicketGeneratorAgent: Received raw response from LLM:', rawTicketData.toString()); // DEBUG LOG
       
       // Extract the JSON data from the response
       let parsedTicketData;
@@ -182,18 +191,23 @@ export class TicketGeneratorAgent {
         // Try to parse the entire response as JSON
         parsedTicketData = JSON.parse(rawTicketData.toString());
       } catch (e) {
-        console.log('Failed to parse entire response as JSON, trying to extract JSON from text');
+        console.log('TicketGeneratorAgent: Failed to parse entire response as JSON, trying to extract JSON from text'); // DEBUG LOG
         // If that fails, try to extract JSON from the text
         const jsonMatch = rawTicketData.toString().match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          parsedTicketData = JSON.parse(jsonMatch[0]);
+          try {
+            parsedTicketData = JSON.parse(jsonMatch[0]);
+          } catch (parseError) {
+            console.error('TicketGeneratorAgent: Failed to parse extracted JSON:', jsonMatch[0], 'Error:', parseError); // DEBUG LOG
+            throw new Error("Failed to parse extracted JSON from model output");
+          }
         } else {
-          console.error('Failed to extract JSON from response:', rawTicketData.toString());
+          console.error('TicketGeneratorAgent: Failed to extract JSON from response:', rawTicketData.toString()); // DEBUG LOG
           throw new Error("Failed to parse model output as JSON");
         }
       }
       
-      console.log('Successfully parsed JSON from LLM response');
+      console.log('TicketGeneratorAgent: Successfully parsed JSON from LLM response:', JSON.stringify(parsedTicketData, null, 2)); // DEBUG LOG
       
       // Find an admin user to create the ticket as
       const adminUser = await prisma.user.findFirst({
@@ -203,6 +217,7 @@ export class TicketGeneratorAgent {
       });
       
       if (!adminUser) {
+        console.error('TicketGeneratorAgent: No admin user found'); // DEBUG LOG
         throw new Error("No admin user found to create the training ticket");
       }
       
@@ -213,17 +228,17 @@ export class TicketGeneratorAgent {
         // Type-safe complexity check for defaultPriorities
         if (complexity === 'simple' || complexity === 'moderate' || complexity === 'complex') {
           parsedTicketData.priority = AI_CONFIG.trainingTickets.defaultPriorities[complexity];
-          console.log(`Using default priority for ${complexity} complexity: ${parsedTicketData.priority}`);
+          console.log(`TicketGeneratorAgent: Using default priority for ${complexity} complexity: ${parsedTicketData.priority}`); // DEBUG LOG
         } else {
           // Fallback to MEDIUM if complexity is not in defaultPriorities
           parsedTicketData.priority = 'MEDIUM';
-          console.log(`Using fallback priority MEDIUM for unknown complexity: ${complexity}`);
+          console.log(`TicketGeneratorAgent: Using fallback priority MEDIUM for unknown complexity: ${complexity}`); // DEBUG LOG
         }
       }
       
       // If user provided a responseFormat parameter, use it instead of the AI-generated one
       if (userProvidedResponseFormat) {
-        console.log(`Overriding AI-generated response format with user-provided format: ${userProvidedResponseFormat}`);
+        console.log(`TicketGeneratorAgent: Overriding AI-generated response format with user-provided format: ${userProvidedResponseFormat}`); // DEBUG LOG
         parsedTicketData.responseFormat = userProvidedResponseFormat;
       } 
       // Otherwise ensure response format from AI is valid
@@ -231,7 +246,7 @@ export class TicketGeneratorAgent {
           !AI_CONFIG.trainingTickets.responseFormats.includes(parsedTicketData.responseFormat)) {
         // Default to TEKSTI if invalid
         parsedTicketData.responseFormat = 'TEKSTI';
-        console.log(`Using default response format: ${parsedTicketData.responseFormat}`);
+        console.log(`TicketGeneratorAgent: Using default response format: ${parsedTicketData.responseFormat}`); // DEBUG LOG
       }
       
       // Trim description if it exceeds maxDescriptionLength
@@ -240,24 +255,28 @@ export class TicketGeneratorAgent {
         parsedTicketData.description = parsedTicketData.description.substring(
           0, AI_CONFIG.trainingTickets.maxDescriptionLength
         );
-        console.log(`Trimmed description to maximum length: ${AI_CONFIG.trainingTickets.maxDescriptionLength} chars`);
+        console.log(`TicketGeneratorAgent: Trimmed description to maximum length: ${AI_CONFIG.trainingTickets.maxDescriptionLength} chars`); // DEBUG LOG
       }
       
       // Ensure all fields are properly set
-      return {
+      const finalTicketData = { // DEBUG LOG
         title: parsedTicketData.title,
         description: parsedTicketData.description,
-        device: parsedTicketData.device || '',
-        additionalInfo: parsedTicketData.additionalInfo || '',
+        device: parsedTicketData.device || '', // Ensure device is not null
+        additionalInfo: parsedTicketData.additionalInfo || '', // Ensure additionalInfo is not null
         priority: parsedTicketData.priority as Priority,
         responseFormat: parsedTicketData.responseFormat as ResponseFormat,
+        userProfile: userProfile,
         categoryId: categoryRecord.id,
         createdById: adminUser.id,
         assignedToId: params.assignToId || null,
       };
+      console.log('TicketGeneratorAgent: Returning final ticket data:', JSON.stringify(finalTicketData, null, 2)); // DEBUG LOG
+      return finalTicketData;
+
     } catch (error) {
-      console.error("Error generating ticket:", error);
-      throw error;
+      console.error('Error generating ticket:', error); // DEBUG LOG
+      throw new Error(`Failed to generate ticket: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -368,28 +387,18 @@ export class TicketGeneratorAgent {
         throw new Error(`Ticket ${ticketId} not found`);
       }
       
-      // Create a prompt for solution generation
-      // This is a simplified example - ideally you'd have a dedicated prompt for solutions
-      const prompt = `
-      Luo yksityiskohtainen ratkaisu seuraavaan IT-tukipyyntöön:
+      // Format the solution prompt with ticket data
+      const formattedMessages = await SOLUTION_GENERATOR_PROMPT.formatMessages({
+        title: ticket.title,
+        description: ticket.description,
+        device: ticket.device || 'Ei määritelty',
+        category: ticket.category.name,
+      });
       
-      TIKETTI:
-      Otsikko: ${ticket.title}
-      Kuvaus: ${ticket.description}
-      Laite: ${ticket.device || 'Ei määritelty'}
-      Kategoria: ${ticket.category.name}
-      
-      Anna vaiheittainen ratkaisu, joka sisältää:
-      1. Ongelman analyysin
-      2. Tarkat vaiheet ongelman ratkaisemiseksi
-      3. Vaihtoehtoiset ratkaisutavat, jos ensimmäinen ei toimi
-      
-      Ratkaisu:
-      `;
+      console.log('Using formatted prompt for solution generation');
       
       // Get solution from LLM
-      const chatMessage = [{ role: "user", content: prompt }];
-      const response = await this.model.invoke(chatMessage);
+      const response = await this.model.invoke(formattedMessages);
       
       return response.content.toString();
     } catch (error) {

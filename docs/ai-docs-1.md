@@ -125,4 +125,78 @@ Yleisiä ongelmia ja niiden ratkaisuja:
 4. **Kieliongelmat**: Jos tiketit eivät generoidu suomeksi, tarkista että promptissa on selkeät ohjeet suomen kielen käytöstä
 5. **Vastausmuoto-ongelmat**: Jos vastausmuodon valinta ei toimi, varmista että frontend lähettää oikean parametrin ja että agentti käsittelee sen oikein
 
+# Tekoälyominaisuudet
+
+Järjestelmä sisältää useita tekoälyavusteisia toimintoja, joiden tarkoitus on tehostaa tukihenkilöiden työskentelyä ja koulutusta.
+
+## Käytettävissä olevat tekoälyominaisuudet
+
+1. **Tikettien generaattori**
+   - Luo realistisia harjoitustikettejä koulutuskäyttöön
+   - Mahdollisuus mukauttaa tiketin kompleksisuutta, kategoriaa ja käyttäjäprofiilia
+   - Automaattinen ratkaisu ja vastausohjeet
+   - Saatavilla admin- ja tukikäyttäjille AI Tools -näkymässä
+
+2. **Keskustelusimulaatio**
+   - Simuloi käyttäjää harjoitustikettien keskusteluissa
+   - Reagoi tukihenkilön ehdottamiin ratkaisuihin tilanteen edistymisen mukaan
+   - Ohjaa keskustelua kohti oikeaa ratkaisua
+   - Aktivoituu automaattisesti kun tukihenkilö kommentoi AI-generaitua tikettiä
+
+## Tikettien generaattori
+
+Tikettien generaattori on tekoälyavusteinen työkalu, joka luo realistisia IT-tukitikettejä harjoituskäyttöön. Tämä mahdollistaa tukihenkilöiden kouluttamisen todentuntuisissa tilanteissa ilman todellisia käyttäjien ongelmia.
+
+### Ominaisuudet
+
+- Monipuoliset parametrit (kompleksisuus, kategoria, käyttäjäprofiili)
+- Automaattinen prioriteettimääritys vaikeustason perusteella
+- Erilaisia vastausmuotoja (teksti, kuva, video)
+- Mahdollisuus osoittaa harjoitustiketti tietylle tukihenkilölle
+- Jokaiseen tikettiin luodaan yksityiskohtainen ratkaisu, jossa määritellään selkeästi mikä toimenpide ratkaisi ongelman
+
+### Käyttö
+
+1. Siirry AI Tools -sivulle navigaatiovalikosta
+2. Valitse "Tikettien generaattori"
+3. Määritä parametrit haluamallasi tavalla
+4. Paina "Luo harjoitustiketti"
+
+**Dokumentaatio**: Katso täydelliset tiedot tikettigeneraattorista [tämän linkin kautta](./ai-agents/ticketGenerator.md).
+
+## Keskustelusimulaatio
+
+Keskustelusimulaatio on tekoälyagentti, joka simuloi käyttäjää harjoitustikettien keskusteluissa. Agentti reagoi tukihenkilön ehdottamiin ratkaisuihin ja ohjaa keskustelua kohti oikeaa ratkaisua todellisen käyttäjän tapaan.
+
+### Ominaisuudet
+
+- Automaattinen aktivointi tukihenkilön kommentoidessa
+- Realistinen kommunikointi teknisen osaamistason mukaan
+- Edistymisen arviointi vertaamalla tukihenkilön ehdotuksia oikeaan ratkaisuun
+- Tilanteeseen sopiva tunneilmaisu (hämmennys, innostus, kiitollisuus)
+- Johdonmukainen keskusteluhistorian seuranta
+
+### Käyttö
+
+Keskustelusimulaatio aktivoituu automaattisesti, kun:
+1. Tukihenkilö tai admin kommentoi AI-generoituun tikettiin
+2. Järjestelmä analysoi kommentin sisällön
+3. Agentti tuottaa käyttäjän vastauksen perustuen edistymiseen
+
+**Dokumentaatio**: Katso täydelliset tiedot keskustelusimulaatiosta [tämän linkin kautta](./ai-agents/chatAgent.md).
+
+## Rajoitukset
+
+- Tekoälyominaisuudet ovat saatavilla vain ADMIN ja SUPPORT -käyttäjäroolien käyttäjille
+- Tekoäly ei korvaa todellista käyttäjätestausta tai koulutusta
+- AI-ominaisuudet voivat vaatia hienosäätöä täydellisen realismin saavuttamiseksi
+
+## Tulossa olevat ominaisuudet
+
+Kehitteillä olevat tekoälyominaisuudet:
+- Tikettien automaattinen luokittelu ja priorisointi
+- Tietämyskannan integraatio ja hakutoiminnot
+- Vastausehdotusten generointi tukihenkilöille
+- Tikettihistorian analyysi ja trendit
+
 ---

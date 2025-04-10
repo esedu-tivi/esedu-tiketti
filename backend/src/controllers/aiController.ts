@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ticketGenerator } from '../ai/agents/ticketGeneratorAgent.js';
+import { chatAgent } from '../ai/agents/chatAgent.js';
 import { PrismaClient, TicketStatus } from '@prisma/client';
 import { ticketService } from '../services/ticketService.js';
 import { CreateTicketDTO } from '../types/index.js';
@@ -45,6 +46,7 @@ export const aiController = {
         priority: ticketData.priority,
         categoryId: ticketData.categoryId,
         responseFormat: ticketData.responseFormat,
+        userProfile: ticketData.userProfile,
         attachments: [],
         // Store the user profile for later reference in conversations
       };
@@ -64,7 +66,7 @@ export const aiController = {
       // Store the solution in a knowledge base entry linked to this ticket
       await prisma.knowledgeArticle.create({
         data: {
-          title: `Solution: ${ticket.title}`,
+          title: solution.startsWith("### Ongelma:") ? solution.split("\n")[0].replace("### ", "") : `Solution: ${ticket.title}`,
           content: solution,
           categoryId: ticketData.categoryId,
           relatedTicketIds: [ticket.id!],
@@ -114,7 +116,7 @@ export const aiController = {
       const ticketId = req.params.id || req.body.ticketId;
       const { commentText, supportUserId } = req.body;
       
-      console.log(`Received request to generate user response for ticket ${ticketId}`);
+      console.log(`Received request to generate AI chat response for ticket ${ticketId}`);
       
       // Validate parameters
       if (!ticketId || !commentText || !supportUserId) {
@@ -124,18 +126,19 @@ export const aiController = {
         });
       }
       
-      // Get the ticket with its context
+      // Get the ticket with its context, including userProfile
       const ticket = await prisma.ticket.findUnique({
         where: { 
           id: ticketId,
           isAiGenerated: true // Only allow responses for AI-generated tickets
         },
-        include: {
-          comments: { 
+        include: { // Revert back to include
+          comments: {
             orderBy: { createdAt: 'asc' }
           },
           category: true,
           createdBy: true
+          // userProfile is now part of the base Ticket model and should be included by default
         }
       });
       
@@ -153,8 +156,14 @@ export const aiController = {
         }
       });
       
-      // Generate AI response as the ticket creator
-      const aiResponse = await ticketGenerator.generateUserResponse({
+      console.log('Using ChatAgent to generate interactive response');
+      
+      // Get userProfile from the fetched ticket, default to 'student' if null/undefined
+      const userProfile = ticket.userProfile || 'student'; 
+      console.log(`Using userProfile from ticket: ${userProfile}`); // Log the fetched profile
+      
+      // Generate AI response as the ticket creator using the chat agent
+      const aiResponse = await chatAgent.generateChatResponse({
         ticket: {
           id: ticket.id,
           title: ticket.title,
@@ -162,8 +171,9 @@ export const aiController = {
           device: ticket.device || '',
           priority: ticket.priority,
           categoryId: ticket.categoryId,
-
-          createdById: ticket.createdById
+          userProfile: userProfile, // Use the fetched profile
+          createdById: ticket.createdById,
+          additionalInfo: ticket.additionalInfo || ''
         },
         comments: ticket.comments.map(comment => ({
           // Map Prisma Comment to expected structure (text, userId, ticketId)
@@ -171,13 +181,14 @@ export const aiController = {
           text: comment.content, 
           userId: comment.authorId,
           ticketId: comment.ticketId,
-          createdAt: comment.createdAt,
-          isAiGenerated: comment.isAiGenerated
+          createdAt: comment.createdAt
         })),
         newSupportComment: commentText,
         supportUserId,
         solution: solution?.content || null
       });
+      
+      console.log('Chat response generated successfully');
       
       // Create the comment from the AI user
       const comment = await prisma.comment.create({
@@ -196,9 +207,9 @@ export const aiController = {
       });
       
     } catch (error: any) {
-      console.error('Error generating user response:', error);
+      console.error('Error generating chat response:', error);
       res.status(500).json({
-        error: 'Failed to generate user response',
+        error: 'Failed to generate chat response',
         details: error.message || 'Unknown error'
       });
     }
@@ -272,7 +283,7 @@ export const aiController = {
         // Store it for future use
         const newSolution = await prisma.knowledgeArticle.create({
           data: {
-            title: `Solution: ${ticketDetails.title}`,
+            title: generatedSolution.startsWith("### Ongelma:") ? generatedSolution.split("\n")[0].replace("### ", "") : `Solution: ${ticketDetails.title}`,
             content: generatedSolution,
             categoryId: ticketDetails.categoryId,
             relatedTicketIds: [ticketId],

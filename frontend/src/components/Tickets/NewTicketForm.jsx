@@ -49,7 +49,8 @@ export default function NewTicketForm({ onClose }) {
     priority: 2,
     categoryId: '',
     attachment: [],
-    contentType: 'text'
+    contentType: 'text',
+    userProfile: 'student'
   });
 
   const [fieldStatus, setFieldStatus] = React.useState({

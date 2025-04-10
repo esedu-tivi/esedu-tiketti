@@ -12,6 +12,7 @@ Agentti toimii seuraavasti:
 5. Parsii ja validoi vastaukseksi saadun JSON-datan
 6. Täyttää puuttuvat tai virheelliset kentät oletusarvoilla
 7. Palauttaa valmiin tiketin datan tietokantaan tallennettavaksi
+8. Luo automaattisesti ratkaisun tikettiin, joka tallennetaan tietämyskannan artikkelina
 
 ## Ominaisuudet
 
@@ -20,12 +21,18 @@ Agentti toimii seuraavasti:
 - **Kategorianhaku**: Tukee sekä UUID-ID:tä että kategorianimeä
 - **Priorisointi**: Automaattinen priorisointi vaikeustason perusteella
 - **Vastausmuodon ylitys**: Mahdollisuus ohittaa AI:n ehdottama vastausmuoto käyttäjän valinnalla
+- **Ratkaisuntuottaja**: Luo tikettiin strukturoidun ratkaisun, joka sisältää selkeän juurisyyanalyysin ja tarkan kuvauksen toimenpiteestä, joka korjasi ongelman
 
 ## Tekninen sijainti
 
 Agentin toteutus sijaitsee tiedostossa:
 ```
 backend/src/ai/agents/ticketGeneratorAgent.ts
+```
+
+Promptit sijaitsevat hakemistossa:
+```
+backend/src/ai/prompts/
 ```
 
 ## Käyttöoikeudet
@@ -53,12 +60,24 @@ Tikettigeneraattori tukee kolmea eri vastausmuotoa:
 
 Vastausmuoto määritellään joko tekoälyn toimesta tai käyttäjä voi ohittaa sen valitsemalla halutun muodon käyttöliittymästä.
 
+## Ratkaisun generoiminen
+
+Tikettigeneraattori tuottaa automaattisesti ratkaisun jokaiselle luodulle harjoitustiketille. Ratkaisu sisältää:
+
+1. **Ongelman analyysi ja juurisyy**: Tekninen analyysi siitä, mikä aiheutti ongelman
+2. **Vaiheittaiset toimenpiteet**: Selkeät ohjeet ongelman ratkaisemiseksi
+3. **Vaihtoehtoiset ratkaisut**: Vaihtoehtoisia lähestymistapoja, jos ensisijainen ratkaisu ei toimi
+4. **Lopullinen ratkaisu**: Erityinen osio, joka selkeästi määrittelee mikä toimenpide lopulta korjasi ongelman
+
+Ratkaisu tallennetaan KnowledgeArticle-tietueena tietokantaan, ja siihen voidaan viitata tiketin käsittelyn yhteydessä. Ratkaisu on saatavilla API-päätepisteestä `/api/ai/tickets/:ticketId/solution`.
+
 ## Integraatio järjestelmään
 
 Tikettigeneraattori on integroitu järjestelmään seuraavien komponenttien kautta:
 
 1. **Backend**:
    - API-päätepiste: `/api/ai/generate-ticket`
+   - Ratkaisun API-päätepiste: `/api/ai/tickets/:ticketId/solution`
    - Kontrolleri: `backend/src/controllers/aiController.ts`
    - Autentikaatio: Rajoitettu ADMIN ja SUPPORT -käyttäjille
 
@@ -86,3 +105,4 @@ Tulevissa versioissa on suunnitteilla seuraavia parannuksia:
 2. Kehittää kategoria-kohtaisia prompteja realistisempien tikettien luomiseksi
 3. Integroida olemassa olevien tikettien historiatietoja oppimateriaaliksi agentille
 4. Implementoida automaattinen tikettien generointi harjoitustietokantaan 
+5. Lisätä hakutoiminto tikettiratkaisujen tietämyskannasta vanhojen tapausten perusteella 

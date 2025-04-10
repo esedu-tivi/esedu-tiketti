@@ -47,6 +47,7 @@ export const ticketService = {
         description: data.description,
         ...(data.device && { device: data.device }),
         ...(data.additionalInfo && { additionalInfo: data.additionalInfo }),
+        ...(data.userProfile && { userProfile: data.userProfile }),
         priority: data.priority,
         responseFormat: data.responseFormat || 'TEKSTI',
         createdBy: {

@@ -9,7 +9,7 @@ Tehtäväsi on luoda yksityiskohtainen ja realistinen tiketti seuraavien paramet
 
 VAIKEUSTASO: {complexity} (simple=helppo, moderate=keskitaso, complex=vaativa)
 KATEGORIA: {category} (tekninen ongelma, ohjelmisto-ongelma, jne.)
-KÄYTTÄJÄPROFIILI: {userProfile} (opiskelija, opettaja, henkilökunta, jne.)
+KÄYTTÄJÄPROFIILI: {userProfile} (opiskelija, opettaja, henkilökunta, jne.) (Tämä vaikuttaa tiketin kielenkäyttöön, tekniseen tarkkuuteen ja ongelman luonteeseen)
 
 Luotavan tiketin tulee sisältää:
 1. Selkeä ja ytimekäs otsikko, joka kuvaa ongelmaa
@@ -18,6 +18,8 @@ Luotavan tiketin tulee sisältää:
 4. Ongelman vakavuuteen sopiva prioriteettitaso
 5. Mahdolliset lisätiedot, jotka tekevät skenaariosta realistisen
 6. Tarvittava vastausmuoto (TEKSTI, KUVA tai VIDEO)
+
+Ota KÄYTTÄJÄPROFIILI huomioon kuvauksen tyylissä ja teknisessä tarkkuudessa. Esimerkiksi opiskelijan tiketti voi olla epätarkempi ja sisältää vähemmän teknisiä termejä kuin IT-henkilökunnan jäsenen tiketti.
 
 Vaativille tiketeille, sisällytä teknisiä yksityiskohtia ja mahdollisesti useita ongelmia.
 Keskitason tiketeille, sisällytä joitakin teknisiä yksityiskohtia keskittyen yhteen ongelmaan.
@@ -42,4 +44,5 @@ MUISTA:
 - Luo skenaario, joka voisi oikeasti tapahtua koulussa tai oppilaitosympäristössä.
 - Älä sisällytä ongelmien ratkaisuja.
 - Kuvauksen tulee olla käyttäjän näkökulmasta, ikään kuin hän olisi kirjoittanut tiketin.
+- Mukauta tiketin kieli ja yksityiskohdat annettuun KÄYTTÄJÄPROFIILIIN sopivaksi.
 `); 

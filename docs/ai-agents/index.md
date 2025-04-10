@@ -1,19 +1,43 @@
 # Tekoälyagentit
 
-Tämä hakemisto sisältää yksityiskohtaisen dokumentaation järjestelmän tekoälyagenteista.
+Tässä dokumentissa listataan järjestelmässä käytettävät tekoälyagentit, niiden toiminta ja dokumentaatiolinkit.
 
-## Saatavilla olevat agentit
+## Käytössä olevat agentit
 
-- [Harjoitustikettien generointisovellusagentti](./ticketGenerator.md) - Luo realistisia IT-tukipyyntöjä koulutuskäyttöön
+| Agentti | Kuvaus | Dokumentaatio |
+|---------|--------|---------------|
+| TicketGeneratorAgent | Luo realistisia harjoitustikettejä helpdesk-koulutusta varten | [ticketGenerator.md](ticketGenerator.md) |
+| ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa | [chatAgent.md](chatAgent.md) |
 
 ## Tulevat agentit
 
-Seuraavat agentit ovat suunnittelu- tai kehitysvaiheessa:
+Seuraavat agentit ovat suunnitteilla tuleviin versioihin:
 
-1. **CommentAssistantAgent** - Tarjoaa tukihenkilöille valmiita vastauksia tiketteihin
-2. **TicketAnalyzerAgent** - Analysoi tikettejä ja ehdottaa kategorisointia tai ratkaisuja
-3. **KnowledgeBaseAgent** - Etsii relevantteja tietämyskannan artikkeleita tikettiin liittyen
-4. **SentimentAnalyzerAgent** - Analysoi tiketin sävyä ja kiireellisyyttä
+| Agentti | Kuvaus | Aikataulu |
+|---------|--------|-----------|
+| ClassificationAgent | Luokittelee tikettejä kategorioihin ja prioriteetteihin automaattisesti | Tulossa |
+| SummaryAgent | Tuottaa tiivistelmän pitkistä tikettiketjuista ja keskusteluista | Tulossa |
+| KnowledgeBaseAgent | Hakee relevantteja artikkeleita tietämyskannasta tukihenkilölle | Tulossa |
+| ResponseSuggestionAgent | Ehdottaa vastauksia tukihenkilölle yleisiin kysymyksiin | Tulossa |
+
+## Agenttien integrointi
+
+Kaikki agentit on integroitu järjestelmään käyttäen samaa perusrakennetta:
+
+1. Agentti-luokka: `backend/src/ai/agents/[agenttiNimi].ts`
+2. Prompti: `backend/src/ai/prompts/[agenttiNimi]Prompt.ts`
+3. Kontrolleri: Kutsu agenttia kontrollerin kautta
+4. Rajapinta: Tarjoa API-päätepiste agentin toiminnoille
+
+## Agenttien kehitys
+
+Kun kehität uusia agentteja, seuraa seuraavia periaatteita:
+
+1. Käytä yhtenäistä koodiarkkitehtuuria ja nimeämiskäytäntöjä
+2. Kirjoita kattava dokumentaatio agentin toiminnasta
+3. Tarjoa selkeät esimerkit käyttötapauksista
+4. Varmista tietoturva ja yksityisyys
+5. Testaa agenttia perusteellisesti ennen tuotantoon vientiä
 
 ## Yhteinen arkkitehtuuri
 

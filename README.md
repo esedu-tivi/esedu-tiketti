@@ -1,6 +1,6 @@
 # <p align='center'>Esedu-tiketti</p>
 
-🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen opiskelijoille. Mahdollistaa opiskelijoiden IT-tukipyyntöjen tehokkaan käsittelyn.
+🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen opiskelijoille. Mahdollistaa opiskelijoiden IT-tukipyyntöjen tehokkaan käsittelyn ja tukihenkilöiden koulutuksen tekoälypohjaisten simulaatioiden avulla.
 
 ## 🚀 Ominaisuudet
 
@@ -28,6 +28,26 @@
 - Tiedostonlataus ja -käsittelytoiminnot
 - Tikettiliitteiden hallinnointi ja tarkastelu
 - Joustavampi mediakommentointi: kaikki tukihenkilöt voivat liittää kuvia ja videoita tiketteihin riippumatta siitä, onko tiketti heille osoitettu
+
+### Tekoälyominaisuudet
+- Realististen harjoitustikettien generointi tekoälyn avulla
+- ChatAgent: tekoälyagentti, joka simuloi käyttäjän vastauksia tikettikeskusteluissa
+  - Automaattinen aktivointi kun tukihenkilö vastaa AI-generoituun tikettiin
+  - Edistymisen arviointi: agentti tunnistaa, kuinka lähellä tukihenkilö on oikeaa ratkaisua
+  - Realistinen vuorovaikutus eri teknisen osaamisen tasoilla (vähäinen, keskitasoinen, hyvä)
+  - Emotionaalinen ilmaisu (turhautuminen, kiinnostus, helpotus) tilanteen mukaan
+  - Joustava keskusteluliikenteen tunnistaminen (esim. "toimiiko?" -kysymyksen käsittely)
+- TicketGenerator: tekoälyagentti, joka generoi koulutustiketit
+  - Parametrisoitu tikettien luonti (vaikeustaso, kategoria, käyttäjäprofiili)
+  - Tuottaa erilaisia tikettityyppejä ja ongelmaskenaarioita koulutuskäyttöön
+  - Mukautettu käyttäjäprofiilin mukainen kielenkäyttö ja tekninen tarkkuus
+- SolutionGenerator: tekoälyagentti, joka luo ratkaisuohjeita tiketteihin
+  - Tuottaa rakenteellisia ja vaiheistettuja ratkaisuja IT-ongelmiin
+  - Konkreettiset vaiheet ongelman ratkaisemiseksi
+- AI Tools -käyttöliittymä tekoälyominaisuuksien hallintaan
+  - Tikettien generointi halutuilla parametreilla
+  - Edistyneet debug-työkalut tekoälyn toiminnan seuraamiseen
+
 
 ### Liitetiedostot ja median käsittely
 - Liitetiedostojen lisääminen tiketteihin niiden luontivaiheessa (max 5 tiedostoa)
@@ -79,6 +99,9 @@
 - Socket.IO
 - Zod validointi
 - Multer (tiedostojen käsittely)
+- Docker-kontitus (kehitys- ja tuotantoympäristöt)
+- LangChain.js (tekoälyintegraatiot)
+- OpenAI API
 
 ### Tietokanta
 - PostgreSQL
@@ -87,6 +110,7 @@
   - Kategoriat
   - Ilmoitukset ja asetukset
   - Media ja liitetiedostot
+  - Tekoälyasetukset ja -vastaukset
 
 ## 📱 Käyttöliittymä
 - Responsiivinen design
@@ -97,10 +121,15 @@
 - Selkeä profiilisivu
 - Mukautettavat ilmoitusasetukset
 - Mediakomponentit kuva- ja videosisällölle
+- AI Tools -hallintanäkymä tekoälyominaisuuksille
 
 ## 📚 Dokumentaatio
-- [CHANGELOG.md](./CHANGELOG.md) - Versiohistoria ja muutosloki
-- [docs.md](./docs.md) - Tekninen dokumentaatio
+- [CHANGELOG.md](./docs/CHANGELOG.md) - Versiohistoria ja muutosloki
+- [docs.md](./docs/docs.md) - Tekninen dokumentaatio
+- [ai-docs-1.md](./docs/ai-docs-1.md) - Tekoälyominaisuuksien dokumentaatio
+- [ai-agents/index.md](./docs/ai-agents/index.md) - Tekoälyagenttien kuvaukset
+- [ai-agents/ticketGenerator.md](./docs/ai-agents/ticketGenerator.md) - Tikettigeneraattorin dokumentaatio
+- [ai-agents/chatAgent.md](./docs/ai-agents/chatAgent.md) - ChatAgentin dokumentaatio
 - Koodin sisäinen dokumentaatio
 
 ## 🔒 Tietoturva
