@@ -161,7 +161,17 @@ export const aiController = {
 
           createdById: ticket.createdById
         },
-        comments: ticket.comments,
+        comments: ticket.comments.map(comment => ({
+          id: comment.id,
+          createdAt: comment.createdAt,
+          updatedAt: comment.updatedAt,
+          isAiGenerated: comment.isAiGenerated,
+          ticketId: comment.ticketId,
+          text: comment.content, // Map 'content' to 'text'
+          userId: comment.authorId, // Map 'authorId' to 'userId'
+          mediaUrl: comment.mediaUrl,
+          mediaType: comment.mediaType
+        })),
         newSupportComment: commentText,
         supportUserId,
         solution: solution?.content || null

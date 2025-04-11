@@ -16,7 +16,7 @@
     "dev:server": "nodemon --exec node --loader ts-node/esm src/index.ts",
     "dev": "concurrently \"npm run dev:setup\" \"npm run dev:studio\" \"npm run dev:server\"",
     "clean": "npm run db:down",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma"
   },
   "dependencies": {
     "@azure/msal-node": "^3.1.0",

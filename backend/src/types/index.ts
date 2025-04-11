@@ -36,6 +36,7 @@ export interface CreateTicketDTO {
     mimetype: string;
     size: number;
   }>;
+  isAiGenerated?: boolean;
 }
 
 export interface UpdateTicketDTO {
