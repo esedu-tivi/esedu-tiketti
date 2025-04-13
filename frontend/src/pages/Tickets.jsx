@@ -45,11 +45,13 @@ export default function Tickets() {
 
   return (
     <>
-      <FilterMenu 
+      <div className="sticky top-16 z-40 bg-white shadow-sm">
+        <FilterMenu 
           onFilterChange={handleFilterChange} 
           isOpen={isFilterMenuOpen} 
           setIsOpen={setIsFilterMenuOpen}
         />
+      </div>
       <div className="container mx-auto p-4 mt-8">
         <div className="mb-6 flex items-center gap-4">
           <div>
