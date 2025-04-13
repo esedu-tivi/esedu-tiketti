@@ -117,7 +117,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
       <div className={`filter-menu-content ${isOpen ? 'open' : 'closed'}`}>
         <CardContent className="bg-white shadow-md">
           <div className="flex gap-4 flex-wrap">
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label>Tila:</Label>
               <div className="flex flex-col gap-2">
                 {["open", "in_progress", "resolved", "closed"].map((status) => (
@@ -137,7 +137,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label>Prioriteetti:</Label>
               <div className="flex flex-col gap-2">
                 {["critical", "high", "medium", "low"].map((priority) => (
@@ -157,7 +157,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label>Kategoria:</Label>
               <div className="flex flex-col gap-2">
                 {categories.map((category) => (
@@ -174,7 +174,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label htmlFor="subject-filter">Aihe:</Label>
               <Input
                 type="text"
@@ -188,7 +188,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
             </div>
 
             {!isMyTickets && (
-              <div className="space-y-1">
+                          <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
                 <Label htmlFor="user-filter">Käyttäjä:</Label>
                 <Input
                   type="text"
@@ -201,8 +201,8 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 />
               </div>
             )}
-            
-            <div className="space-y-1">
+
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label htmlFor="device-filter">Laite:</Label>
               <Input
                 type="text"
@@ -215,7 +215,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
               />
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label htmlFor="start-date">Alkaen pvm:</Label>
               <Input
                 type="date"
@@ -233,7 +233,7 @@ function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
                 )}
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 w-full sm:1/2 md:w-96 lg:w-auto">
               <Label htmlFor="end-date">Päättyen pvm:</Label>
               <Input
                 type="date"
