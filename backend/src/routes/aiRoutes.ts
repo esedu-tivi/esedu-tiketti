@@ -41,4 +41,7 @@ router.get(
 );
 // --- End New Analysis Routes ---
 
+// --- New Route for Summarization ---
+router.post('/tickets/:id/summarize', aiController.summarizeConversation);
+
 export default router; 

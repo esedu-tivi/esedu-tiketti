@@ -3,6 +3,7 @@ import AITicketGenerator from '../components/Admin/AITicketGenerator';
 import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
 import SolutionWindow from '../components/Admin/SolutionWindow';
+import TicketDetailsModal from '../components/Tickets/TicketDetailsModal';
 import { 
   Sparkles, 
   CogIcon, 
@@ -32,6 +33,10 @@ const AITools = () => {
   const [selectedSolTicketId, setSelectedSolTicketId] = useState(null);
   const [isSolWindowOpen, setIsSolWindowOpen] = useState(false);
 
+  // NEW: State for TicketDetailsModal
+  const [selectedTicketForDetails, setSelectedTicketForDetails] = useState(null);
+  const [isTicketDetailsModalOpen, setIsTicketDetailsModalOpen] = useState(false);
+
   // Handler to open conversation modal
   const handleViewConversation = (ticketId) => {
     setSelectedConvTicketId(ticketId);
@@ -54,6 +59,17 @@ const AITools = () => {
   const handleCloseSolutionWindow = () => {
     setIsSolWindowOpen(false);
     setSelectedSolTicketId(null);
+  };
+
+  // NEW: Handlers for TicketDetailsModal
+  const handleOpenTicketDetails = (ticketId) => {
+    setSelectedTicketForDetails(ticketId);
+    setIsTicketDetailsModalOpen(true);
+  };
+
+  const handleCloseTicketDetails = () => {
+    setIsTicketDetailsModalOpen(false);
+    setSelectedTicketForDetails(null);
   };
   
   // Stats used in the dashboard (these would be real metrics in production)
@@ -178,6 +194,7 @@ const AITools = () => {
             {activeTab === 'analysis' && (
               <AiTicketAnalysis 
                 onViewConversation={handleViewConversation}
+                onOpenTicketDetails={handleOpenTicketDetails}
               />
             )}
             {activeTab === 'assistant' && (
@@ -254,9 +271,9 @@ const AITools = () => {
                 onClose={handleCloseConversationModal}
                 ticketId={selectedConvTicketId}
                 onOpenSolutionWindow={handleViewSolution}
-                // Pass state for conditional rendering of internal solution
                 isSolutionWindowOpen={isSolWindowOpen} 
                 solutionWindowTicketId={selectedSolTicketId} 
+                onOpenTicketDetails={handleOpenTicketDetails}
               />
             )}
             
@@ -269,6 +286,14 @@ const AITools = () => {
               />
             )}
           </div>
+      )}
+
+      {/* Render TicketDetailsModal conditionally */}
+      {isTicketDetailsModalOpen && (
+        <TicketDetailsModal
+          ticketId={selectedTicketForDetails}
+          onClose={handleCloseTicketDetails}
+        />
       )}
     </div>
   );

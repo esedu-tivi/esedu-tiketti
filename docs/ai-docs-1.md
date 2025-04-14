@@ -33,12 +33,28 @@ Generoi realistisia IT-tukipyyntöjä koulutuskäyttöön, käyttäen tekoälyä
 
 Tarjoaa admin-käyttäjille näkymän AI-generoitujen tikettien ja niihin liittyvien keskustelujen analysointiin.
 
-- **Toiminnallisuus**: Listaa kaikki AI-generoidut tiketit ja näyttää perustiedot (ID, otsikko, kategoria, tila, luontiaika, vastuuhenkilö) sekä `chatAgent`-kommenttien määrän.
-- **Keskustelunäkymä**: Avaa modaalin, jossa näkyy valitun AI-tiketin täysi keskusteluhistoria. 
+- **Toiminnallisuus**: 
+  - Listaa kaikki AI-generoidut tiketit.
+  - Näyttää perustiedot (ID, otsikko, kategoria, tila, luontiaika, vastuuhenkilö) sekä `chatAgent`-kommenttien määrän.
+- **Suodatus, Lajittelu ja Sivutus**:
+  - "Suodattimet"-painike avaa modaalin, jossa voi suodattaa tikettejä kategorian, vastuuhenkilön (automaattitäydennyksellä), tilan, AI-interaktioiden vähimmäismäärän ja luontipäivämäärän mukaan.
+  - Sisältää "Tyhjennä suodattimet" -toiminnon.
+  - Taulukon sarakkeita (Otsikko, Kategoria, Vastuuhenkilö, Luotu, Tila, AI Interaktiot) voi klikata lajitellakseen tuloksia.
+  - Tulokset on sivutettu suorituskyvyn parantamiseksi suurilla tietomäärillä.
+- **Yhteenvetotilastot**:
+  - Näyttää suodatettuihin tuloksiin perustuvat yhteenlasketut tilastot taulukon yläpuolella (Tikettejä yhteensä, Keskimääräinen AI-interaktioiden määrä, Tikettien jakauma tilan mukaan).
+- **Keskustelunäkymä**: 
+  - "Silmä"-ikoni avaa modaalin, jossa näkyy valitun AI-tiketin täysi keskusteluhistoria.
   - Erottaa selkeästi tukihenkilön ja `chatAgent`:in kommentit.
   - Näyttää `chatAgent`:in arvion tukihenkilön edistymisestä kohti ratkaisua (EARLY, PROGRESSING, CLOSE, SOLVED, ERROR) jokaisen AI-kommentin yhteydessä, sisältäen selittävän tooltipin.
+  - "FileText"-ikoni modaalin otsikossa avaa tiketin täydet tiedot (TicketDetailsModal).
+- **AI-Yhteenveto**: 
+  - Keskustelumodaali sisältää laajennettavan osion AI-generoidulle yhteenvedolle.
+  - Yhteenveto luodaan napin painalluksella (`SummarizerAgent`)
+  - Luotu yhteenveto tallennetaan tiketin tietoihin ja näytetään automaattisesti seuraavalla kerralla.
+  - Mahdollisuus luoda yhteenveto uudelleen.
 - **Ratkaisun tarkastelu**: 
-  - Modaali sisältää laajennettavan osion, josta näkee tiketin AI-generoidun malliratkaisun.
+  - Keskustelumodaali sisältää laajennettavan osion, josta näkee tiketin AI-generoidun malliratkaisun.
   - Tarjoaa painikkeen, jolla ratkaisun voi avata erilliseen ikkunaan keskustelumodaalin viereen.
 - **Responsiivisuus**: Keskustelu- ja ratkaisuikkunat asettuvat päällekkäin pienemmillä näytöillä ja vierekkäin suuremmilla.
 - **Käyttöoikeudet**: Saatavilla vain käyttäjille, joilla on ADMIN-rooli.

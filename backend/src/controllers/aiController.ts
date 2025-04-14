@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { ticketGenerator } from '../ai/agents/ticketGeneratorAgent.js';
 import { chatAgent } from '../ai/agents/chatAgent.js';
-import { PrismaClient, TicketStatus } from '@prisma/client';
+import { PrismaClient, TicketStatus, Comment, User, Category } from '@prisma/client';
 import { ticketService } from '../services/ticketService.js';
 import { CreateTicketDTO } from '../types/index.js';
+import { Prisma } from '@prisma/client';
+import { summarizerAgent } from '../ai/agents/summarizerAgent.js';
 
 const prisma = new PrismaClient();
 
@@ -309,56 +311,194 @@ export const aiController = {
   // --- New Analysis Functions --- 
 
   /**
-   * @description Get AI-generated tickets for analysis
+   * @description Get AI-generated tickets for analysis, with filtering and sorting
    * @route GET /api/ai/analysis/tickets
    * @access Admin
    */
   getAiAnalysisTickets: async (req: Request, res: Response) => {
+    const { 
+      category: filterCategory,
+      agent: filterAgent, 
+      agentSearch,
+      status: filterStatus,
+      minInteractions, 
+      startDate, 
+      endDate,
+      sortBy = 'createdAt', 
+      sortDir = 'desc',
+      page = '1',      // New pagination parameter: page number
+      pageSize = '25'  // New pagination parameter: items per page
+    } = req.query;
+
+    // --- Parse pagination --- 
+    const pageNum = parseInt(page as string, 10);
+    const pageSizeNum = parseInt(pageSize as string, 10);
+    const skip = (pageNum > 0 ? pageNum - 1 : 0) * pageSizeNum; // Calculate skip for Prisma
+    const take = pageSizeNum > 0 ? pageSizeNum : 25; // Ensure pageSize is positive
+
+    // --- Parse minInteractions --- 
+    const minInteractionsNum = minInteractions && parseInt(minInteractions as string, 10);
+    const hasMinInteractionsFilter = typeof minInteractionsNum === 'number' && !isNaN(minInteractionsNum) && minInteractionsNum >= 0;
+
     try {
-      const aiTickets = await prisma.ticket.findMany({
-        where: {
-          isAiGenerated: true,
-        },
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          createdAt: true,
-          category: {
-            select: {
-              name: true,
-            },
+      // --- Build Where Clause --- 
+      const whereClause: Prisma.TicketWhereInput = {
+        isAiGenerated: true,
+      };
+      
+      // --- Date Filter --- 
+      const createdAtFilter: Prisma.DateTimeFilter = {};
+      if (startDate && typeof startDate === 'string') {
+        // Add time component (start of day) to make it inclusive
+        try {
+           createdAtFilter.gte = new Date(startDate + 'T00:00:00.000Z');
+        } catch (e) { console.error("Invalid start date format"); }
+      }
+      if (endDate && typeof endDate === 'string') {
+        // Add time component (end of day) to make it inclusive
+         try {
+           createdAtFilter.lte = new Date(endDate + 'T23:59:59.999Z');
+         } catch (e) { console.error("Invalid end date format"); }
+      }
+      // Add date filter to whereClause if it has keys
+      if (Object.keys(createdAtFilter).length > 0) {
+         whereClause.createdAt = createdAtFilter;
+      }
+      
+      // --- Category Filter --- 
+      if (filterCategory && filterCategory !== 'all') {
+        whereClause.categoryId = filterCategory as string;
+      }
+      
+      // --- Status Filter --- 
+      if (filterStatus && filterStatus !== 'all') {
+        whereClause.status = filterStatus as TicketStatus;
+      }
+
+      // --- Agent Filter (Search OR Dropdown) --- 
+      const agentSearchTrimmed = typeof agentSearch === 'string' ? agentSearch.trim() : '';
+
+      if (agentSearchTrimmed) {
+        // If search term exists, use it to filter by agent name
+        whereClause.assignedTo = {
+          name: {
+            contains: agentSearchTrimmed,
+            mode: 'insensitive', // Case-insensitive search
           },
-          assignedTo: {
-            select: {
-              name: true, // Select assigned user's name
-            },
-          },
-          _count: { // Count related comments where isAiGenerated is true
-            select: {
-              comments: {
-                where: { isAiGenerated: true }
-              }
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
+        };
+      } else if (filterAgent) {
+        // If NO search term, use the dropdown filter (if set)
+        if (filterAgent === 'unassigned') {
+          whereClause.assignedToId = null;
+        } else if (filterAgent !== 'all') {
+          whereClause.assignedToId = filterAgent as string;
+        }
+        // Ensure assignedTo block from search doesn't conflict if dropdown is active
+        // This shouldn't be strictly necessary with the else if, but safer.
+        if (whereClause.assignedTo) delete whereClause.assignedTo;
+      }
+
+      // --- Fetch IDs and Calculate Aggregates (BEFORE pagination) --- 
+      const initialMatchingTickets = await prisma.ticket.findMany({
+         where: whereClause, // Apply non-count filters
+         select: { 
+           id: true,
+           status: true, 
+           _count: { select: { comments: { where: { isAiGenerated: true } } } }
+         },
       });
-  
-      // Format the response slightly for easier frontend consumption
-      const formattedTickets = aiTickets.map(ticket => ({
-        id: ticket.id,
-        title: ticket.title,
-        status: ticket.status,
-        createdAt: ticket.createdAt,
-        category: ticket.category.name,
-        assignedAgent: ticket.assignedTo?.name ?? 'Unassigned', // Handle unassigned tickets
-        aiInteractionCount: ticket._count.comments,
+
+      // --- Calculate Aggregates (same as before) --- 
+      const totalCountInitial = initialMatchingTickets.length;
+      const statusCounts: { [key in TicketStatus]?: number } = {};
+      let totalInteractions = 0;
+      initialMatchingTickets.forEach(ticket => {
+        statusCounts[ticket.status] = (statusCounts[ticket.status] || 0) + 1;
+        totalInteractions += ticket._count.comments;
+      });
+
+      // --- Apply Count Filter (in code, if needed) --- 
+      let finalFilteredTickets = initialMatchingTickets;
+      if (hasMinInteractionsFilter) {
+        finalFilteredTickets = initialMatchingTickets.filter(ticket => ticket._count.comments >= minInteractionsNum);
+      }
+      // Get IDs of tickets matching ALL filters (including count)
+      const finalTicketIds = finalFilteredTickets.map(t => t.id);
+      
+      // Update totalCount based on filters including interaction count
+      const totalCountAfterFilters = finalTicketIds.length;
+
+      // --- Fetch Paginated Full Data for Final List --- 
+      let ticketsForResponse: any[] = [];
+      if (totalCountAfterFilters > 0) { // Check if any tickets remain after all filters
+         // --- Build OrderBy Clause --- 
+         const orderByClause: Prisma.TicketOrderByWithRelationInput | any = {};
+         if (sortBy === 'category') {
+           orderByClause.category = { name: sortDir as Prisma.SortOrder };
+         } else if (sortBy === 'assignedAgent') {
+           orderByClause.assignedTo = { 
+             ...(orderByClause.assignedTo || {}),
+             name: sortDir as Prisma.SortOrder 
+           };
+         } else if (sortBy !== 'aiInteractionCount') {
+           const allowedSortFields = ['createdAt', 'title', 'status', 'priority'];
+           if (allowedSortFields.includes(sortBy as string)) {
+                orderByClause[sortBy as keyof Prisma.TicketOrderByWithRelationInput] = sortDir as Prisma.SortOrder;
+           }
+         }
+
+         ticketsForResponse = await prisma.ticket.findMany({
+            where: {
+              id: { in: finalTicketIds }, // Fetch only the tickets that passed all filters
+            },
+            select: { 
+              id: true, title: true, status: true, createdAt: true, priority: true, 
+              category: { select: { id: true, name: true } },
+              assignedTo: { select: { id: true, name: true } },
+              _count: { select: { comments: { where: { isAiGenerated: true } } } }
+            },
+            orderBy: sortBy !== 'aiInteractionCount' && Object.keys(orderByClause).length > 0 ? orderByClause : undefined,
+            skip: skip,   // Apply pagination: skip
+            take: take,   // Apply pagination: take
+         });
+
+         // --- Sort by Count (in code, if needed, applied only to the fetched page) --- 
+         if (sortBy === 'aiInteractionCount') {
+             const direction = sortDir === 'desc' ? -1 : 1;
+             ticketsForResponse.sort((a, b) => (a._count.comments - b._count.comments) * direction);
+         }
+      }
+
+      // --- Format Tickets for Response --- 
+      const formattedTickets = ticketsForResponse.map(ticket => ({
+         id: ticket.id, title: ticket.title, status: ticket.status, createdAt: ticket.createdAt,
+         category: ticket.category.name, assignedAgent: ticket.assignedTo?.name ?? 'Ei vastuuhenkilöä', 
+         aiInteractionCount: ticket._count.comments,
       }));
-  
-      res.status(200).json(formattedTickets);
+
+      // --- Prepare Aggregates for Response --- 
+      const aggregates = {
+         totalCount: totalCountAfterFilters, // Use count AFTER all filters for pagination purposes
+         statusCounts: {
+            OPEN: statusCounts.OPEN || 0,
+            IN_PROGRESS: statusCounts.IN_PROGRESS || 0,
+            RESOLVED: statusCounts.RESOLVED || 0,
+            CLOSED: statusCounts.CLOSED || 0,
+         },
+         averageInteractions: totalCountInitial > 0 ? parseFloat((totalInteractions / totalCountInitial).toFixed(1)) : 0, // Avg based on initial filters
+      };
+      
+      // --- Final Response --- 
+      res.status(200).json({
+         tickets: formattedTickets, // Paginated list
+         aggregates: aggregates,    // Aggregates (totalCount is now the paginated total)
+         pagination: {             // Include pagination info
+            currentPage: pageNum,
+            pageSize: take,
+            totalItems: totalCountAfterFilters,
+            totalPages: Math.ceil(totalCountAfterFilters / take)
+         }
+      });
     } catch (error: any) {
       console.error('Error fetching AI analysis tickets:', error);
       res.status(500).json({ message: 'Error fetching AI analysis tickets', error: error.message });
@@ -366,56 +506,90 @@ export const aiController = {
   },
   
   /**
-   * @description Get conversation for a specific AI-generated ticket
+   * Gets the conversation history for a specific AI ticket, including any saved summary.
    * @route GET /api/ai/analysis/tickets/:ticketId/conversation
-   * @access Admin
+   * @access Admin, Support
    */
   getAiTicketConversation: async (req: Request, res: Response) => {
     const { ticketId } = req.params;
-  
     try {
-      // First, verify the ticket exists and is AI-generated
-      const ticket = await prisma.ticket.findUnique({
-        where: {
-          id: ticketId,
-          isAiGenerated: true, 
-        },
-      });
-  
-      if (!ticket) {
-        return res.status(404).json({ message: 'AI-generated ticket not found' });
-      }
-  
-      // Fetch all comments for this ticket, including author info and evaluation result
       const comments = await prisma.comment.findMany({
-        where: {
-          ticketId: ticketId,
-        },
-        select: {
-          id: true,
-          content: true,
-          createdAt: true,
-          isAiGenerated: true, 
-          evaluationResult: true, // Include the evaluation result
-          mediaUrl: true,
-          mediaType: true,
-          author: {
-            select: {
-              id: true,
-              name: true,
-              role: true, 
-            },
+        where: { ticketId: ticketId },
+        include: { author: true }, // Include author details
+        orderBy: { createdAt: 'asc' },
+      });
+      
+      // Fetch the saved summary along with the ticket
+      const ticket = await prisma.ticket.findUnique({
+         where: { id: ticketId },
+         select: { aiSummary: true } 
+      });
+
+      // Combine comments and summary in the response
+      res.status(200).json({
+        comments: comments,
+        aiSummary: ticket?.aiSummary || null // Return summary or null
+      });
+    } catch (error: any) {
+      console.error(`Error fetching conversation for ticket ${ticketId}:`, error);
+      res.status(500).json({ message: 'Error fetching conversation', error: error.message });
+    }
+  },
+  
+  /**
+   * Generate OR Regenerate a summary for a given ticket conversation
+   * @route POST /api/ai/tickets/:id/summarize
+   * @access Admin, Support
+   */
+  summarizeConversation: async (req: Request, res: Response) => {
+    const { id: ticketId } = req.params;
+    console.log(`Received request to generate/regenerate summary for ticket ${ticketId}`);
+    
+    try {
+      // 1. Fetch Ticket and Conversation Data
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          comments: {
+            include: { author: true }, 
+            orderBy: { createdAt: 'asc' },
           },
-        },
-        orderBy: {
-          createdAt: 'asc',
+          category: true,
         },
       });
-  
-      res.status(200).json(comments);
+
+      if (!ticket) {
+        return res.status(404).json({ message: 'Ticket not found' });
+      }
+      
+      // Type assertion now uses imported types
+      type FetchedTicketType = typeof ticket & {
+         comments: (Comment & { author: User | null })[];
+         category: Category | null;
+      };
+      
+      // 2. Call the Summarizer Agent (will generate and save)
+      console.log(`Calling SummarizerAgent for ticket ${ticketId}...`);
+      const summary = await summarizerAgent.summarizeConversation({ 
+         ticket: ticket as FetchedTicketType 
+      });
+      console.log(`SummarizerAgent generated and saved summary for ticket ${ticketId}.`);
+
+      // 3. Check for agent error message
+      if (summary === 'Virhe yhteenvedon luonnissa.') {
+         // return res.status(500).json({ message: summary });
+      }
+
+      // 4. Return the NEWLY generated summary
+      res.status(200).json({ summary });
+
     } catch (error: any) {
-      console.error(`Error fetching conversation for AI ticket ${ticketId}:`, error);
-      res.status(500).json({ message: 'Error fetching AI ticket conversation', error: error.message });
+      // Catch errors during data fetching or unexpected agent errors
+      console.error(`Error summarizing conversation for ticket ${ticketId}:`, error);
+      res.status(500).json({ 
+        message: 'Error summarizing conversation', 
+        error: error.message 
+      });
     }
   },
   

@@ -2,19 +2,46 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 14.04.2025 - feat: Parannettu AI-tikettianalyysiä ja lisätty yhteenvetoagentti
+- **Tikettien analyysin käyttöliittymäparannukset:**
+  - Korvattu sivulla olleet suodattimet modaali-ikkunalla ("Suodattimet").
+  - Lisätty suodatusvaihtoehdot dialogiin: Kategoria, Vastuuhenkilö (automaattitäydennyksellä), Tila, AI-interaktioiden vähimmäismäärä, Luontipäivämääräväli.
+  - Lisätty dialogiin "Tyhjennä suodattimet" -painike.
+  - Toteutettu taulukon sarakkeiden lajittelu (Otsikko, Kategoria, Vastuuhenkilö, Luotu, Tila, AI Interaktiot).
+  - Toteutettu sivutus tikettilistalle.
+  - Lisätty yhteenvetotilastojen osio taulukon yläpuolelle (Tikettejä yhteensä, Keskim. AI Interaktiot, Tikettien jakauma tilan mukaan).
+- **AI-keskustelun yhteenveto:**
+  - Lisätty ominaisuus AI-yhteenvetojen luomiseksi tikettikeskusteluista Keskustelu-modaalissa.
+  - Yhteenvedon luonti käynnistetään painikkeella laajennettavassa osiossa.
+  - Luodut yhteenvedot tallennetaan `Ticket`-mallin `aiSummary`-kenttään.
+  - Toteutettu yhteenvedon uudelleengenerointi.
+  - Suodatettu järjestelmäviestit pois yhteenvedon AI:lle annettavasta keskusteluhistoriasta.
+  - Annettu tiketin nykyinen tila yhteenvedon AI:lle paremman kontekstin saamiseksi.
+- **Uusi agentti: SummarizerAgent:**
+  - Luotu `SummarizerAgent` (`backend/src/ai/agents/summarizerAgent.ts`) käsittelemään keskusteluyhteenvetojen logiikkaa.
+  - Luotu `CONVERSATION_SUMMARY_PROMPT` (`backend/src/ai/prompts/conversationSummaryPrompt.ts`).
+  - Refaktoroitu backend-kontrolleri (`aiController.ts`) käyttämään uutta agenttia.
+- **Backend-päivitykset:**
+  - Muokattu `/api/ai/analysis/tickets` -päätepistettä tukemaan uusia suodattimia, lajittelua ja sivutusta, sekä palauttamaan aggregaatit/sivutustiedot.
+  - Lisätty Prisma-migraatio lisäämään `aiSummary`-kenttä `Ticket`-malliin.
+  - Lisätty `/api/ai/tickets/:id/summarize` -päätepiste.
+  - Päivitetty `/api/ai/analysis/tickets/:ticketId/conversation` -päätepiste palauttamaan tallennettu yhteenveto.
+- **Frontend-päivitykset:**
+  - Päivitetty `AiTicketAnalysis.jsx` sisältämään suodatindialogin integraation, tilastojen näytön, lajittelukäsittelijät, sivutuksen integraation.
+  - Luotu `FilterDialog.jsx` ja `PaginationControls.jsx` -komponentit.
+  - Päivitetty `ConversationModal.jsx` käsittelemään yhteenvedon näyttämisen, luonnin, tallennuksen ja uudelleengeneroinnin laajennettavassa osiossa.
 
-
-# 14.04.2025 - feat: Add AI Ticket Analysis Tab
-- Added a new "Tikettien analyysi" tab to the AI Tools page for Admins.
-- This tab displays a list of AI-generated tickets.
-- Admins can view the conversation history between support agents and the ChatAgent for each AI ticket via a modal.
-- Added evaluation badges (EARLY, PROGRESSING, CLOSE, SOLVED, ERROR) to AI comments in the conversation modal, with tooltips explaining each status.
-- Added display of the AI-generated correct solution within the conversation modal (collapsible section).
-- Added an option to open the solution in a separate window side-by-side with the conversation modal.
-- Ensured responsive design for modal and window stacking on mobile.
-- Translated UI elements to Finnish.
-- Implemented backend endpoints (`/api/ai/analysis/tickets`, `/api/ai/analysis/tickets/:ticketId/conversation`, `/api/ai/tickets/:ticketId/solution`).
-- Created/updated frontend components (`AiTicketAnalysis.jsx`, `ConversationModal.jsx`, `SolutionWindow.jsx`) using Tailwind/Lucide/Axios.
+# 14.04.2025 - feat: Lisätty AI-tikettianalyysi-välilehti
+- Lisätty uusi "Tikettien analyysi" -välilehti AI Tools -sivulle Admin-käyttäjille.
+- Välilehti näyttää listan AI-generoiduista tiketeistä.
+- Adminit voivat tarkastella tukihenkilöiden ja ChatAgentin välistä keskusteluhistoriaa kullekin AI-tiketille modaalin kautta.
+- Lisätty arviointimerkit (EARLY, PROGRESSING, CLOSE, SOLVED, ERROR) AI-kommentteihin keskustelumodaalissa, sisältäen tooltipit kunkin tilan selittämiseksi.
+- Lisätty AI-generoidun oikean ratkaisun näyttö keskustelumodaaliin (laajennettava osio).
+- Lisätty mahdollisuus avata ratkaisu erilliseen ikkunaan keskustelumodaalin viereen.
+- Varmistettu responsiivinen suunnittelu modaalin ja ikkunan pinoamiseksi mobiililaitteilla.
+- Käännetty käyttöliittymäelementit suomeksi.
+- Toteutettu backend-päätepisteet (`/api/ai/analysis/tickets`, `/api/ai/analysis/tickets/:ticketId/conversation`, `/api/ai/tickets/:ticketId/solution`).
+- Luotu/päivitetty frontend-komponentit (`AiTicketAnalysis.jsx`, `ConversationModal.jsx`, `SolutionWindow.jsx`) käyttäen Tailwind/Lucide/Axiosia.
 
 # 10.04.2025 (Implemented chat agent for AI tickets and improved solution format)
 

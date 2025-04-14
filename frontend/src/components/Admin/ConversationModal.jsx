@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios'; // Use axios
 import { format } from 'date-fns';
 import { authService } from '../../services/authService'; // Import authService
-import { Loader2, AlertCircle, X, MessageSquare, User, Bot, Calendar, Check, Zap, Activity, AlertTriangle, BookOpen, ChevronDown, ExternalLink, Info } from 'lucide-react'; // Import more icons for evaluation and new ones
+import { Loader2, AlertCircle, X, MessageSquare, User, Bot, Calendar, Check, Zap, Activity, AlertTriangle, BookOpen, ChevronDown, ExternalLink, Info, FileText, MessageSquareText } from 'lucide-react'; // Import more icons for evaluation and new ones
 
 // Function to get styling for evaluation badges
 const getEvaluationBadgeStyle = (evaluation) => {
@@ -66,7 +66,8 @@ const ConversationModal = ({
   ticketId, 
   onOpenSolutionWindow, 
   isSolutionWindowOpen, 
-  solutionWindowTicketId 
+  solutionWindowTicketId, 
+  onOpenTicketDetails
 }) => {
   const [conversation, setConversation] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -74,11 +75,15 @@ const ConversationModal = ({
   const [solution, setSolution] = useState(null);
   const [solutionLoading, setSolutionLoading] = useState(false);
   const [solutionError, setSolutionError] = useState(null);
+  const [summary, setSummary] = useState('');         // Current summary text
+  const [hasSavedSummary, setHasSavedSummary] = useState(false); // Track if initial summary loaded
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
   
   // Remove dialogRef - no longer needed
   // const dialogRef = useRef(null); 
 
-  // Effect to fetch data (conversation AND solution) when ticketId changes and modal should be open
+  // Effect to fetch data
   useEffect(() => {
     if (open && ticketId) {
       const fetchData = async () => {
@@ -89,13 +94,18 @@ const ConversationModal = ({
         setSolutionError(null);
         setConversation([]);
         setSolution(null);
+        setSummary(''); // Clear displayed summary
+        setHasSavedSummary(false); // Reset flag
+        setSummaryError('');
+        setLoadingSummary(false); // Ensure loading state is reset
         
         try {
           const token = await authService.acquireToken();
           
-          // Fetch conversation and solution in parallel
+          // Fetch conversation (which now includes aiSummary) and solution
           const [convResponse, solutionResponse] = await Promise.all([
             axios.get(
+              // Endpoint now returns { comments: [], aiSummary: string | null }
               `${import.meta.env.VITE_API_URL}/ai/analysis/tickets/${ticketId}/conversation`,
               { headers: { Authorization: `Bearer ${token}` } }
             ),
@@ -105,7 +115,14 @@ const ConversationModal = ({
             )
           ]);
           
-          setConversation(convResponse.data);
+          setConversation(convResponse.data.comments || []);
+          // Set initial summary from fetched data
+          const savedSummary = convResponse.data.aiSummary;
+          if (savedSummary) {
+            setSummary(savedSummary);
+            setHasSavedSummary(true);
+          }
+          
           setSolution(solutionResponse.data.solution); 
           
         } catch (err) {
@@ -130,6 +147,9 @@ const ConversationModal = ({
         setSolution(null);
         setError(null);
         setSolutionError(null);
+        setSummary('');
+        setHasSavedSummary(false);
+        setSummaryError('');
     }
   }, [open, ticketId]);
 
@@ -154,6 +174,30 @@ const ConversationModal = ({
     ${open ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}
   `;
 
+  // --- Fetch Summary Handler (now Regenerate) --- 
+  const handleGenerateSummary = async () => {
+    if (!ticketId) return;
+    setLoadingSummary(true);
+    setSummaryError('');
+    // Don't clear summary here, show loading indicator over it
+    try {
+      const token = await authService.acquireToken();
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/ai/tickets/${ticketId}/summarize`,
+        {}, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // Update the summary state with the newly generated one
+      setSummary(response.data.summary || 'Uuden yhteenvedon luonti epäonnistui.');
+      setHasSavedSummary(true); // Ensure flag is set after generation
+    } catch (err) {
+      console.error('Error generating summary:', err);
+      setSummaryError(err.response?.data?.message || 'Uuden yhteenvedon luonti epäonnistui.');
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
   return (
     // Use a standard DIV instead of dialog
     <div className={modalClasses} onClick={e => e.stopPropagation()}> {/* Prevent backdrop click closing */} 
@@ -164,17 +208,91 @@ const ConversationModal = ({
           {/* Translated Title */} 
           Keskusteluanalyysi (Tiketti: {ticketId ? ticketId.substring(0, 8) + '...' : ''}) 
         </h3>
-        <button 
-          onClick={onClose} 
-          className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded hover:bg-gray-200"
-          aria-label="Sulje" // Translated aria-label
-        >
-          <X size={18} />
-        </button>
+        {/* Button Group in Header */}
+        <div className="flex items-center space-x-1">
+           {/* NEW: Button to open TicketDetailsModal */} 
+           <button
+             onClick={() => { if(ticketId) onOpenTicketDetails(ticketId); }}
+             className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-100"
+             aria-label="Avaa tiketin tiedot" 
+             title="Avaa tiketin tiedot"
+           >
+             <FileText size={18} />
+           </button>
+
+           {/* Existing Close Button */}
+           <button 
+             onClick={onClose} 
+             className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-100"
+             aria-label="Sulje"
+           >
+             <X size={18} />
+           </button>
+        </div>
       </div>
 
       {/* Body - Scrollable content area */}
       <div className="overflow-y-auto flex-grow p-4 space-y-4"> 
+        {/* Summary Section - Now Collapsible */} 
+        <details className="group border border-gray-200 rounded-md overflow-hidden"> {/* Use details tag */} 
+           <summary className="flex items-center justify-between p-3 cursor-pointer bg-gray-50 hover:bg-gray-100 list-none"> {/* Use summary tag */} 
+             <span className="text-sm font-semibold text-gray-700 flex items-center">
+               <MessageSquareText size={16} className="mr-2 text-gray-500"/> {/* Optional icon */} 
+               Keskustelun yhteenveto
+             </span>
+             <ChevronDown size={16} className="text-gray-500 group-open:rotate-180 transition-transform" />
+           </summary>
+           
+           {/* Content inside the details tag */} 
+           <div className="p-4 border-t border-gray-200 bg-white min-h-[60px] relative"> {/* Inner div for padding and background */} 
+             {/* Loading Overlay */} 
+             {loadingSummary && (
+               <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                 <div className="flex items-center text-sm text-gray-500">
+                   <Loader2 size={16} className="animate-spin mr-2" /> Generoidaan...
+                 </div>
+               </div>
+             )}
+             
+             {/* Content Area (behind overlay if loading) */} 
+             <div className={`${loadingSummary ? 'opacity-50' : ''}`}>
+               {!summary && !summaryError && (
+                  <div className="flex items-center justify-center text-sm text-gray-500 pt-1">
+                     {/* Generate Button */} 
+                     <button 
+                        onClick={handleGenerateSummary}
+                        className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                     >
+                       <MessageSquareText size={14} className="mr-1.5"/>
+                       Luo yhteenveto
+                     </button>
+                  </div>
+               )}
+               {summaryError && (
+                   <div className="flex items-center text-sm text-red-600">
+                      <AlertCircle size={16} className="mr-2" /> {summaryError}
+                   </div>
+               )}
+               {summary && (
+                   <p className="text-sm text-gray-800 whitespace-pre-wrap">{summary}</p>
+               )}
+             </div>
+
+             {/* Regenerate Button (shown only if a summary exists and not loading) */} 
+             {hasSavedSummary && !loadingSummary && (
+               <div className="text-right mt-2">
+                 <button 
+                   onClick={handleGenerateSummary} 
+                   className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                   title="Luo yhteenveto uudelleen"
+                 >
+                   Luo uusi
+                 </button>
+               </div>
+             )}
+           </div>
+        </details>
+
         {/* Conversation Section */}
         <div>
           {/* Translated Heading */}
