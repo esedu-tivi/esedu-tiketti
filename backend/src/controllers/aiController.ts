@@ -163,7 +163,7 @@ export const aiController = {
       console.log(`Using userProfile from ticket: ${userProfile}`); // Log the fetched profile
       
       // Generate AI response as the ticket creator using the chat agent
-      const aiResponse = await chatAgent.generateChatResponse({
+      const { responseText, evaluation } = await chatAgent.generateChatResponse({
         ticket: {
           id: ticket.id,
           title: ticket.title,
@@ -188,15 +188,16 @@ export const aiController = {
         solution: solution?.content || null
       });
       
-      console.log('Chat response generated successfully');
+      console.log(`Chat response generated successfully. Evaluation: ${evaluation}`);
       
-      // Create the comment from the AI user
+      // Create the comment from the AI user, including the evaluation result
       const comment = await prisma.comment.create({
         data: {
-          content: aiResponse,
+          content: responseText, // Use the response text from the agent
           ticketId: ticket.id,
           authorId: ticket.createdById, // Comment as the original ticket creator
-          isAiGenerated: true // Flag for analytics but not shown to user
+          isAiGenerated: true, // Flag for analytics but not shown to user
+          evaluationResult: evaluation // Store the evaluation result
         }
       });
       
@@ -303,5 +304,120 @@ export const aiController = {
         details: error.message || 'Unknown error'
       });
     }
-  }
+  },
+
+  // --- New Analysis Functions --- 
+
+  /**
+   * @description Get AI-generated tickets for analysis
+   * @route GET /api/ai/analysis/tickets
+   * @access Admin
+   */
+  getAiAnalysisTickets: async (req: Request, res: Response) => {
+    try {
+      const aiTickets = await prisma.ticket.findMany({
+        where: {
+          isAiGenerated: true,
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          createdAt: true,
+          category: {
+            select: {
+              name: true,
+            },
+          },
+          assignedTo: {
+            select: {
+              name: true, // Select assigned user's name
+            },
+          },
+          _count: { // Count related comments where isAiGenerated is true
+            select: {
+              comments: {
+                where: { isAiGenerated: true }
+              }
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+  
+      // Format the response slightly for easier frontend consumption
+      const formattedTickets = aiTickets.map(ticket => ({
+        id: ticket.id,
+        title: ticket.title,
+        status: ticket.status,
+        createdAt: ticket.createdAt,
+        category: ticket.category.name,
+        assignedAgent: ticket.assignedTo?.name ?? 'Unassigned', // Handle unassigned tickets
+        aiInteractionCount: ticket._count.comments,
+      }));
+  
+      res.status(200).json(formattedTickets);
+    } catch (error: any) {
+      console.error('Error fetching AI analysis tickets:', error);
+      res.status(500).json({ message: 'Error fetching AI analysis tickets', error: error.message });
+    }
+  },
+  
+  /**
+   * @description Get conversation for a specific AI-generated ticket
+   * @route GET /api/ai/analysis/tickets/:ticketId/conversation
+   * @access Admin
+   */
+  getAiTicketConversation: async (req: Request, res: Response) => {
+    const { ticketId } = req.params;
+  
+    try {
+      // First, verify the ticket exists and is AI-generated
+      const ticket = await prisma.ticket.findUnique({
+        where: {
+          id: ticketId,
+          isAiGenerated: true, 
+        },
+      });
+  
+      if (!ticket) {
+        return res.status(404).json({ message: 'AI-generated ticket not found' });
+      }
+  
+      // Fetch all comments for this ticket, including author info and evaluation result
+      const comments = await prisma.comment.findMany({
+        where: {
+          ticketId: ticketId,
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          isAiGenerated: true, 
+          evaluationResult: true, // Include the evaluation result
+          mediaUrl: true,
+          mediaType: true,
+          author: {
+            select: {
+              id: true,
+              name: true,
+              role: true, 
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+  
+      res.status(200).json(comments);
+    } catch (error: any) {
+      console.error(`Error fetching conversation for AI ticket ${ticketId}:`, error);
+      res.status(500).json({ message: 'Error fetching AI ticket conversation', error: error.message });
+    }
+  },
+  
+  // --- End New Analysis Functions ---
 }; 

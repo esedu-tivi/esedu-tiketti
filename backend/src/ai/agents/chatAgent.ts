@@ -103,6 +103,13 @@ Arvioi keskustelun koko konteksti, ei vain viimeisintä kommenttia. Valitse edis
 Vastaa VAIN yhdellä sanalla: EARLY, PROGRESSING, CLOSE tai SOLVED.
 `);
 console.log(PROGRESS_EVALUATION_PROMPT);
+
+// Define the return type for generateChatResponse
+interface ChatAgentResponse {
+  responseText: string;
+  evaluation: string; // EARLY, PROGRESSING, CLOSE, SOLVED
+}
+
 /**
  * ChatAgent simulates a user with an IT problem in a conversation with support staff.
  * It provides realistic responses based on the ticket details and solution.
@@ -124,8 +131,9 @@ export class ChatAgent {
   /**
    * Generates a response to a support comment in a ticket conversation
    * This simulates how a real user would respond to troubleshooting instructions
+   * Returns both the response text and the evaluation of support progress.
    */
-  async generateChatResponse(params: ChatResponseParams): Promise<string> {
+  async generateChatResponse(params: ChatResponseParams): Promise<ChatAgentResponse> {
     try {
       const { 
         ticket, 
@@ -229,16 +237,14 @@ export class ChatAgent {
       
       // Estimate solution progress using LLM evaluation
       console.log(`ChatAgent: Starting solution progress evaluation with LLM`);
-      console.log(`ChatAgent: Solution text length: ${solution?.length || 0} characters`);
-      
       const progressToSolution = await this.evaluateSolutionProgressWithLLM(
         ticket.title,
         ticket.description,
         ticket.device || 'Ei määritelty',
         newSupportComment, 
-        solution || '', 
+        solution || '',
         JSON.stringify(conversationHistory),
-        ticketAdditionalInfo || ''
+        ticket.additionalInfo || ''
       );
       
       console.log(`ChatAgent: Solution progress evaluated by LLM: ${progressToSolution}`);
@@ -248,53 +254,52 @@ export class ChatAgent {
       const formattedMessages = await CHAT_AGENT_PROMPT.formatMessages({
         ticketTitle: ticket.title,
         ticketDescription: ticket.description,
-        deviceInfo: ticket.device || 'Ei määritelty',
-        additionalInfo: ticketAdditionalInfo || '',
         category: category.name,
+        deviceInfo: ticket.device || 'Ei määritelty',
+        additionalInfo: ticket.additionalInfo || '',
+        progressToSolution: progressToSolution,
+        conversationHistory: JSON.stringify(conversationHistory),
+        supportComment: newSupportComment,
         userName: ticketCreator.name,
         userProfile: userProfile,
         technicalSkillLevel: technicalSkillLevel,
-        solution: solution || 'Ei määritelty',
-        conversationHistory: JSON.stringify(conversationHistory),
-        supportComment: newSupportComment,
-        progressToSolution: progressToSolution
+        solution: solution || 'Ei tietoa'
       });
       
-      // Log formatted prompt for debugging
-      console.log(`ChatAgent: All prompt parameters provided to CHAT_AGENT_PROMPT:`);
-      console.log(` - ticketTitle: ${ticket.title}`);
-      console.log(` - ticketDescription: ${ticket.description.substring(0, 50)}${ticket.description.length > 50 ? '...' : ''}`);
-      console.log(` - deviceInfo: ${ticket.device || 'Ei määritelty'}`);
-      console.log(` - additionalInfo length: ${(ticketAdditionalInfo || '').length} characters`);
-      console.log(` - category: ${category.name}`);
-      console.log(` - userName: ${ticketCreator.name}`);
-      console.log(` - userProfile: ${userProfile}`);
-      console.log(` - technicalSkillLevel: ${technicalSkillLevel}`);
-      console.log(` - solution provided: ${solution ? 'YES' : 'NO'}, length: ${solution?.length || 0} chars`);
-      console.log(` - conversationHistory: ${conversationHistory.length} messages`);
-      console.log(` - supportComment length: ${newSupportComment.length} characters`);
-      console.log(` - progressToSolution: ${progressToSolution}`);
+      // Log the final formatted prompt messages being sent to the LLM
+      console.log('ChatAgent: Final formatted messages for LLM:', JSON.stringify(formattedMessages, null, 2));
+
+      // Generate the chat response using the LLM
+      console.log('ChatAgent: Invoking LLM for chat response...');
+      const startTime = performance.now();
+      const aiResponse = await this.model.invoke(formattedMessages);
+      const endTime = performance.now();
+      const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       
-      console.log('ChatAgent: Invoking LLM for chat response generation');
-      
-      // Get AI response simulating the user
-      const response = await this.model.invoke(formattedMessages);
-      const userResponse = response.content.toString();
-      
-      console.log(`ChatAgent: Generated chat response (${userResponse.length} chars)`);
-      console.log(`ChatAgent: Response preview: ${userResponse.substring(0, 100)}${userResponse.length > 100 ? '...' : ''}`);
-      
-      return userResponse;
-    } catch (error) {
-      console.error('Error generating chat response:', error);
-      // Return a generic fallback response if something goes wrong
-      return "Anteeksi, mutta en oikein ymmärrä. Voisitko selittää yksinkertaisemmin?";
+      console.log(`ChatAgent: LLM response received (${responseTime}s). Content length: ${aiResponse?.content?.toString().length}`);
+      // console.log('ChatAgent: Raw AI response content:', aiResponse?.content);
+
+      const responseText = aiResponse?.content?.toString() || "Pahoittelut, en osaa vastata tähän tällä hetkellä.";
+
+      // Return the response text and the evaluation result
+      return {
+        responseText: responseText,
+        evaluation: progressToSolution, 
+      };
+
+    } catch (error: any) {
+      console.error('ChatAgent Error in generateChatResponse:', error);
+      // Return a default response and an 'error' evaluation state in case of failure
+      return {
+        responseText: "Valitettavasti kohtasin odottamattoman ongelman enkä voi vastata juuri nyt.",
+        evaluation: "ERROR",
+      };
     }
   }
   
   /**
-   * Evaluates solution progress using the LLM to better understand how close
-   * the support agent is to solving the problem semantically
+   * Evaluates the progress towards the solution based on the support agent's comment.
+   * Uses a separate LLM call with a specific prompt.
    */
   private async evaluateSolutionProgressWithLLM(
     ticketTitle: string,
@@ -306,51 +311,44 @@ export class ChatAgent {
     additionalInfo: string
   ): Promise<string> {
     try {
-      if (!solution) return "UNKNOWN";
+      // Ensure solution is not empty for the prompt
+      const effectiveSolution = solution || "Ratkaisua ei löytynyt.";
       
-      console.log(`ChatAgent: Evaluation - Support comment preview: ${currentComment.substring(0, 50)}${currentComment.length > 50 ? '...' : ''}`);
-      
-      // Debug logs for progress evaluation inputs
-      console.log(`ChatAgent: PROGRESS_EVALUATION inputs:`);
-      console.log(` - ticketTitle: ${ticketTitle}`);
-      console.log(` - ticketDescription length: ${ticketDescription.length} characters`);
-      console.log(` - deviceInfo: ${deviceInfo}`);
-      console.log(` - solution length: ${solution.length} characters`);
-      console.log(` - solution preview: ${solution.substring(0, 100)}${solution.length > 100 ? '...' : ''}`);
-      console.log(` - conversationHistory: ${typeof conversationHistory === 'string' ? JSON.parse(conversationHistory).length : 'N/A'} messages`);
-      console.log(` - currentComment length: ${currentComment.length} characters`);
-      console.log(` - additionalInfo length: ${additionalInfo.length} characters`);
-      
-      // Create an evaluation prompt to determine progress
-      const formattedMessages = await PROGRESS_EVALUATION_PROMPT.formatMessages({
-        ticketTitle: ticketTitle,
-        ticketDescription: ticketDescription,
-        deviceInfo: deviceInfo,
-        additionalInfo: additionalInfo,
-        solution: solution,
-        conversationHistory: conversationHistory,
-        supportComment: currentComment
+      const formattedPrompt = await PROGRESS_EVALUATION_PROMPT.formatMessages({
+          ticketTitle,
+          ticketDescription,
+          deviceInfo,
+          solution: effectiveSolution, 
+          conversationHistory,
+          supportComment: currentComment,
+          additionalInfo
       });
       
-      // Use the LLM to evaluate progress
-      console.log('ChatAgent: Invoking LLM for progress evaluation');
-      const evaluationResponse = await this.model.invoke(formattedMessages);
-      let progress = evaluationResponse.content.toString().trim().toUpperCase();
+      // Log the prompt being sent for evaluation
+      // console.log('ChatAgent: Evaluation prompt messages:', JSON.stringify(formattedPrompt, null, 2));
+
+      console.log('ChatAgent: Invoking LLM for progress evaluation...');
+      const startTime = performance.now();
+      const evaluationResponse = await this.model.invoke(formattedPrompt);
+      const endTime = performance.now();
+      const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       
-      console.log(`ChatAgent: Raw progress evaluation result: "${progress}"`);
+      console.log(`ChatAgent: Evaluation response received (${responseTime}s).`);
+
+      let evaluation = evaluationResponse?.content?.toString().trim().toUpperCase() || 'ERROR';
       
-      // Validate progress is one of the expected values
-      if (!['EARLY', 'PROGRESSING', 'CLOSE', 'SOLVED'].includes(progress)) {
-        console.warn(`ChatAgent: Invalid progress evaluation result: "${progress}", defaulting to EARLY`);
-        progress = 'EARLY';
+      // Validate the response is one of the expected values
+      const validEvaluations = ['EARLY', 'PROGRESSING', 'CLOSE', 'SOLVED'];
+      if (!validEvaluations.includes(evaluation)) {
+          console.warn(`ChatAgent: LLM evaluation returned unexpected value: '${evaluation}'. Defaulting to PROGRESSING.`);
+          evaluation = 'PROGRESSING'; // Default to PROGRESSING if invalid response
       }
       
-      console.log(`ChatAgent: Final progress evaluation: ${progress}`);
-      return progress;
-    } catch (error) {
-      console.error('Error evaluating solution progress with LLM:', error);
-      // Default to EARLY in case of error
-      return "EARLY";
+      return evaluation;
+
+    } catch (error: any) {
+        console.error('ChatAgent Error during LLM progress evaluation:', error);
+        return 'ERROR'; // Return an error state if evaluation fails
     }
   }
   

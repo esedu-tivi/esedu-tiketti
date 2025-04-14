@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import AITicketGenerator from '../components/Admin/AITicketGenerator';
+import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
+import ConversationModal from '../components/Admin/ConversationModal';
+import SolutionWindow from '../components/Admin/SolutionWindow';
 import { 
   Sparkles, 
   CogIcon, 
@@ -20,6 +23,38 @@ import {
 const AITools = () => {
   // State for active tab
   const [activeTab, setActiveTab] = useState('ticket-generator');
+
+  // State for conversation modal
+  const [selectedConvTicketId, setSelectedConvTicketId] = useState(null);
+  const [isConvModalOpen, setIsConvModalOpen] = useState(false);
+
+  // State for solution window
+  const [selectedSolTicketId, setSelectedSolTicketId] = useState(null);
+  const [isSolWindowOpen, setIsSolWindowOpen] = useState(false);
+
+  // Handler to open conversation modal
+  const handleViewConversation = (ticketId) => {
+    setSelectedConvTicketId(ticketId);
+    setIsConvModalOpen(true);
+  };
+
+  // Handler to close conversation modal
+  const handleCloseConversationModal = () => {
+    setIsConvModalOpen(false);
+    setSelectedConvTicketId(null);
+  };
+
+  // Handler to open solution window
+  const handleViewSolution = (ticketId) => {
+    setSelectedSolTicketId(ticketId);
+    setIsSolWindowOpen(true);
+  };
+
+  // Handler to close solution window
+  const handleCloseSolutionWindow = () => {
+    setIsSolWindowOpen(false);
+    setSelectedSolTicketId(null);
+  };
   
   // Stats used in the dashboard (these would be real metrics in production)
   const stats = [
@@ -41,8 +76,7 @@ const AITools = () => {
       id: 'analysis', 
       label: 'Tikettien analyysi', 
       icon: <BarChart3 size={16} className="text-blue-500" />,
-      description: 'Analysoi tikettejä ja tunnista trendejä tekoälyavusteisesti',
-      disabled: true
+      description: 'Analysoi AI-generoituja tikettejä ja niiden keskusteluja',
     },
     { 
       id: 'assistant', 
@@ -61,7 +95,7 @@ const AITools = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
+    <div className="min-h-screen bg-gray-50 pb-12 relative">
       {/* Hero section with gradient background */}
       <div className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -142,14 +176,9 @@ const AITools = () => {
           <div className="p-6">
             {activeTab === 'ticket-generator' && <AITicketGenerator />}
             {activeTab === 'analysis' && (
-              <div className="text-center py-20 text-gray-500">
-                <BarChart3 size={48} className="mx-auto mb-4 opacity-30" />
-                <h3 className="text-lg font-medium mb-2">Tikettien analyysi</h3>
-                <p className="max-w-md mx-auto">
-                  Tämä ominaisuus on kehityksen alla. Se mahdollistaa tikettien analysoinnin
-                  ja trendien tunnistamisen tekoälyn avulla.
-                </p>
-              </div>
+              <AiTicketAnalysis 
+                onViewConversation={handleViewConversation}
+              />
             )}
             {activeTab === 'assistant' && (
               <div className="text-center py-20 text-gray-500">
@@ -201,6 +230,46 @@ const AITools = () => {
           </div>
         </div>
       </div>
+
+      {/* Modal and Window Container */}
+      {(isConvModalOpen || isSolWindowOpen) && ( 
+          <div className={`
+            fixed inset-0 z-50 flex p-4 
+            overflow-y-auto md:overflow-y-hidden /* Allow scroll on mobile stack */ 
+            
+            /* Mobile: Stack vertically, align center */
+            flex-col items-center justify-start pt-8 space-y-4 
+            
+            /* Medium and Up: Side-by-side, align top */
+            md:flex-row md:justify-around md:items-start md:pt-16 md:space-y-0
+            
+            bg-black/30 backdrop-blur-sm 
+            transition-opacity duration-300 ease-out 
+            ${(isConvModalOpen || isSolWindowOpen) ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+          `}>
+            {/* Render Conversation Modal conditionally */}
+            {isConvModalOpen && (
+              <ConversationModal
+                open={isConvModalOpen} 
+                onClose={handleCloseConversationModal}
+                ticketId={selectedConvTicketId}
+                onOpenSolutionWindow={handleViewSolution}
+                // Pass state for conditional rendering of internal solution
+                isSolutionWindowOpen={isSolWindowOpen} 
+                solutionWindowTicketId={selectedSolTicketId} 
+              />
+            )}
+            
+            {/* Render Solution Window conditionally */}
+            {isSolWindowOpen && ( 
+              <SolutionWindow
+                open={isSolWindowOpen} 
+                onClose={handleCloseSolutionWindow}
+                ticketId={selectedSolTicketId}
+              />
+            )}
+          </div>
+      )}
     </div>
   );
 };

@@ -64,17 +64,19 @@ model Attachment {
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  mediaUrl  String?  // URL to the media file (image or video)
-  mediaType String?  // Type of media (image or video)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ticketId  String
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
-  isAiGenerated Boolean @default(false)
+  id            String   @id @default(uuid())
+  content       String
+  mediaUrl      String?  // URL to the media file (image or video)
+  mediaType     String?  // Type of media (image or video)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  ticketId      String
+  authorId      String
+  author        User     @relation(fields: [authorId], references: [id])
+  ticket        Ticket   @relation(fields: [ticketId], references: [id])
+  isAiGenerated Boolean  @default(false)
+  evaluationResult String? // Stores the result from evaluateSolutionProgressWithLLM (EARLY, PROGRESSING, CLOSE, SOLVED)
+
   @@index([ticketId])
   @@index([authorId])
 }

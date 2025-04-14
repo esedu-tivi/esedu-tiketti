@@ -29,6 +29,21 @@ Generoi realistisia IT-tukipyyntöjä koulutuskäyttöön, käyttäen tekoälyä
 
 **Dokumentaatio**: Katso täydelliset tiedot tikettigeneraattorista [tämän linkin kautta](./ai-agents/ticketGenerator.md).
 
+### Tikettien analyysi
+
+Tarjoaa admin-käyttäjille näkymän AI-generoitujen tikettien ja niihin liittyvien keskustelujen analysointiin.
+
+- **Toiminnallisuus**: Listaa kaikki AI-generoidut tiketit ja näyttää perustiedot (ID, otsikko, kategoria, tila, luontiaika, vastuuhenkilö) sekä `chatAgent`-kommenttien määrän.
+- **Keskustelunäkymä**: Avaa modaalin, jossa näkyy valitun AI-tiketin täysi keskusteluhistoria. 
+  - Erottaa selkeästi tukihenkilön ja `chatAgent`:in kommentit.
+  - Näyttää `chatAgent`:in arvion tukihenkilön edistymisestä kohti ratkaisua (EARLY, PROGRESSING, CLOSE, SOLVED, ERROR) jokaisen AI-kommentin yhteydessä, sisältäen selittävän tooltipin.
+- **Ratkaisun tarkastelu**: 
+  - Modaali sisältää laajennettavan osion, josta näkee tiketin AI-generoidun malliratkaisun.
+  - Tarjoaa painikkeen, jolla ratkaisun voi avata erilliseen ikkunaan keskustelumodaalin viereen.
+- **Responsiivisuus**: Keskustelu- ja ratkaisuikkunat asettuvat päällekkäin pienemmillä näytöillä ja vierekkäin suuremmilla.
+- **Käyttöoikeudet**: Saatavilla vain käyttäjille, joilla on ADMIN-rooli.
+- **Sijainti**: Löytyy AI Tools -sivun "Tikettien analyysi" -välilehdeltä.
+
 ## Tekninen arkkitehtuuri
 
 ### LangChain.js-integraatio

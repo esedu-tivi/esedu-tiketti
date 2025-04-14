@@ -113,7 +113,7 @@
   - [x] Kaikki tukihenkilöt voivat lisätä mediakommentteja kaikkiin tiketteihin
   - [x] Käyttöliittymän terminologian yhtenäistäminen: "kuva/video" -> "media"
   - [x] Tiketin luojat voivat lisätä mediasisältöä (kuvat, videot) kommentteihin
-  - [x] Tukihenkilöiden on lisättävä mediavastaus ennen tekstikommentin lisäämistä tiketeissä, jotka vaativat mediasisällön
+  - [x] Tukihenkilöiden on lisättävä mediavastaus ennen tekstikommentin lisäämistä tiketeissä, jotka vaativat mediasisältön
 
 ### WebSocket ja ilmoitukset
 - [x] WebSocket-integraatio
@@ -155,7 +155,7 @@
   - [ ] Tikettien luokittelu tekoälyn avulla
   - [ ] Vastausehdotusten generointi tukihenkilöille
   - [ ] Tietämyskannan integraatio
-  - [ ] Tikettihistorian analyysi
+  - [x] Tikettihistorian analyysi
 
 ## Tuotantoon vienti
 - [x] Docker-konfiguraatio

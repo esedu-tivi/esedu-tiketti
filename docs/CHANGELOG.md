@@ -2,6 +2,20 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+
+
+# 14.04.2025 - feat: Add AI Ticket Analysis Tab
+- Added a new "Tikettien analyysi" tab to the AI Tools page for Admins.
+- This tab displays a list of AI-generated tickets.
+- Admins can view the conversation history between support agents and the ChatAgent for each AI ticket via a modal.
+- Added evaluation badges (EARLY, PROGRESSING, CLOSE, SOLVED, ERROR) to AI comments in the conversation modal, with tooltips explaining each status.
+- Added display of the AI-generated correct solution within the conversation modal (collapsible section).
+- Added an option to open the solution in a separate window side-by-side with the conversation modal.
+- Ensured responsive design for modal and window stacking on mobile.
+- Translated UI elements to Finnish.
+- Implemented backend endpoints (`/api/ai/analysis/tickets`, `/api/ai/analysis/tickets/:ticketId/conversation`, `/api/ai/tickets/:ticketId/solution`).
+- Created/updated frontend components (`AiTicketAnalysis.jsx`, `ConversationModal.jsx`, `SolutionWindow.jsx`) using Tailwind/Lucide/Axios.
+
 # 10.04.2025 (Implemented chat agent for AI tickets and improved solution format)
 
 - Toteutettu ChatAgent keskustelemaan tukihenkilöiden kanssa AI-generoiduissa tiketeissä:

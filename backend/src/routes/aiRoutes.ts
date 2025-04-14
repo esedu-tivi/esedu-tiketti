@@ -27,4 +27,18 @@ router.get('/tickets/:ticketId/solution', aiController.getTicketSolution);
 // Future endpoint for AI ticket interaction
 // router.post('/tickets/:id/interact', aiController.interactWithTicket);
 
+// --- New Analysis Routes ---
+router.get(
+  '/analysis/tickets',
+  requireRole([UserRole.ADMIN]),
+  aiController.getAiAnalysisTickets
+);
+
+router.get(
+  '/analysis/tickets/:ticketId/conversation',
+  requireRole([UserRole.ADMIN]),
+  aiController.getAiTicketConversation
+);
+// --- End New Analysis Routes ---
+
 export default router; 
