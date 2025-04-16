@@ -2,26 +2,41 @@
 
 `TicketGeneratorAgent` on tekoälyagentti, joka on suunniteltu luomaan realistisia harjoitustikettejä koulutuskäyttöön.
 
-## Agentin toimintaperiaate
+## Agentin toimintaperiaate (Uusi Esikatselu/Vahvistus-malli)
 
-Agentti toimii seuraavasti:
-1. Vastaanottaa käyttäjän määrittämät parametrit (vaikeustaso, kategoria, käyttäjäprofiili, jne.)
-2. Validoi parametrit ja varmistaa niiden kelvollisuuden
-3. Muodostaa strukturoidun promptin parametrien pohjalta
-4. Lähettää promptin OpenAI:n kielimallille
-5. Parsii ja validoi vastaukseksi saadun JSON-datan
-6. Täyttää puuttuvat tai virheelliset kentät oletusarvoilla
-7. Palauttaa valmiin tiketin datan tietokantaan tallennettavaksi
-8. Luo automaattisesti ratkaisun tikettiin, joka tallennetaan tietämyskannan artikkelina
+Generointiprosessi on kaksivaiheinen:
+
+**1. Esikatselun luonti (`generateTrainingTicketPreview` kontrollerifunktio):**
+   - Vastaanottaa käyttäjän määrittämät parametrit (vaikeustaso, kategoria, käyttäjäprofiili, jne.).
+   - Kääntää `userProfile`-parametrin suomeksi (esim. 'student' -> 'Opiskelija') promptia varten.
+   - Validoi parametrit ja varmistaa niiden kelvollisuuden.
+   - Muodostaa strukturoidun promptin (`TICKET_GENERATOR_PROMPT`) parametrien pohjalta.
+   - Lähettää promptin OpenAI:n kielimallille luodakseen tiketin tiedot (otsikko, kuvaus, laite, jne.).
+   - Parsii ja validoi vastaukseksi saadun JSON-datan.
+   - Täyttää puuttuvat tai virheelliset kentät (prioriteetti, vastausmuoto) oletusarvoilla tai käyttäjän antamilla arvoilla.
+   - **Kutsuu `generateSolutionForPreview` -metodia** luodakseen ratkaisun generoidun tikettidatan perusteella (ilman tallennettua ID:tä).
+   - Palauttaa sekä generoidun `ticketData`-objektin että `solution`-tekstin frontendille esikatselua varten.
+
+**2. Vahvistus ja luonti (`confirmTrainingTicketCreation` kontrollerifunktio):**
+   - Vastaanottaa frontendilta aiemmin generoidun `ticketData`-objektin, `solution`-tekstin ja alkuperäisen `complexity`-parametrin.
+   - Validoi vastaanotetut tiedot.
+   - **Tallentaa tiketin** tietokantaan käyttäen `ticketService.createTicket`.
+   - Merkitsee tiketin `isAiGenerated`-lipulla.
+   - **Tallentaa esikatseluvaiheessa generoidun ratkaisun** `KnowledgeArticle`-tietueena tietokantaan.
+   - Mahdollisesti osoittaa tiketin tukihenkilölle, jos `assignedToId` oli määritelty.
+   - Palauttaa lopullisen, tallennetun tikettiobjektin (ja ratkaisun) frontendille.
 
 ## Ominaisuudet
 
-- **Parametrisoitavuus**: Monipuoliset parametrit tiketin luonnin ohjaamiseen
-- **Virheidensietokyky**: Automaattinen virheellisten tai puuttuvien tietojen korjaus
-- **Kategorianhaku**: Tukee sekä UUID-ID:tä että kategorianimeä
-- **Priorisointi**: Automaattinen priorisointi vaikeustason perusteella
-- **Vastausmuodon ylitys**: Mahdollisuus ohittaa AI:n ehdottama vastausmuoto käyttäjän valinnalla
-- **Ratkaisuntuottaja**: Luo tikettiin strukturoidun ratkaisun, joka sisältää selkeän juurisyyanalyysin ja tarkan kuvauksen toimenpiteestä, joka korjasi ongelman
+- **Esikatselu ja vahvistus**: Käyttäjä näkee generoidun tiketin ja ratkaisun ennen sen lopullista luomista.
+- **Kontekstualisoitu generointi**: Käyttää suomenkielistä `userProfile`-tietoa tiketöintipromptissa tarkemman lopputuloksen saavuttamiseksi.
+- **Parametrisoitavuus**: Monipuoliset parametrit tiketin luonnin ohjaamiseen.
+- **Virheidensietokyky**: Automaattinen virheellisten tai puuttuvien tietojen korjaus (prioriteetti, vastausmuoto).
+- **Kategorianhaku**: Tukee sekä UUID-ID:tä että kategorianimeä.
+- **Priorisointi**: Automaattinen priorisointi vaikeustason perusteella.
+- **Vastausmuodon ylitys**: Mahdollisuus ohittaa AI:n ehdottama vastausmuoto käyttäjän valinnalla.
+- **Ratkaisuntuottaja**: Luo tikettiin strukturoidun ratkaisun jo esikatseluvaiheessa.
+- **Kattava lokitus**: Sisältää `console.debug`-lokeja toiminnan seuraamiseksi.
 
 ## Tekninen sijainti
 
@@ -39,17 +54,28 @@ backend/src/ai/prompts/
 
 Agentin käyttö on rajattu vain `ADMIN` ja `SUPPORT` -käyttäjäroolien käyttöön.
 
-## Tuetut parametrit
+## Tuetut parametrit (Esikatselun luonti)
 
-Tikettigeneraattori tukee seuraavia parametreja:
+Esikatselun luonti (`/api/ai/generate-ticket-preview`) tukee seuraavia parametreja request bodyssä:
 
 | Parametri | Tyyppi | Pakollisuus | Kuvaus |
 |-----------|--------|-------------|--------|
 | complexity | string | Pakollinen | Tiketin vaikeustaso (simple, moderate, complex) |
 | category | string | Pakollinen | Kategoria-ID tai kategorian nimi |
 | userProfile | string | Pakollinen | Käyttäjäprofiili (student, teacher, staff, administrator) |
-| assignToId | string | Valinnainen | Tukihenkilön ID, jolle tiketti osoitetaan |
+| assignToId | string | Valinnainen | Tukihenkilön ID, jolle tiketti osoitetaan (vaikuttaa esikatseluun ja lopulliseen tikettiin) |
 | responseFormat | string | Valinnainen | Haluttu vastausmuoto (TEKSTI, KUVA, VIDEO) |
+
+## Tuetut parametrit (Vahvistus)
+
+Tiketin vahvistus (`/api/ai/confirm-ticket-creation`) odottaa seuraavia parametreja request bodyssä:
+
+| Parametri | Tyyppi | Pakollisuus | Kuvaus |
+|-----------|--------|-------------|--------|
+| ticketData | object | Pakollinen | `/generate-ticket-preview`-päätepisteen palauttama tikettidataobjekti |
+| solution | string | Pakollinen | `/generate-ticket-preview`-päätepisteen palauttama ratkaisuteksti |
+| complexity | string | Pakollinen | Alkuperäinen vaikeustaso (tarvitaan KnowledgeArtikkelin tallennukseen) |
+
 
 ## Vastausmuodot
 
@@ -62,22 +88,29 @@ Vastausmuoto määritellään joko tekoälyn toimesta tai käyttäjä voi ohitta
 
 ## Ratkaisun generoiminen
 
-Tikettigeneraattori tuottaa automaattisesti ratkaisun jokaiselle luodulle harjoitustiketille. Ratkaisu sisältää:
+Ratkaisu generoidaan nykyään **esikatseluvaiheessa** käyttäen `TicketGeneratorAgent`-luokan `generateSolutionForPreview`-metodia. Tämä metodi vastaanottaa generoidut tikettitiedot (mutta ei ID:tä) ja luo ratkaisun niiden pohjalta.
 
-1. **Ongelman analyysi ja juurisyy**: Tekninen analyysi siitä, mikä aiheutti ongelman
-2. **Vaiheittaiset toimenpiteet**: Selkeät ohjeet ongelman ratkaisemiseksi
-3. **Vaihtoehtoiset ratkaisut**: Vaihtoehtoisia lähestymistapoja, jos ensisijainen ratkaisu ei toimi
-4. **Lopullinen ratkaisu**: Erityinen osio, joka selkeästi määrittelee mikä toimenpide lopulta korjasi ongelman
+Ratkaisu näytetään käyttäjälle esikatselun yhteydessä ja tallennetaan `KnowledgeArticle`-tietueena tietokantaan vasta, kun käyttäjä **vahvistaa** tiketin luonnin.
 
-Ratkaisu tallennetaan KnowledgeArticle-tietueena tietokantaan, ja siihen voidaan viitata tiketin käsittelyn yhteydessä. Ratkaisu on saatavilla API-päätepisteestä `/api/ai/tickets/:ticketId/solution`.
+Ratkaisu sisältää edelleen:
+1. **Ongelman analyysi ja juurisyy**
+2. **Vaiheittaiset toimenpiteet**
+3. **Vaihtoehtoiset ratkaisut**
+4. **Lopullinen ratkaisu**
+
+Ratkaisu tallennetaan KnowledgeArticle-tietueena tietokantaan, ja siihen voidaan viitata tiketin 
+käsittelyn yhteydessä.
+Erillinen API-päätepiste `/api/ai/tickets/:ticketId/solution` ja agentin `generateSolution(ticketId: string)`-metodi ovat edelleen olemassa, jotta ratkaisu voidaan hakea tai tarvittaessa generoida uudelleen *olemassa olevalle* tiketille sen ID:n perusteella.
 
 ## Integraatio järjestelmään
 
 Tikettigeneraattori on integroitu järjestelmään seuraavien komponenttien kautta:
 
 1. **Backend**:
-   - API-päätepiste: `/api/ai/generate-ticket`
-   - Ratkaisun API-päätepiste: `/api/ai/tickets/:ticketId/solution`
+   - API-päätepisteet: 
+     - `/api/ai/generate-ticket-preview` (Esikatselun luonti)
+     - `/api/ai/confirm-ticket-creation` (Vahvistus ja tallennus)
+     - `/api/ai/tickets/:ticketId/solution` (Olemassa olevan ratkaisun haku/luonti)
    - Kontrolleri: `backend/src/controllers/aiController.ts`
    - Autentikaatio: Rajoitettu ADMIN ja SUPPORT -käyttäjille
 
@@ -88,14 +121,7 @@ Tikettigeneraattori on integroitu järjestelmään seuraavien komponenttien kaut
 
 ## Virheidenkäsittely
 
-Agentin virheenkäsittely kattaa seuraavat tilanteet:
-
-1. **Puuttuvat parametrit**: Palauttaa selkeän virheilmoituksen puuttuvista pakollisista parametreista
-2. **Virheellinen vaikeustaso**: Tarkistaa, että vaikeustaso on sallittujen arvojen joukossa
-3. **Kategoriavirheet**: Hakee kategorian joko ID:n tai nimen perusteella, palauttaa virheen jos ei löydy
-4. **Parsing-virheet**: Yrittää parsia JSON-vastauksen, ja etsii JSON-muotoista dataa tekstistä jos suora parsinta epäonnistuu
-5. **Prioriteettivirheet**: Käyttää automaattisesti vaikeustasoon perustuvaa prioriteettia, jos tekoäly ei ole asettanut sitä
-6. **Vastausmuotovirheet**: Varmistaa validin vastausmuodon joko käyttäjän valinnan tai oletusarvon perusteella
+Agentin virheenkäsittely kattaa edelleen vastaavat tilanteet, mutta virheet voivat ilmetä sekä esikatselu- että vahvistusvaiheessa.
 
 ## Kehityskohteet
 

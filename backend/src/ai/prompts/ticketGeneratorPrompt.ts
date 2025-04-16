@@ -9,7 +9,7 @@ Tehtäväsi on luoda yksityiskohtainen ja realistinen tiketti seuraavien paramet
 
 VAIKEUSTASO: {complexity} (simple=helppo, moderate=keskitaso, complex=vaativa)
 KATEGORIA: {category} (tekninen ongelma, ohjelmisto-ongelma, jne.)
-KÄYTTÄJÄPROFIILI: {userProfile} (opiskelija, opettaja, henkilökunta, jne.) (Tämä vaikuttaa tiketin kielenkäyttöön, tekniseen tarkkuuteen ja ongelman luonteeseen)
+KÄYTTÄJÄPROFIILI: {userProfile} (Tämä vaikuttaa tiketin kielenkäyttöön, tekniseen tarkkuuteen ja ongelman luonteeseen)
 
 Luotavan tiketin tulee sisältää:
 1. Selkeä ja ytimekäs otsikko, joka kuvaa ongelmaa

@@ -12,20 +12,23 @@ router.use(authMiddleware);
 // Only admins and support staff can access AI features
 router.use(requireRole([UserRole.ADMIN, UserRole.SUPPORT]));
 
-// Generate training tickets
-router.post('/generate-ticket', aiController.generateTrainingTicket);
-
-// Get AI agent configuration
+// Get AI agent configuration (categories, complexity etc.)
 router.get('/config', aiController.getAgentConfig);
 
-// Generate AI user response to support comment
+// Generate training ticket preview (does not save)
+router.post('/generate-ticket-preview', aiController.generateTrainingTicketPreview);
+
+// Confirm and create the training ticket after preview
+router.post('/confirm-ticket-creation', aiController.confirmTrainingTicketCreation);
+
+// Generate simulated user response for an AI ticket
 router.post('/tickets/:id/generate-response', aiController.generateUserResponse);
 
-// Get knowledge article solution for a ticket
+// Get the solution for an AI-generated ticket
 router.get('/tickets/:ticketId/solution', aiController.getTicketSolution);
 
-// Future endpoint for AI ticket interaction
-// router.post('/tickets/:id/interact', aiController.interactWithTicket);
+// Summarize a ticket conversation
+router.post('/tickets/:ticketId/summarize', aiController.summarizeConversation);
 
 // --- New Analysis Routes ---
 router.get(
@@ -40,8 +43,5 @@ router.get(
   aiController.getAiTicketConversation
 );
 // --- End New Analysis Routes ---
-
-// --- New Route for Summarization ---
-router.post('/tickets/:id/summarize', aiController.summarizeConversation);
 
 export default router; 

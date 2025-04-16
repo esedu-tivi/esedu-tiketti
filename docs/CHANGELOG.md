@@ -2,6 +2,22 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 16.04.2025 - feat: Lisätty esikatselu- ja vahvistusvaihe AI-tikettien luontiin
+- **AI-tikettien luonnin työnkulku:**
+  - Muokattu tiketin luontia sisältämään esikatseluvaiheen ennen tallennusta.
+  - Admin/Tukihenkilö luo nyt ensin esikatselun ja vahvistaa sen jälkeen tiketin luonnin.
+  - Ratkaisu luodaan nyt *esikatseluvaiheessa* ja näytetään käyttäjälle.
+  - Backend API jaettu `/generate-ticket-preview`- ja `/confirm-ticket-creation`-päätepisteisiin.
+  - Frontend (`AITicketGenerator.jsx`) päivitetty käsittelemään kaksivaiheisen prosessin (esikatseludata, vahvista/peruuta-painikkeet).
+- **AI-kontekstin parannukset:**
+  - `userProfile` (student, teacher, jne.) käännetään nyt suomeksi ennen sen käyttöä prompteissa sekä `TicketGeneratorAgent`- että `ChatAgent`-agenteille paremman kontekstuaalisen tarkkuuden saavuttamiseksi.
+- **Backend (`TicketGeneratorAgent`):**
+  - Lisätty uusi metodi `generateSolutionForPreview` luomaan ratkaisu raakadatan perusteella (ilman tallennettua ID:tä).
+  - Alkuperäinen `generateSolution(ticketId)`-metodi säilytetty on-demand-generointia varten erillisen päätepisteen (`/api/ai/tickets/:ticketId/generate-solution`) kautta.
+  - Lisätty kattava `console.debug`-lokitus agentin suorituksen seurantaan, mukaan lukien lopulliset LLM-syötteet.
+- **Virheenkorjaukset:**
+  - Korjattu `toast.info is not a function` -virhe `AITicketGenerator.jsx`:ssä korvaamalla se standardilla `toast()`-kutsulla.
+
 # 14.04.2025 - feat: Parannettu AI-tikettianalyysiä ja lisätty yhteenvetoagentti
 - **Tikettien analyysin käyttöliittymäparannukset:**
   - Korvattu sivulla olleet suodattimet modaali-ikkunalla ("Suodattimet").

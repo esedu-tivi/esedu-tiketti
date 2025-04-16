@@ -21,7 +21,11 @@ import {
   Bot,
   FileText,
   ChevronRight,
-  Terminal
+  Terminal,
+  Send,
+  X,
+  Eye,
+  Lightbulb
 } from 'lucide-react';
 
 /**
@@ -47,7 +51,10 @@ const AITicketGenerator = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [ticketPreviewData, setTicketPreviewData] = useState(null);
   const [generatedTicket, setGeneratedTicket] = useState(null);
+  const [generatedSolution, setGeneratedSolution] = useState(null);
   const [selectedTab, setSelectedTab] = useState('generator');
   
   // Refs
@@ -136,8 +143,8 @@ const AITicketGenerator = () => {
     fetchConfig();
   }, []);
 
-  // Handle form submission
-  const handleSubmit = async (e) => {
+  // Handle form submission to generate PREVIEW
+  const handleGeneratePreview = async (e) => {
     e.preventDefault();
     
     // Validate required fields
@@ -149,7 +156,10 @@ const AITicketGenerator = () => {
     
     try {
       setIsLoading(true);
-      setGeneratedTicket(null);
+      setGeneratedTicket(null); // Clear previous final ticket
+      setGeneratedSolution(null); // Clear previous solution
+      setTicketPreviewData(null); // Clear previous preview
+      setIsPreviewing(false);
       
       // Get auth token
       const token = await authService.acquireToken();
@@ -167,11 +177,11 @@ const AITicketGenerator = () => {
         payload.responseFormat = responseFormat;
       }
       
-      addLog('info', 'Aloitetaan tiketin generointi', payload);
-      addLog('debug', 'Lähetetään pyyntö tekoälylle');
+      addLog('info', 'Aloitetaan tiketin esikatselun generointi', payload);
+      addLog('debug', 'Lähetetään esikatselupyyntö tekoälylle');
       
       const startTime = performance.now();
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/ai/generate-ticket`, payload, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/ai/generate-ticket-preview`, payload, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -179,43 +189,131 @@ const AITicketGenerator = () => {
       const endTime = performance.now();
       const generationTime = ((endTime - startTime) / 1000).toFixed(2); // In seconds
       
-      // Set the generated ticket for display
-      setGeneratedTicket(response.data.ticket);
+      // Set the preview data AND solution, then enter preview mode
+      setTicketPreviewData(response.data.ticketData);
+      setGeneratedSolution(response.data.solution); // Store solution received from preview
+      setIsPreviewing(true);
       
       // Add detailed logs
-      addLog('success', `Tiketti luotu onnistuneesti (${generationTime}s)`, {
-        ticketId: response.data.ticket.id,
+      addLog('success', `Esikatselu luotu onnistuneesti (${generationTime}s)`, {
         generationTime: `${generationTime} sekuntia`,
-        title: response.data.ticket.title,
-        priority: response.data.ticket.priority,
-        responseFormat: response.data.ticket.responseFormat
+        title: response.data.ticketData.title,
+        priority: response.data.ticketData.priority,
+        responseFormat: response.data.ticketData.responseFormat
       });
       
-      addLog('debug', 'LLM vastaus käsitelty ja tallennettu tietokantaan');
+      addLog('debug', 'LLM vastaus käsitelty, odotetaan vahvistusta');
       
-      toast.success('Harjoitustiketti luotu onnistuneesti!', {
-        icon: <CheckCircle2 className="text-green-500" />
+      toast.success('Tiketin esikatselu luotu. Tarkista ja vahvista.', {
+        icon: <Eye className="text-blue-500" />
       });
-      
-      // Reset assignment field
-      setAssignToId('');
       
     } catch (error) {
-      console.error('Error generating ticket:', error);
+      console.error('Error generating ticket preview:', error);
       
       // Add detailed error logs
-      addLog('error', 'Virhe tiketin luonnissa', {
+      addLog('error', 'Virhe esikatselun luonnissa', {
         message: error.message,
         details: error.response?.data?.details || 'Tuntematon virhe',
         status: error.response?.status
       });
       
-      toast.error('Virhe tiketin luonnissa: ' + (error.response?.data?.details || error.message), {
+      toast.error('Virhe esikatselun luonnissa: ' + (error.response?.data?.details || error.message), {
         icon: <AlertCircle className="text-red-500" />
       });
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  // Handle confirming the ticket creation
+  const handleConfirmCreation = async () => {
+    if (!ticketPreviewData || !generatedSolution) { // Also check for solution
+      addLog('error', 'Vahvistus epäonnistui: esikatseludata tai ratkaisu puuttuu');
+      toast.error('Vahvistusta ei voida suorittaa, esikatseludata tai ratkaisu puuttuu.');
+      return;
+    }
+    
+    try {
+      setIsLoading(true); // Indicate loading for confirmation
+      
+      // Get auth token
+      const token = await authService.acquireToken();
+      
+      // Build request payload for confirmation, including the solution
+      const payload = {
+        ticketData: ticketPreviewData,
+        complexity: complexity, // Pass original complexity
+        solution: generatedSolution // Pass the pre-generated solution
+      };
+      
+      addLog('info', 'Vahvistetaan tiketin luonti...', { ticketTitle: ticketPreviewData.title });
+      addLog('debug', 'Lähetetään vahvistuspyyntö palvelimelle');
+      
+      const startTime = performance.now();
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/ai/confirm-ticket-creation`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const endTime = performance.now();
+      const confirmationTime = ((endTime - startTime) / 1000).toFixed(2); // In seconds
+      
+      // Set the final generated ticket and solution, exit preview mode
+      // Note: response.data.solution should be the same as generatedSolution we sent,
+      // but using the response ensures consistency if backend modified it (though it shouldn't here).
+      setGeneratedTicket(response.data.ticket);
+      setGeneratedSolution(response.data.solution); // Store the solution from confirmation response
+      setTicketPreviewData(null);
+      setIsPreviewing(false);
+      
+      // Add detailed logs
+      addLog('success', `Tiketti vahvistettu ja luotu (${confirmationTime}s)`, {
+        ticketId: response.data.ticket.id,
+        confirmationTime: `${confirmationTime} sekuntia`,
+        title: response.data.ticket.title,
+        priority: response.data.ticket.priority,
+        responseFormat: response.data.ticket.responseFormat,
+        assignedTo: response.data.ticket.assignedTo?.name || 'Ei osoitettu'
+      });
+      
+      addLog('debug', 'Tiketti tallennettu tietokantaan');
+      
+      toast.success('Harjoitustiketti luotu onnistuneesti!', {
+        icon: <CheckCircle2 className="text-green-500" />
+      });
+      
+      // Reset assignment field after successful creation
+      setAssignToId('');
+      
+    } catch (error) {
+      console.error('Error confirming ticket creation:', error);
+      
+      // Add detailed error logs
+      addLog('error', 'Virhe tiketin vahvistuksessa', {
+        message: error.message,
+        details: error.response?.data?.details || 'Tuntematon virhe',
+        status: error.response?.status
+      });
+      
+      toast.error('Virhe tiketin vahvistuksessa: ' + (error.response?.data?.details || error.message), {
+        icon: <AlertCircle className="text-red-500" />
+      });
+      // Keep preview data if confirmation fails?
+      // setIsPreviewing(false); 
+      // setTicketPreviewData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle canceling the preview
+  const handleCancelPreview = () => {
+    addLog('info', 'Esikatselu peruutettu');
+    setTicketPreviewData(null);
+    setGeneratedSolution(null); // Clear solution on cancel
+    setIsPreviewing(false);
+    toast('Tiketin luonti peruutettu.', { icon: <X className="text-gray-500" /> });
   };
 
   // Get complexity display text
@@ -252,25 +350,19 @@ const AITicketGenerator = () => {
         return { 
           label: 'Kuvavastaus', 
           icon: <Image size={16} className="text-green-500" />,
-          description: 'Tikettiin vastataan kuvan kanssa'
+          description: 'Tikettiin odotetaan vastausta kuvana'
         };
       case 'VIDEO':
         return { 
           label: 'Videovastaus', 
-          icon: <Video size={16} className="text-red-500" />,
-          description: 'Tikettiin vastataan videon kanssa'
-        };
-      case 'auto':
-        return { 
-          label: 'Automaattinen', 
-          icon: <Bot size={16} className="text-purple-500" />,
-          description: 'Tekoäly valitsee sopivan vastausmuodon'
+          icon: <Video size={16} className="text-purple-500" />,
+          description: 'Tikettiin odotetaan vastausta videona'
         };
       default:
         return { 
-          label: value, 
+          label: 'Tekstivastaus (Oletus)',
           icon: <MessageSquare size={16} className="text-gray-500" />,
-          description: ''
+          description: 'Tikettiin vastataan kirjallisesti'
         };
     }
   };
@@ -278,60 +370,14 @@ const AITicketGenerator = () => {
   // Get log type formatting
   const getLogTypeFormatting = (type) => {
     switch(type) {
-      case 'success':
-        return { 
-          className: 'text-green-500', 
-          icon: <CheckCircle2 size={14} className="text-green-500 mr-1.5" />,
-          badge: 'bg-green-100 text-green-800'
-        };
-      case 'error':
-        return { 
-          className: 'text-red-500', 
-          icon: <AlertCircle size={14} className="text-red-500 mr-1.5" />,
-          badge: 'bg-red-100 text-red-800'
-        };
-      case 'info':
-        return { 
-          className: 'text-blue-500', 
-          icon: <Info size={14} className="text-blue-500 mr-1.5" />,
-          badge: 'bg-blue-100 text-blue-800'
-        };
-      case 'debug':
-        return { 
-          className: 'text-gray-500', 
-          icon: <Code size={14} className="text-gray-500 mr-1.5" />,
-          badge: 'bg-gray-100 text-gray-800'
-        };
-      default:
-        return { 
-          className: 'text-gray-700', 
-          icon: <Terminal size={14} className="text-gray-700 mr-1.5" />,
-          badge: 'bg-gray-100 text-gray-800'
-        };
+      case 'info': return { icon: <Info size={14} />, color: 'text-blue-400' };
+      case 'success': return { icon: <CheckCircle2 size={14} />, color: 'text-green-400' };
+      case 'error': return { icon: <AlertCircle size={14} />, color: 'text-red-400' };
+      case 'debug': return { icon: <Code size={14} />, color: 'text-gray-500' };
+      default: return { icon: <ChevronRight size={14} />, color: 'text-gray-400' };
     }
   };
 
-  // Loading skeleton when fetching data
-  if (isFetching) {
-    return (
-      <div className="bg-white rounded-lg p-6 animate-pulse">
-        <div className="flex items-center mb-4">
-          <div className="w-10 h-10 bg-gray-200 rounded-full mr-3"></div>
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-        </div>
-        <div className="space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-10 bg-gray-200 rounded"></div>
-          <div className="h-12 bg-gray-200 rounded w-full"></div>
-        </div>
-      </div>
-    );
-  }
-
-  // Render the generator UI
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left column - Generation form */}
@@ -348,46 +394,37 @@ const AITicketGenerator = () => {
             </p>
           </div>
           
-          {/* Form content */}
-          <form onSubmit={handleSubmit} className="p-5 space-y-5">
-            <div className="space-y-4">
-              {/* Complexity selection */}
+          {/* Form content - Conditionally render based on preview state */}
+          {!isPreviewing && (
+            <form onSubmit={handleGeneratePreview} className="p-5 space-y-5">
+              {/* Complexity */}
               <div>
-                <label htmlFor="complexity" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <Cpu size={14} className="inline mr-1 text-gray-400" />
-                  Tiketin vaikeustaso
+                <label htmlFor="complexity" className="block text-sm font-medium text-gray-700 mb-1">
+                  Vaikeustaso
                 </label>
                 <div className="relative">
                   <select
                     id="complexity"
                     value={complexity}
                     onChange={(e) => setComplexity(e.target.value)}
+                    disabled={isLoading || isFetching}
                     className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                             shadow-sm appearance-none bg-white"
-                    required
                   >
-                    {complexityOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {getComplexityLabel(option)}
-                      </option>
+                    {complexityOptions.map((opt) => (
+                      <option key={opt} value={opt}>{getComplexityLabel(opt)}</option>
                     ))}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                     <ChevronDown size={16} className="text-gray-500" />
                   </div>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  {complexity === 'simple' && 'Yksinkertaisia IT-ongelmia, sopivia aloittelijoille'}
-                  {complexity === 'moderate' && 'Keskitason IT-ongelmia, soveltuvat keskitason opiskelijoille'}
-                  {complexity === 'complex' && 'Haastavia IT-ongelmia, soveltuvat edistyneille opiskelijoille'}
-                </p>
               </div>
               
-              {/* Category selection */}
+              {/* Category */}
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <HardDrive size={14} className="inline mr-1 text-gray-400" />
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
                   Kategoria
                 </label>
                 <div className="relative">
@@ -395,15 +432,14 @@ const AITicketGenerator = () => {
                     id="category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
+                    disabled={isLoading || isFetching || categoryOptions.length === 0}
                     className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                             shadow-sm appearance-none bg-white"
-                    required
                   >
+                    {categoryOptions.length === 0 && <option>Ladataan...</option>}
                     {categoryOptions.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -412,10 +448,9 @@ const AITicketGenerator = () => {
                 </div>
               </div>
               
-              {/* User profile selection */}
+              {/* User Profile */}
               <div>
-                <label htmlFor="userProfile" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <Users size={14} className="inline mr-1 text-gray-400" />
+                <label htmlFor="userProfile" className="block text-sm font-medium text-gray-700 mb-1">
                   Käyttäjäprofiili
                 </label>
                 <div className="relative">
@@ -423,15 +458,13 @@ const AITicketGenerator = () => {
                     id="userProfile"
                     value={userProfile}
                     onChange={(e) => setUserProfile(e.target.value)}
+                    disabled={isLoading || isFetching}
                     className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                             shadow-sm appearance-none bg-white"
-                    required
                   >
-                    {userProfileOptions.map((profile) => (
-                      <option key={profile} value={profile}>
-                        {getUserProfileLabel(profile)}
-                      </option>
+                    {userProfileOptions.map((opt) => (
+                      <option key={opt} value={opt}>{getUserProfileLabel(opt)}</option>
                     ))}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -440,25 +473,25 @@ const AITicketGenerator = () => {
                 </div>
               </div>
               
-              {/* Response format selection */}
+              {/* Response Format */}
               <div>
-                <label htmlFor="responseFormat" className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
-                  <MessageSquare size={14} className="inline mr-1 text-gray-400" />
-                  Vastausmuoto
+                <label htmlFor="responseFormat" className="block text-sm font-medium text-gray-700 mb-1">
+                  Haluttu vastausmuoto (Valinnainen)
                 </label>
                 <div className="relative">
                   <select
                     id="responseFormat"
                     value={responseFormat}
                     onChange={(e) => setResponseFormat(e.target.value)}
+                    disabled={isLoading || isFetching}
                     className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                             shadow-sm appearance-none bg-white"
                   >
-                    <option value="auto">Automaattinen (AI valitsee)</option>
-                    {responseFormatOptions.map((format) => (
-                      <option key={format} value={format}>
-                        {getResponseFormatContent(format).label}
+                    <option value="auto">Automaattinen (AI päättää)</option>
+                    {responseFormatOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {getResponseFormatContent(opt).label}
                       </option>
                     ))}
                   </select>
@@ -466,17 +499,19 @@ const AITicketGenerator = () => {
                     <ChevronDown size={16} className="text-gray-500" />
                   </div>
                 </div>
-                <p className="mt-1 text-xs text-gray-500 flex items-center">
-                  {getResponseFormatContent(responseFormat).icon}
-                  <span className="ml-1">{getResponseFormatContent(responseFormat).description}</span>
-                </p>
+                {responseFormat !== 'auto' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {getResponseFormatContent(responseFormat).description}
+                  </p>
+                )}
               </div>
               
-              {/* Advanced options toggle */}
+              {/* Advanced options toggle and content */}
+              <div className="pt-2">
               <button
                 type="button"
                 onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center pt-2"
+                  className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-800 w-full text-left"
               >
                 <ChevronDown 
                   size={16} 
@@ -497,6 +532,7 @@ const AITicketGenerator = () => {
                         id="assignToId"
                         value={assignToId}
                         onChange={(e) => setAssignToId(e.target.value)}
+                          disabled={isLoading || isFetching || supportUsers.length === 0}
                         className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                                 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                                 shadow-sm appearance-none bg-white"
@@ -518,74 +554,164 @@ const AITicketGenerator = () => {
             </div>
             
             {/* Submit button with loading state */}
-            <div className="pt-2">
+              <div className="pt-3">
               <button
                 type="submit"
-                disabled={isLoading}
-                className={`w-full flex items-center justify-center py-2.5 px-4 rounded-lg shadow-sm text-white 
-                         font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 
-                         ${isLoading 
-                           ? 'bg-indigo-400 cursor-not-allowed' 
-                           : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'}`}
+                  disabled={isLoading || isFetching || !category}
+                  className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent 
+                            text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 
+                            hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                            focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="animate-spin mr-2" size={18} />
-                    Luodaan...
+                      <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                      Generoidaan esikatselua...
                   </>
                 ) : (
                   <>
-                    <Sparkles className="mr-2" size={18} />
-                    Luo harjoitustiketti
+                      <Sparkles size={18} className="mr-2" />
+                      Luo esikatselu
                   </>
                 )}
               </button>
             </div>
           </form>
-          
-          {/* Info card */}
-          <div className="bg-blue-50 p-4 mx-5 mb-5 rounded-lg border border-blue-100 flex">
-            <Info size={18} className="text-blue-500 mr-3 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-700">
-              <p>Tekoäly luo realistisen tiketin annettujen parametrien perusteella. Tiketit tallentuvat järjestelmään harjoitustiketteinä.</p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
       
-      {/* Right column - Preview/results */}
+      {/* Right column - Preview/Generated ticket and Logs */}
       <div className="lg:col-span-2">
-        <div className="rounded-lg border border-gray-200 bg-white h-full overflow-hidden">
-          {/* Result tabs */}
-          <div className="border-b border-gray-200 flex">
+        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          {/* Tabs */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-6 px-5" aria-label="Tabs">
             <button
               onClick={() => setSelectedTab('generator')}
-              className={`px-5 py-3 text-sm font-medium ${
-                selectedTab === 'generator' 
-                  ? 'border-b-2 border-indigo-500 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Tulokset
+                className={`${selectedTab === 'generator' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
+                          whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center`}
+              >
+                {isPreviewing ? <Eye size={16} className="mr-2" /> : <Sparkles size={16} className="mr-2" />}
+                {isPreviewing ? 'Esikatselu' : 'Generaattori'}
             </button>
             <button
               onClick={() => setSelectedTab('logs')}
-              className={`px-5 py-3 text-sm font-medium ${
-                selectedTab === 'logs' 
-                  ? 'border-b-2 border-indigo-500 text-indigo-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Lokitiedot
+                className={`${selectedTab === 'logs' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} 
+                          whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center`}
+              >
+                <Terminal size={16} className="mr-2" />
+                Lokit
             </button>
+            </nav>
           </div>
           
           {/* Tab content */}
           <div className="p-5">
             {selectedTab === 'generator' && (
               <>
-                {generatedTicket ? (
-                  // Show generated ticket
+                {isPreviewing && ticketPreviewData && (
+                  // Show preview data + Confirm/Cancel buttons
+                  <div className="space-y-5">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-800 mb-2 flex items-center">
+                        {ticketPreviewData.title}
+                        {ticketPreviewData.priority === 'HIGH' && 
+                          <span className="ml-2 text-xs font-medium bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Korkea prioriteetti</span>
+                        }
+                        {ticketPreviewData.priority === 'MEDIUM' && 
+                          <span className="ml-2 text-xs font-medium bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">Keskitason prioriteetti</span>
+                        }
+                        {ticketPreviewData.priority === 'LOW' && 
+                          <span className="ml-2 text-xs font-medium bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Matala prioriteetti</span>
+                        }
+                        {ticketPreviewData.priority === 'CRITICAL' && 
+                          <span className="ml-2 text-xs font-medium bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full">Kriittinen prioriteetti</span>
+                        }
+                      </h3>
+                      <div className="flex flex-wrap gap-3 text-sm text-gray-500 mb-3">
+                        {/* Note: createdBy is not available in preview data yet */}
+                        {/* <span className="flex items-center">
+                          <Users size={14} className="mr-1" />
+                          Käyttäjä: {ticketPreviewData.createdBy?.name || "Luodaan admin-käyttäjällä"}
+                        </span> */}
+                        <span className="flex items-center">
+                          <HardDrive size={14} className="mr-1" />
+                          Laite: {ticketPreviewData.device}
+                        </span>
+                        <span className="flex items-center">
+                          {getResponseFormatContent(ticketPreviewData.responseFormat).icon}
+                          <span className="ml-1">{getResponseFormatContent(ticketPreviewData.responseFormat).label}</span>
+                        </span>
+                        {/* Show assigned user if available in preview */}
+                        {ticketPreviewData.assignedToId && (
+                          <span className="flex items-center">
+                            <Users size={14} className="mr-1" />
+                            Osoitettu: {supportUsers.find(u => u.id === ticketPreviewData.assignedToId)?.name || ticketPreviewData.assignedToId}
+                          </span>
+                        )}
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <p className="whitespace-pre-wrap text-gray-700">{ticketPreviewData.description}</p>
+                      </div>
+                    </div>
+                    
+                    {ticketPreviewData.additionalInfo && (
+                      <div>
+                        <h4 className="font-medium text-gray-800 mb-1">Lisätiedot</h4>
+                        <p className="text-gray-600 whitespace-pre-wrap">{ticketPreviewData.additionalInfo}</p>
+                      </div>
+                    )}
+                    
+                    {/* Display Solution during Preview */}
+                    {generatedSolution && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <h4 className="font-medium text-gray-800 mb-2 flex items-center">
+                          <Lightbulb size={16} className="mr-2 text-yellow-500"/>
+                          Ratkaisuehdotus
+                        </h4>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 prose prose-sm max-w-none">
+                          {/* Use pre for better formatting of potential markdown/code in solution */}
+                          <pre className="whitespace-pre-wrap text-sm font-sans">{generatedSolution}</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Confirmation buttons */}
+                    <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row gap-3">
+                      <button 
+                        onClick={handleConfirmCreation}
+                        disabled={isLoading}
+                        className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent 
+                                  text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 
+                                  hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                                  focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+                      >
+                        {isLoading ? (
+                          <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                        ) : (
+                          <Send size={16} className="mr-2" />
+                        )}
+                        Vahvista ja luo tiketti
+                      </button>
+                      <button 
+                        onClick={handleCancelPreview}
+                        disabled={isLoading}
+                        className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-gray-300 
+                                  text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white 
+                                  hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                                  focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+                      >
+                        <X size={16} className="mr-2" />
+                        Peruuta
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500">Vahvistamalla luot tiketin järjestelmään näillä tiedoilla.</p>
+                  </div>
+                )} 
+                
+                {/* Show final generated ticket if creation was confirmed */}
+                {!isPreviewing && generatedTicket && (
                   <div className="space-y-5">
                     <div>
                       <h3 className="text-xl font-semibold text-gray-800 mb-2 flex items-center">
@@ -612,6 +738,13 @@ const AITicketGenerator = () => {
                           <HardDrive size={14} className="mr-1" />
                           Laite: {generatedTicket.device}
                         </span>
+                         {/* Show assigned user if available in final ticket */}
+                        {generatedTicket.assignedTo && (
+                          <span className="flex items-center">
+                            <Users size={14} className="mr-1" />
+                            Osoitettu: {generatedTicket.assignedTo.name}
+                          </span>
+                        )}
                       </div>
                       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                         <p className="whitespace-pre-wrap text-gray-700">{generatedTicket.description}</p>
@@ -621,10 +754,24 @@ const AITicketGenerator = () => {
                     {generatedTicket.additionalInfo && (
                       <div>
                         <h4 className="font-medium text-gray-800 mb-1">Lisätiedot</h4>
-                        <p className="text-gray-600">{generatedTicket.additionalInfo}</p>
+                        <p className="text-gray-600 whitespace-pre-wrap">{generatedTicket.additionalInfo}</p>
                       </div>
                     )}
                     
+                    {/* Display Solution AFTER confirmation (already stored in generatedSolution state) */}
+                    {generatedSolution && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <h4 className="font-medium text-gray-800 mb-2 flex items-center">
+                          <Lightbulb size={16} className="mr-2 text-yellow-500"/>
+                          Ratkaisu
+                        </h4>
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 prose prose-sm max-w-none">
+                          {/* Use pre for better formatting */}
+                          <pre className="whitespace-pre-wrap text-sm font-sans">{generatedSolution}</pre>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap gap-4 text-sm">
                       <div className="bg-gray-50 px-3 py-2 rounded-md border border-gray-200">
                         <span className="block text-gray-500 text-xs">Status</span>
@@ -643,29 +790,44 @@ const AITicketGenerator = () => {
                           {new Date(generatedTicket.createdAt).toLocaleString('fi-FI')}
                         </span>
                       </div>
+                       {generatedTicket.assignedTo && (
+                        <div className="bg-gray-50 px-3 py-2 rounded-md border border-gray-200">
+                          <span className="block text-gray-500 text-xs">Osoitettu</span>
+                          <span className="font-medium text-gray-800">
+                            {generatedTicket.assignedTo.name}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="pt-3 flex">
-                      <button 
-                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-4"
-                        onClick={() => window.open(`/tickets/${generatedTicket.id}`, '_blank')}
+                    <div className="pt-3 flex flex-wrap gap-4">
+                      <a 
+                        href={`/tickets/${generatedTicket.id}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium inline-flex items-center"
                       >
-                        Näytä tiketti järjestelmässä
-                      </button>
+                        Avaa tiketti uudessa välilehdessä <ChevronRight size={16} className="ml-1"/>
+                      </a>
                       <button 
                         className="text-gray-600 hover:text-gray-800 text-sm font-medium"
-                        onClick={() => setGeneratedTicket(null)}
+                        onClick={() => { 
+                          setGeneratedTicket(null); // Clear the displayed ticket
+                          setGeneratedSolution(null); // Clear the displayed solution
+                        }}
                       >
                         Luo uusi tiketti
                       </button>
                     </div>
                   </div>
-                ) : (
-                  // Empty state
+                )}
+                
+                {/* Empty state (when not previewing and no final ticket) */}
+                {!isPreviewing && !generatedTicket && (
                   <div className="text-center py-16">
                     <Sparkles size={48} className="mx-auto mb-4 text-gray-300" />
                     <h3 className="text-lg font-medium text-gray-500 mb-1">Ei tuloksia</h3>
-                    <p className="text-gray-400 mb-6">Luo tiketti määrittämällä parametrit ja klikkaamalla "Luo harjoitustiketti"</p>
+                    <p className="text-gray-400 mb-6">Luo tiketti määrittämällä parametrit ja klikkaamalla "Luo esikatselu"</p>
                   </div>
                 )}
               </>
@@ -686,7 +848,7 @@ const AITicketGenerator = () => {
                     </span>
                     <span className="flex items-center text-xs text-gray-500">
                       <CpuIcon size={12} className="mr-1" />
-                      {generatedTicket ? 'Valmis' : 'Odottaa'}
+                      {isLoading ? 'Käsitellään' : (isPreviewing ? 'Esikatselu' : (generatedTicket ? 'Valmis' : 'Odottaa'))}
                     </span>
                   </div>
                 </div>
@@ -696,90 +858,25 @@ const AITicketGenerator = () => {
                   ref={logContainerRef}
                   className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-900 text-gray-200"
                 >
-                  <div className="pb-2 mb-2 border-b border-gray-700 text-xs text-gray-400">
-                    # Tekoälyn tikettigenerointi - Aloitettu {new Date().toLocaleDateString('fi-FI')}
-                  </div>
-                  
-                  {logs.length === 0 ? (
-                    <div className="py-2 text-gray-500 text-center italic">
-                      Lokitiedot näkyvät tässä kun luot tiketin...
-                    </div>
-                  ) : (
-                    <>
-                      {logs.map((log, index) => {
-                        const format = getLogTypeFormatting(log.type);
-                        return (
-                          <div key={index} className="leading-tight">
-                            <div className="flex items-start">
-                              {format.icon}
-                              <div>
-                                <span className={format.className}>
-                                  [{log.type.toUpperCase()}]
-                                </span>
-                                <span className="text-gray-400 mx-1">
-                                  {new Date(log.timestamp).toLocaleTimeString('fi-FI')}
-                                </span>
-                                <span className="text-gray-100">{log.message}</span>
-                              </div>
-                            </div>
-                            
-                            {log.details && (
-                              <div className="ml-5 mt-1 mb-2">
-                                {typeof log.details === 'object' ? (
-                                  <div className="bg-gray-800 rounded p-2 text-xs">
-                                    {Object.entries(log.details).map(([key, value]) => (
-                                      <div key={key} className="grid grid-cols-12 gap-2">
-                                        <span className="col-span-3 text-gray-400">{key}:</span>
-                                        <span className="col-span-9 text-gray-200">
-                                          {typeof value === 'object' 
-                                            ? JSON.stringify(value) 
-                                            : String(value)}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-400 text-xs">{log.details}</span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      
-                      {/* Terminal prompt */}
-                      <div className="pt-2 flex items-center text-green-400">
-                        <span className="mr-1">$</span>
-                        <span className="animate-pulse">_</span>
-                      </div>
-                    </>
+                  {logs.length === 0 && (
+                    <div className="text-center text-gray-500 py-4">Ei lokitietoja vielä.</div>
                   )}
+                  {logs.map((log, index) => (
+                    <div key={index} className={`flex items-start ${getLogTypeFormatting(log.type).color}`}>
+                      <span className="mr-2 mt-0.5 flex-shrink-0">
+                        {getLogTypeFormatting(log.type).icon}
+                                </span>
+                      <div className="flex-1">
+                        <span className="font-medium">[{new Date(log.timestamp).toLocaleTimeString('fi-FI')}]</span>
+                        <span className="ml-1">{log.message}</span>
+                            {log.details && (
+                          <pre className="text-xs text-gray-400 mt-1 p-2 bg-gray-800 rounded overflow-x-auto">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
                 </div>
-                
-                {/* Log toolbar */}
-                <div className="border-t border-gray-200 p-2 px-3 bg-gray-100 flex justify-between items-center text-xs">
-                  <span className="text-gray-600">
-                    {logs.length > 0 ? `${logs.length} tapahtumaa` : 'Ei lokitietoja'}
-                  </span>
-                  <div className="space-x-2">
-                    <button 
-                      onClick={() => setLogs([])} 
-                      className="text-gray-600 hover:text-gray-900"
-                    >
-                      Tyhjennä
-                    </button>
-                    <button 
-                      onClick={() => {
-                        if (logContainerRef.current) {
-                          logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-                        }
-                      }}
-                      className="text-gray-600 hover:text-gray-900 flex items-center"
-                    >
-                      <ChevronRight size={12} className="mr-0.5" />
-                      Vieritä alas
-                    </button>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}

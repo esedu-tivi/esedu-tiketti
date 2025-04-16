@@ -11,13 +11,13 @@ const prisma = new PrismaClient();
 
 export const aiController = {
   /**
-   * Generate a training ticket for IT support students
+   * Generate a *preview* of a training ticket without saving it.
    */
-  generateTrainingTicket: async (req: Request, res: Response) => {
+  generateTrainingTicketPreview: async (req: Request, res: Response) => {
     try {
       const { complexity, category, userProfile, assignToId, responseFormat } = req.body;
       
-      console.log('Received request to generate training ticket:', req.body);
+      console.log('Received request to generate training ticket preview:', req.body);
       
       // Validate the required parameters
       if (!complexity || !category || !userProfile) {
@@ -27,19 +27,66 @@ export const aiController = {
         });
       }
       
-      // Generate a ticket using the AI agent - with type guarantees
-      console.log('Calling ticket generator with parameters:', { complexity, category, userProfile, assignToId, responseFormat });
+      // Generate ticket data using the AI agent but DO NOT save it yet
+      console.log('Calling ticket generator for preview with parameters:', { complexity, category, userProfile, assignToId, responseFormat });
       const ticketData = await ticketGenerator.generateTicket({
         complexity,
         category,
         userProfile,
-        assignToId,
+        assignToId, // Pass assignToId so it's included in the preview data
         responseFormat
       });
       
-      console.log('Successfully generated ticket data');
+      console.log('Successfully generated ticket preview data');
       
-      // Create the ticket with standard fields
+      // ALSO generate the solution during preview
+      console.log('Generating solution for preview...');
+      // We need some details from ticketData to generate the solution
+      // Note: ticketData.id doesn't exist yet, so we call generateSolution with raw data
+      // Assuming generateSolution can handle raw data or we adapt it slightly
+      // For now, let's pass the necessary components. We might need to adjust ticketGeneratorAgent if this fails.
+      const solution = await ticketGenerator.generateSolutionForPreview({
+        title: ticketData.title,
+        description: ticketData.description,
+        device: ticketData.device,
+        categoryId: ticketData.categoryId, // We need category ID to find the name
+      });
+      console.log('Successfully generated solution for preview');
+      
+      // Return the generated data AND the solution for confirmation
+      res.status(200).json({ 
+        ticketData: ticketData, // Send the raw generated ticket data
+        solution: solution      // Send the generated solution text
+      });
+      
+    } catch (error: any) {
+      console.error('Error generating training ticket preview:', error);
+      res.status(500).json({ 
+        error: 'Failed to generate training ticket preview',
+        details: error.message || 'Unknown error'
+      });
+    }
+  },
+
+  /**
+   * Confirm and create a training ticket after preview.
+   */
+  confirmTrainingTicketCreation: async (req: Request, res: Response) => {
+    try {
+      // Receive the ticket data AND the pre-generated solution
+      const { ticketData, complexity, solution } = req.body; // Added solution
+      
+      console.log('Received request to confirm training ticket creation:', req.body);
+      
+      // Validate the received ticket data (basic check)
+      if (!ticketData || !ticketData.title || !ticketData.description || !ticketData.categoryId || !ticketData.createdById || !complexity || !solution) { // Added check for solution
+        return res.status(400).json({
+          error: 'Invalid ticket data provided for confirmation',
+          details: 'Essential ticket data, complexity, or solution is missing' // Updated details
+        });
+      }
+      
+      // Create the ticket with standard fields from the confirmed data
       const createTicketData: CreateTicketDTO = {
         title: ticketData.title,
         description: ticketData.description,
@@ -50,63 +97,76 @@ export const aiController = {
         responseFormat: ticketData.responseFormat,
         userProfile: ticketData.userProfile,
         attachments: [],
-        // Store the user profile for later reference in conversations
       };
       
-      // Create the ticket first
+      // Create the ticket using the service
+      console.log('Creating ticket in database with confirmed data:', createTicketData);
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
+      console.log('Ticket created with ID:', ticket.id);
       
       // Explicitly mark the ticket as AI-generated after creation
       await prisma.ticket.update({
-        where: { id: ticket.id! }, // Assuming ticket.id is definitely present
+        where: { id: ticket.id! }, 
         data: { isAiGenerated: true },
       });
+      console.log('Marked ticket as AI-generated');
       
-      // Generate and store a solution for this ticket
-      const solution = await ticketGenerator.generateSolution(ticket.id!);
-      
-      // Store the solution in a knowledge base entry linked to this ticket
+      // Store the PRE-GENERATED solution (received from frontend) in a knowledge base entry
+      console.log('Storing pre-generated solution for ticket ID:', ticket.id);
       await prisma.knowledgeArticle.create({
         data: {
-          title: solution.startsWith("### Ongelma:") ? solution.split("\n")[0].replace("### ", "") : `Solution: ${ticket.title}`,
-          content: solution,
+          // Use the received solution text
+          title: solution.startsWith("### Ongelma:") ? solution.split("\n")[0].replace("### ", "") : `Ratkaisu: ${ticket.title}`, // Updated title generation logic
+          content: solution, // Use the solution from the request body
           categoryId: ticketData.categoryId,
           relatedTicketIds: [ticket.id!],
-          // Add metadata for tracking
-          complexity: complexity,
+          complexity: complexity, // Use complexity passed from frontend
           isAiGenerated: true
         }
       });
+      console.log('Knowledge article created for solution');
       
-      // If assignToId is specified, update the ticket to assign it
+      let finalTicket = ticket; // Use the initially created ticket by default
+      
+      // If assignToId is specified in the confirmed data, update the ticket
       if (ticketData.assignedToId) {
+        console.log('Assigning ticket to user ID:', ticketData.assignedToId);
         await ticketService.updateTicket(ticket.id!, {
           assignedToId: ticketData.assignedToId,
           status: 'IN_PROGRESS' as TicketStatus
         });
         
-        // Fetch the updated ticket
+        // Fetch the updated ticket to include assignment info
         const updatedTicket = await ticketService.getTicketById(ticket.id!);
         if (updatedTicket) {
-          return res.status(201).json({ 
-            ticket: updatedTicket,
-            isAiGenerated: true
-          });
+          finalTicket = updatedTicket; // Use the updated ticket if assignment was successful
+          console.log('Ticket successfully assigned');
+        } else {
+           console.warn('Failed to fetch updated ticket after assignment, returning original ticket');
         }
       }
       
+      console.log('Training ticket creation confirmed and completed.');
+      // Include the solution content in the response (as it was received)
       res.status(201).json({ 
-        ticket, 
+        ticket: finalTicket, 
+        solution: solution, // Send back the solution that was saved
         isAiGenerated: true
       });
+      
     } catch (error: any) {
-      console.error('Error generating training ticket:', error);
+      console.error('Error confirming training ticket creation:', error);
       res.status(500).json({ 
-        error: 'Failed to generate training ticket',
+        error: 'Failed to confirm training ticket creation',
         details: error.message || 'Unknown error'
       });
     }
   },
+
+  /**
+   * Generate a training ticket for IT support students
+   */
+  // generateTrainingTicket: async (req: Request, res: Response) => { ... existing code ... }, // Keep old one commented out or remove later
   
   /**
    * Generate a simulated user response to a support comment
@@ -163,6 +223,26 @@ export const aiController = {
       // Get userProfile from the fetched ticket, default to 'student' if null/undefined
       const userProfile = ticket.userProfile || 'student'; 
       console.log(`Using userProfile from ticket: ${userProfile}`); // Log the fetched profile
+
+      // Translate user profile to Finnish for the Chat Agent
+      let userProfileFinnish: string;
+      switch (userProfile) {
+        case 'student':
+          userProfileFinnish = 'Opiskelija';
+          break;
+        case 'teacher':
+          userProfileFinnish = 'Opettaja';
+          break;
+        case 'staff':
+          userProfileFinnish = 'Henkilökunta';
+          break;
+        case 'administrator':
+          userProfileFinnish = 'Järjestelmänvalvoja';
+          break;
+        default:
+          userProfileFinnish = userProfile; // Fallback to the original value if unknown
+      }
+      console.log(`Translated userProfile to Finnish for ChatAgent: ${userProfileFinnish}`); // Log translated profile
       
       // Generate AI response as the ticket creator using the chat agent
       const { responseText, evaluation } = await chatAgent.generateChatResponse({
@@ -173,7 +253,7 @@ export const aiController = {
           device: ticket.device || '',
           priority: ticket.priority,
           categoryId: ticket.categoryId,
-          userProfile: userProfile, // Use the fetched profile
+          userProfile: userProfileFinnish, // Use the translated Finnish profile
           createdById: ticket.createdById,
           additionalInfo: ticket.additionalInfo || ''
         },

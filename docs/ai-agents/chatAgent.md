@@ -10,6 +10,8 @@ ChatAgent aktivoituu automaattisesti, kun tukihenkilö vastaa AI-generoituun har
 2. Ongelman tyypin ja monimutkaisuuden kanssa
 3. Keskustelun tähänastisen etenemisen kanssa
 
+**Huom:** Agentille annetaan käyttäjäprofiili (`userProfile`) suomenkielisenä (esim. 'Opiskelija', 'Opettaja'), jotta se voi paremmin mukauttaa vastaustyylinsä.
+
 ## Ominaisuudet
 
 ### Automaattinen aktivoituminen
