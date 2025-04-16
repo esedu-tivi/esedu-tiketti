@@ -1,7 +1,21 @@
 import { PrismaClient, Ticket, Prisma, TicketStatus, ResponseFormat } from '@prisma/client';
 import { CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
+import fs from 'fs/promises'; // Added for file deletion
+import path from 'path'; // Added for path construction
 
 const prisma = new PrismaClient();
+
+// Helper function to get absolute path for uploads
+const getUploadPath = (relativePath: string): string => {
+  // Assuming uploads are stored relative to the project root or a specific base directory
+  // Adjust this logic based on your actual file storage setup
+  // Example: Files are in `backend/uploads/` relative to where the server is run from.
+  // If relativePath is like `/uploads/image.png`, we might need to strip `/uploads/`
+  const filename = path.basename(relativePath); 
+  // IMPORTANT: Determine the correct absolute base path for your uploads directory
+  const uploadsBaseDir = path.resolve(process.cwd(), 'uploads'); 
+  return path.join(uploadsBaseDir, filename);
+};
 
 export const ticketService = {
   // Hae kaikki tiketit
@@ -139,10 +153,83 @@ export const ticketService = {
     });
   },
 
-  // Poista tiketti
+  // Poista tiketti, siihen liittyvät liitteet, kommentit ja KnowledgeArticle (jos AI-generoitu)
   deleteTicket: async (id: string) => {
-    return prisma.ticket.delete({
-      where: { id }
+    // Haetaan ensin tiketti, jotta tiedetään onko se AI-generoitu
+    const ticketToDelete = await prisma.ticket.findUnique({
+      where: { id },
+      select: { isAiGenerated: true } // Valitaan vain tarvittava kenttä
+    });
+
+    // Käytetään transaktiota varmistamaan, että kaikki poistot onnistuvat tai mikään ei onnistu
+    console.log(`Attempting to delete ticket ${id} and related data within a transaction.`);
+    return prisma.$transaction(async (tx) => {
+      
+      // 1. Käsittele ja poista tikettiin liittyvät liitteet (tiedostot + tietueet)
+      const attachmentsToDelete = await tx.attachment.findMany({
+        where: { ticketId: id },
+        select: { id: true, path: true } // Select path needed for file deletion
+      });
+      
+      if (attachmentsToDelete.length > 0) {
+        console.log(`Found ${attachmentsToDelete.length} attachments for ticket ${id}. Attempting file deletion...`);
+        for (const attachment of attachmentsToDelete) {
+          try {
+            const filePath = getUploadPath(attachment.path); // Use helper to get absolute path
+            await fs.unlink(filePath);
+            console.log(`Successfully deleted attachment file: ${filePath}`);
+          } catch (fileError: any) {
+            // Log file deletion errors but don't stop the transaction
+            console.error(`Failed to delete attachment file ${attachment.path} for attachment ID ${attachment.id}:`, fileError.message);
+            // Consider more robust error handling/logging here if needed
+          }
+        }
+        
+        // Delete attachment records from DB
+        const deletedAttachments = await tx.attachment.deleteMany({
+          where: {
+            ticketId: id
+          }
+        });
+        console.log(`Deleted ${deletedAttachments.count} attachment records from DB for ticket ${id}.`);
+      } else {
+        console.log(`No attachments found for ticket ${id}.`);
+      }
+
+      // 2. Poista tikettiin liittyvät kommentit
+      const deletedComments = await tx.comment.deleteMany({
+        where: {
+          ticketId: id
+        }
+      });
+      console.log(`Deleted ${deletedComments.count} comments related to ticket ${id}.`);
+
+      // 3. Jos tiketti on AI-generoitu, poista siihen liittyvä KnowledgeArticle
+      if (ticketToDelete?.isAiGenerated) {
+        console.log(`Ticket ${id} is AI-generated. Attempting to delete related KnowledgeArticle.`);
+        const relatedArticles = await tx.knowledgeArticle.findMany({
+          where: { relatedTicketIds: { has: id } },
+          select: { id: true } // Valitaan vain ID
+        });
+
+        if (relatedArticles.length > 0) {
+          const articleIdsToDelete = relatedArticles.map(article => article.id);
+          console.log(`Found ${relatedArticles.length} KnowledgeArticle(s) to delete with IDs: ${articleIdsToDelete.join(', ')}`);
+          await tx.knowledgeArticle.deleteMany({ where: { id: { in: articleIdsToDelete } } });
+        } else {
+          console.log(`No related KnowledgeArticle found for ticket ${id}.`);
+        }
+      } else {
+         console.log(`Ticket ${id} is not AI-generated. Skipping KnowledgeArticle deletion.`);
+      }
+
+      // 4. Poista itse tiketti
+      console.log(`Deleting ticket ${id} itself within transaction.`);
+      const deletedTicket = await tx.ticket.delete({
+        where: { id }
+      });
+      console.log(`Successfully deleted ticket ${id} and related data within transaction.`);
+      return deletedTicket; // Palautetaan poistettu tiketti transaktiosta
     });
   },
 

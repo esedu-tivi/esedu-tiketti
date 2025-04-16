@@ -38,9 +38,11 @@ router.post('/:id/comments/media',
   ticketController.addMediaCommentToTicket
 );
 
-// Reitit jotka vaativat omistajuuden tai admin-oikeudet
+// Reitit jotka vaativat omistajuuden TAI ADMIN-oikeudet
 router.put('/:id', authMiddleware, requireOwnership, validateTicket, ticketController.updateTicket);
-router.delete('/:id', authMiddleware, requireOwnership, ticketController.deleteTicket);
+
+// Only ADMINS can delete tickets
+router.delete('/:id', authMiddleware, requireRole([UserRole.ADMIN]), ticketController.deleteTicket);
 
 // Management-tason reitit (admin ja tukihenkilöt)
 // This is a duplicate route - removing it

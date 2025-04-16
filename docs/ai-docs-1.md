@@ -25,6 +25,12 @@ Järjestelmässä on toteutettu seuraavat tekoälytyökalut:
 
 Generoi realistisia IT-tukipyyntöjä koulutuskäyttöön, käyttäen tekoälyä niiden luomiseen. Työkalu tarjoaa erilaisia parametreja, joilla luotavan tiketin vaikeustasoa, kategoriaa ja muita ominaisuuksia voidaan säätää.
 
+**Tärkeimmät ominaisuudet:**
+- **Esikatselu ja vahvistus**: Generointi on kaksivaiheinen. Ensin luodaan esikatselu tiketistä ja sen ratkaisusta, jonka käyttäjä voi tarkistaa ennen lopullista tallennusta.
+- **Parametrisoitavuus**: Monipuoliset säädöt tiketin luonnin ohjaamiseen (vaikeustaso, kategoria, käyttäjäprofiili).
+- **Kontekstualisointi**: Käyttää `userProfile`-tietoa (käännettynä suomeksi) promptissa.
+- **Ratkaisu**: Generoi myös strukturoidun ratkaisun (`KnowledgeArticle`).
+
 **Käyttöoikeudet**: Saatavilla vain käyttäjille, joilla on ADMIN- tai SUPPORT-rooli.
 
 **Dokumentaatio**: Katso täydelliset tiedot tikettigeneraattorista [tämän linkin kautta](./ai-agents/ticketGenerator.md).
@@ -197,22 +203,12 @@ Tikettien generaattori on tekoälyavusteinen työkalu, joka luo realistisia IT-t
 
 ## Keskustelusimulaatio
 
-Keskustelusimulaatio on tekoälyagentti, joka simuloi käyttäjää harjoitustikettien keskusteluissa. Agentti reagoi tukihenkilön ehdottamiin ratkaisuihin ja ohjaa keskustelua kohti oikeaa ratkaisua todellisen käyttäjän tapaan.
+Keskustelusimulaatio on tekoälyagentti, joka simuloi käyttäjää harjoitustikettien keskusteluissa. Agentti reagoi tukihenkilön ehdottamiin ratkaisuihin ja ohjaa keskustelua kohti oikeaa ratkaisua todellisen käyttäjän tapaan, hyödyntäen myös suomeksi käännettyä `userProfile`-tietoa kommunikaatiotyylin mukauttamiseen.
 
-### Ominaisuudet
-
-- Automaattinen aktivointi tukihenkilön kommentoidessa
-- Realistinen kommunikointi teknisen osaamistason mukaan
-- Edistymisen arviointi vertaamalla tukihenkilön ehdotuksia oikeaan ratkaisuun
-- Tilanteeseen sopiva tunneilmaisu (hämmennys, innostus, kiitollisuus)
-- Johdonmukainen keskusteluhistorian seuranta
-
-### Käyttö
-
-Keskustelusimulaatio aktivoituu automaattisesti, kun:
-1. Tukihenkilö tai admin kommentoi AI-generoituun tikettiin
-2. Järjestelmä analysoi kommentin sisällön
-3. Agentti tuottaa käyttäjän vastauksen perustuen edistymiseen
+**Tärkeimmät ominaisuudet:**
+- **Automaattinen aktivointi**: Käynnistyy, kun tukihenkilö kommentoi AI-generoitua tikettiä.
+- **Edistymisen arviointi**: Antaa palautetta tukihenkilön ratkaisuehdotusten perusteella (näkyy analyysityökalussa).
+- **Realistinen kommunikointi**: Mukauttaa kieltä ja teknistä tasoa käyttäjäprofiilin mukaan.
 
 **Dokumentaatio**: Katso täydelliset tiedot keskustelusimulaatiosta [tämän linkin kautta](./ai-agents/chatAgent.md).
 

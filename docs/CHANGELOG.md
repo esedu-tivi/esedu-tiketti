@@ -2,6 +2,32 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 17.04.2025 - feat: Parannettu tiketin poistoprosessia ja käyttöliittymää + bulk-generointi AI-tiketeille
+- **Käyttöliittymän parannukset (TicketList):**
+  - Korvattu tiketin poiston vahvistusdialogi (`AlertDialog`) `react-hot-toast`-ilmoituksella, joka sisältää vahvistus- ja peruutuspainikkeet.
+  - Korjattu `AlertDialog`-importtivirhe ja parannettu käyttökokemusta poiston vahvistuksessa.
+  - Varmistettu `authService.acquireToken()`-metodin käyttö tokenin hakemiseen poisto-operaatiossa `localStorage`:n sijaan.
+- **Backendin korjaukset (Ticket Deletion):**
+  - Muokattu `ticketService.deleteTicket`-funktiota merkittävästi vankemmaksi.
+  - Varmistettu, että kaikki tikettiin liittyvät tietueet (Kommentit, Liitetiedostot tietokannasta, Mahdolliset KnowledgeArticlet AI-tiketeille) poistetaan *ennen* itse tiketin poistamista.
+  - Kaikki poistotoiminnot suoritetaan nyt yhden Prisma-transaktion (`prisma.$transaction`) sisällä atomisuuden takaamiseksi.
+  - Lisätty toiminnallisuus poistamaan myös liitetiedostot palvelimen tiedostojärjestelmästä (`fs.unlink`) osana transaktiota.
+  - Korjattu `P2003` (Foreign key constraint violation) -virheet, jotka saattoivat ilmetä kommenttien tai liitetiedostojen takia.
+  - Estetty orpojen tietueiden (kommentit, liitteet, knowledge articles) ja tiedostojen jääminen järjestelmään tiketin poiston jälkeen.
+  Tikettigeneraattori:
+    - **Bulk-generointi:**
+    - Lisätty määrä-kenttä (`ticketCount`), jolla voi generoida useita tikettejä kerralla.
+    - Esikatselunäkymä näyttää nyt listan generoiduista tiketeistä.
+    - Vahvistus luo kaikki jäljellä olevat esikatsellut tiketit kerralla.
+  - **Esikatselun hallinta:**
+    - Lisätty "Poista"-painike jokaiseen esikatselukohtaan, jolla voi poistaa ei-toivotut tiketit ennen vahvistusta.
+    - Lisätty "Generoi uudelleen"-painike jokaiseen esikatselukohtaan, jolla voi generoida kyseisen tiketin ja ratkaisun uudelleen.
+  - **Käyttöliittymäparannukset:**
+    - Luotujen tikettien listassa "Avaa"-painike avaa nyt `TicketDetailsModal`-ikkunan uuden sivun sijaan.
+    - Lokit tyhjennetään nyt automaattisesti, kun uusi generointi aloitetaan.
+    - Päivitetty painikkeiden tekstejä ja tiloja vastaamaan bulk-toiminnallisuutta.
+    - Estetty tiketin osoitus tukihenkilölle, jos generoidaan useampi kuin yksi tiketti.
+
 # 16.04.2025 - feat: Lisätty esikatselu- ja vahvistusvaihe AI-tikettien luontiin
 - **AI-tikettien luonnin työnkulku:**
   - Muokattu tiketin luontia sisältämään esikatseluvaiheen ennen tallennusta.
@@ -135,7 +161,7 @@ Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedost
 # 11.03.2025 (Implemented AI ticket generator and tools infrastructure)
 
 - Lisätty tekoälytyökalut järjestelmään:
-  - Toteutettu AI-tikettien generointijärjestelmä koulutuskäyttöön
+  - Toteutettu AI-tikettien generointijärjestelmä koulutuskäyttöön (mahdollisuus generoida useita tikettejä kerralla).
   - Integroitu LangChain.js-kirjasto tekoälysovelluksia varten
   - Lisätty backend API tikettigeneraattorin käyttöön
   - Luotu käyttöliittymä AI-työkaluille (/ai-tools)

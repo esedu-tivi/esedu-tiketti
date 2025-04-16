@@ -216,6 +216,17 @@ Kun käyttäjä kirjautuu ensimmäistä kertä järjestelmään:
 - `estimatedCompletionTime`: DateTime? - Arvioitu valmistumisaika (valinnainen)
 - `attachments`: Attachment[] - Tiketin liitetiedostot (valinnainen)
 
+### Tikettien Poisto
+
+Järjestelmä varmistaa tietokannan eheyden tikettejä poistettaessa:
+
+- **Poistoprosessi**: Tiketin poisto käynnistetään tyypillisesti käyttöliittymän kautta (esim. admin-käyttäjän toimesta tikettilistassa).
+- **Liittyvien tietojen poisto**: Ennen itse tiketin poistamista järjestelmä poistaa automaattisesti kaikki siihen liittyvät tiedot:
+  - **Liitetiedostot**: Sekä palvelimella olevat tiedostot että tietokannan `Attachment`-tietueet poistetaan.
+  - **Kommentit**: Kaikki tikettiin liittyvät `Comment`-tietueet poistetaan.
+  - **Tietämysartikkelit (AI-tiketit)**: Jos poistettava tiketti on AI-generoitu (`isAiGenerated` = true), myös siihen liittyvä `KnowledgeArticle` poistetaan.
+- **Transaktionaalisuus**: Kaikki nämä poistotoiminnot (liitteet, kommentit, tietämysartikkeli, tiketti) suoritetaan yhtenä tietokantatransaktiona. Tämä takaa, että joko kaikki poistot onnistuvat tai mikään niistä ei toteudu, estäen tietokannan jäämisen epäkonsistenttiin tilaan (esim. orpojen kommenttien tai liitetiedostojen jääminen).
+
 ### Attachment (Liitetiedosto)
 - `id`: String (UUID) - Liitetiedoston yksilöllinen tunniste
 - `filename`: String - Tiedoston nimi

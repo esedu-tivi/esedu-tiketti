@@ -206,11 +206,11 @@
 - ~~Implementoida kommentointi tiketteihin~~
 - ~~Julkisten tikettien visualisointi ja haku~~
 - ~~AI tikettien luomisen implementointi~~
-- ~~AI chatin implementointi~~
-- ~~Tikettien hakuominaisuus~~
-- ~~Yleinen siistiminen ja refaktorointi~~
-- Luoda ChatAgent-dokumentaatio ~~(docs/ai-agents/chatAgent.md)~~
-- Luoda TicketGenerator-dokumentaatio (docs/ai-agents/ticketGenerator.md)
-- Redis cachen käyttöönotto
-- Rate limiting (bottien varalta)
+- [x] AI chatin implementointi
+- [x] Tikettien hakuominaisuus
+- [x] Yleinen siistiminen ja refaktorointi
+- [x] Luoda ChatAgent-dokumentaatio ~~(docs/ai-agents/chatAgent.md)~~
+- [x] Luoda TicketGenerator-dokumentaatio (docs/ai-agents/ticketGenerator.md)
+- [ ] Redis cachen käyttöönotto
+- [ ] Rate limiting (bottien varalta)
 - ~~Mobiilioptimointi~~

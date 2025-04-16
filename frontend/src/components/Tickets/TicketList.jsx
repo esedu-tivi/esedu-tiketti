@@ -1,9 +1,43 @@
 import React, { useState } from 'react';
 import TicketDetailsModal from './TicketDetailsModal';
-import { AlertTriangle, Check, InfoIcon, Clock } from 'lucide-react';
+import { AlertTriangle, Check, InfoIcon, Clock, Trash2 } from 'lucide-react';
+import { useAuth } from '../../providers/AuthProvider';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { Button } from '../ui/Button';
+import { authService } from '../../services/authService';
 
 function TicketList({ tickets = [], isLoading, error }) {
   const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const { userRole } = useAuth();
+  const queryClient = useQueryClient();
+
+  const deleteTicketMutation = useMutation({
+    mutationFn: async (ticketId) => {
+      const token = await authService.acquireToken();
+      if (!token) {
+        toast.error('Autentikointitietoja ei löytynyt. Kirjaudu sisään uudelleen.');
+        throw new Error('Authentication token could not be acquired.');
+      }
+      const response = await axios.delete(`/api/tickets/${ticketId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Tiketti poistettu onnistuneesti!');
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+    },
+    onError: (error) => {
+      console.error('Error deleting ticket:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Tiketin poistaminen epäonnistui.';
+      toast.error(errorMessage);
+    },
+  });
 
   if (isLoading) return <div>Ladataan tikettejä...</div>;
   if (error) return <div>Virhe: {error.message}</div>;
@@ -71,6 +105,44 @@ function TicketList({ tickets = [], isLoading, error }) {
     setSelectedTicketId(ticketId);
   };
 
+  const handleDeleteClick = (e, ticket) => {
+    e.stopPropagation();
+
+    toast(
+      (t) => (
+        <span className="flex flex-col items-center">
+          <span>
+            Haluatko varmasti poistaa tiketin <strong>"{ticket.title}"</strong> (#{ticket.id})?
+          </span>
+          <span className="mt-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="mr-2"
+              onClick={() => {
+                deleteTicketMutation.mutate(ticket.id);
+                toast.dismiss(t.id);
+              }}
+              disabled={deleteTicketMutation.isLoading}
+            >
+              {deleteTicketMutation.isLoading ? 'Poistetaan...' : 'Kyllä, poista'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Peruuta
+            </Button>
+          </span>
+        </span>
+      ),
+      {
+        duration: Infinity,
+      }
+    );
+  };
+
   return (
     <div className="ticket-list">
       {!tickets || tickets.length === 0 ? (
@@ -86,9 +158,20 @@ function TicketList({ tickets = [], isLoading, error }) {
             return (
               <li
                 key={ticket.id}
-                className="ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
+                className="ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition group relative"
                 onClick={() => handleTicketClick(ticket.id)}
               >
+                {userRole === 'ADMIN' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => handleDeleteClick(e, ticket)}
+                    aria-label="Poista tiketti"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
                 <div className="block">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
