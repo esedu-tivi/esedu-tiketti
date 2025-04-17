@@ -633,3 +633,16 @@ Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedost
 - Kehitysympäristön konfiguraatio
 - API proxy konfiguroitu
 - TypeScript konfiguraatio
+
+## [Unreleased]
+
+## [YYYY-MM-DD] - Short description of changes
+
+### Added
+- Added documentation for configuring frontend subdirectory deployment in `docs/docs.md`.
+
+### Changed
+- Configured Vite (`frontend/vite.config.js`) with `base: '/tiketti/'` for subdirectory deployment.
+
+### Fixed
+- Resolved 404 errors for frontend assets when served from a subdirectory.

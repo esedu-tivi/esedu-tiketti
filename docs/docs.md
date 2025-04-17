@@ -108,6 +108,45 @@ docker-compose logs -f postgres
 
 4. **Päivitykset:** Jos päivität backendin riippuvuuksia (package.json), muista rakentaa kontit uudelleen `--build`-parametrilla.
 
+## Frontend-sovelluksen konfigurointi alihakemistoa varten
+
+Jos frontend-sovellus täytyy ajaa web-palvelimen alihakemistossa (esim. `https://yourdomain.com/tiketti/` juuren `https://yourdomain.com/` sijaan), tulee frontendin build-prosessi konfiguroida vastaavasti. Tämä varmistaa, että resurssien URL-osoitteet (CSS, JS, kuvat) ja asiakaspuolen reititys toimivat oikein suhteessa alihakemistoon.
+
+### Vite-konfiguraatio (`vite.config.js`)
+
+Koska tämä projekti käyttää Viteä, ensisijainen tapa konfiguroida tämä on asettamalla `base`-asetus tiedostossa `frontend/vite.config.js`.
+
+```javascript
+// frontend/vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+// ... muut importit
+
+export default defineConfig({
+  plugins: [react()],
+  base: '/tiketti/', // <-- Aseta tähän alihakemiston polku, mukaan lukien lopun vinoviiva
+  // ... muut asetukset (css, server, jne.)
+})
+```
+
+Kun `base`-polku on lisätty tai muutettu, frontend täytyy buildata uudelleen (`npm run build` tai `yarn build` `frontend`-hakemistossa) ja uusi build-kansion sisältö tulee ottaa käyttöön palvelimella.
+
+### Create React App (CRA) -vaihtoehto (`package.json`)
+
+Vaikka tämä projekti käyttää Viteä, jos käytössä olisi Create React App, yleinen tapa saavuttaa sama tulos on asettamalla `homepage`-kenttä tiedostossa `frontend/package.json`:
+
+```json
+// frontend/package.json (Esimerkki CRA:lle)
+{
+
+  "homepage": "/tiketti", // <-- Aseta tähän alihakemiston polku (yleensä ilman lopun vinoviivaa 
+  // ... muut kentät
+}
+```
+
+
+Muista buildata ja ottaa käyttöön uusi versio näiden muutosten jälkeen.
+
 ## Käyttäjäroolit ja oikeudet
 
 Järjestelmässä on kolme käyttäjäroolia:
