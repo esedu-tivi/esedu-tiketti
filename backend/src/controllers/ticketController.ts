@@ -470,7 +470,7 @@ export const ticketController = {
             // We do this in a non-blocking way so the comment is returned immediately
             setTimeout(async () => {
               try {
-                const apiUrl = process.env.API_URL || 'http://localhost:3000';
+                const apiUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
                 const token = req.headers.authorization?.split(' ')[1];
                 
                 await axios.post(
