@@ -132,14 +132,14 @@ export default function Header() {
                   <span className="hidden xs:inline">Luo tiketti</span>
                 </button>
 
-                {/* Admin: User Management (Desktop only) */}
+                {/* Admin: User Management (Now visible on mobile too) */}
                 {userRole === 'ADMIN' && (
                   <button
                     onClick={() => setIsUserManagementOpen(true)}
-                    className="hidden md:flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     <Settings size={16} />
-                    <span>Käyttäjät</span>
+                    <span className="hidden sm:inline">Käyttäjät</span>
                   </button>
                 )}
 

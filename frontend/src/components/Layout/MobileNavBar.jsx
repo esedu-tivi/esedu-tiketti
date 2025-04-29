@@ -100,19 +100,6 @@ export default function MobileNavBar() {
             </Link>
           )}
           
-          {/* User Management for Admin */}
-          {isAdmin && (
-            <button 
-              onClick={() => setIsUserManagementOpen(true)}
-              className="bg-transparent border-none flex flex-col items-center justify-center text-xs text-gray-500"
-            >
-              <div className="relative w-full h-full flex flex-col items-center justify-center">
-                <Users size={24} className="mb-1 text-gray-500" />
-                <span className="text-[10px]">Käyttäjät</span>
-              </div>
-            </button>
-          )}
-          
           {/* Profile */}
           <Link to="/profile" className={getNavItemClass('/profile')}>
             <div className="relative w-full h-full flex flex-col items-center justify-center">
