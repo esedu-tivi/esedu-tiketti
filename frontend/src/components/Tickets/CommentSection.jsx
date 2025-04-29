@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon, Loader2 } from 'lucide-react';
+import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon, Loader2, Bot, Sparkles } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import MentionInput from '../MentionInput';
@@ -328,37 +328,73 @@ export default function CommentSection({
           </div>
         ) : (
           comments.map((comment) => {
-            const style = getCommentStyle(comment);
-            return (
-              <div key={comment.id} className={`p-4 rounded-lg border ${style.container} shadow-sm animate-fadeIn`}>
-                <div className="flex items-start space-x-3">
-                  <ProfilePicture 
-                      email={comment.author?.email}
-                      name={comment.author?.name}
-                      size={40} 
-                      className="flex-shrink-0 rounded-full shadow-sm border border-gray-200"
-                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1 flex-wrap">
-                      <span className={style.author}>{comment.author?.name || 'Tuntematon'}</span>
-                      <span className="text-xs text-gray-400 flex items-center flex-shrink-0 ml-2">
-                        <Calendar size={12} className="mr-1" />
-                        {new Date(comment.createdAt).toLocaleString('fi-FI')}
-                      </span>
+            if (comment.isAiGenerated) {
+              // --- AI Comment Rendering --- 
+              return (
+                <div key={comment.id} className="p-4 rounded-lg border shadow-md animate-fadeIn bg-gradient-to-br from-indigo-100 via-purple-50 to-indigo-100 border-indigo-200">
+                  <div className="flex items-start space-x-3">
+                    {/* AI Icon instead of ProfilePicture */}
+                    <Bot size={40} className="p-2 flex-shrink-0 rounded-full shadow-sm border border-indigo-300 bg-indigo-100 text-indigo-600" />
+                    <div className="flex-1 min-w-0">
+                      {/* AI Header */}
+                      <div className="flex items-center gap-2 mb-2 pb-1 border-b border-indigo-200/50">
+                        <Sparkles size={16} className="text-indigo-500" />
+                        <span className="text-xs font-semibold text-indigo-700">AI Agent Response</span>
+                        {/* Timestamp moved here */}
+                         <span className="text-xs text-gray-400 flex items-center flex-shrink-0 ml-auto">
+                           <Calendar size={12} className="mr-1" />
+                           {new Date(comment.createdAt).toLocaleString('fi-FI')}
+                         </span>
+                      </div>
+                      {/* AI Comment Content */}
+                      <div 
+                         className="text-gray-800 whitespace-pre-wrap comment-content"
+                         dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
+                       />
+                      {/* AI Media Content (unlikely but possible) */}
+                      <MediaContent 
+                        mediaUrl={comment.mediaUrl} 
+                        mediaType={comment.mediaType} 
+                        onClick={handleMediaClick}
+                      />
                     </div>
-                    <div 
-                       className={`${style.text} whitespace-pre-wrap comment-content`}
-                       dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
-                     />
-                    <MediaContent 
-                      mediaUrl={comment.mediaUrl} 
-                      mediaType={comment.mediaType} 
-                      onClick={handleMediaClick}
-                    />
                   </div>
                 </div>
-              </div>
-            );
+              );
+            } else {
+              // --- Existing User/Support Comment Rendering ---
+              const style = getCommentStyle(comment);
+              return (
+                <div key={comment.id} className={`p-4 rounded-lg border ${style.container} shadow-sm animate-fadeIn`}>
+                  <div className="flex items-start space-x-3">
+                    <ProfilePicture 
+                        email={comment.author?.email}
+                        name={comment.author?.name}
+                        size={40} 
+                        className="flex-shrink-0 rounded-full shadow-sm border border-gray-200"
+                     />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1 flex-wrap">
+                        <span className={style.author}>{comment.author?.name || 'Tuntematon'}</span>
+                        <span className="text-xs text-gray-400 flex items-center flex-shrink-0 ml-2">
+                          <Calendar size={12} className="mr-1" />
+                          {new Date(comment.createdAt).toLocaleString('fi-FI')}
+                        </span>
+                      </div>
+                      <div 
+                         className={`${style.text} whitespace-pre-wrap comment-content`}
+                         dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
+                       />
+                      <MediaContent 
+                        mediaUrl={comment.mediaUrl} 
+                        mediaType={comment.mediaType} 
+                        onClick={handleMediaClick}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            }
           })
         )}
         
