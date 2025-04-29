@@ -4,6 +4,7 @@ import { TypedRequest, CreateTicketDTO, UpdateTicketDTO } from '../types/index.j
 import { PrismaClient, TicketStatus, Priority, UserRole } from '@prisma/client';
 import { createNotification } from './notificationController.js';
 import axios from 'axios';
+import { getSocketService } from '../services/socketService.js';
 
 const prisma = new PrismaClient();
 
@@ -326,6 +327,9 @@ export const ticketController = {
 
   // Tiketin kommentin lisääminen
   addCommentToTicket: async (req: Request, res: Response) => {
+    let ticketDetails: any = null;
+    let user: any = null;
+    let comment: any = null;
     try {
       const { id } = req.params;
       const { content } = req.body;
@@ -339,7 +343,7 @@ export const ticketController = {
       }
 
       // Haetaan käyttäjä sähköpostiosoitteen perusteella
-      const user = await prisma.user.findUnique({
+      user = await prisma.user.findUnique({
         where: { email: req.user.email }
       });
 
@@ -350,8 +354,8 @@ export const ticketController = {
       try {
         // Etsi @-maininnat kommentista
         const mentionRegex = /@([a-zA-Z0-9äöåÄÖÅ\s]+)/g;
-        const mentions = content.match(mentionRegex) || [];
-        const mentionedNames = mentions.map((mention: string) => mention.slice(1).trim()); // Poista @-merkki
+        const mentionsIterator = content.matchAll(mentionRegex);
+        const mentionedNames = Array.from(mentionsIterator, (match: RegExpMatchArray) => match[1].trim());
 
         console.log('Found mentions:', mentionedNames);
 
@@ -369,17 +373,22 @@ export const ticketController = {
 
         console.log('Found mentioned users:', mentionedUsers);
 
-        // Hae tiketti ennen kommentin luontia
+        // Hae tiketti ennen kommentin luontia (include assignedTo and createdBy for socket emission)
         const ticket = await prisma.ticket.findUnique({
           where: { id },
           include: {
-            category: true
+            category: true,
+            assignedTo: { select: { email: true } }, // Get assigned user email
+            createdBy: { select: { email: true } } // Get creator email
           }
         });
 
         if (!ticket) {
           return res.status(404).json({ error: 'Tikettiä ei löydy' });
         }
+
+        // Assign ticket details for later use (notifications, socket)
+        ticketDetails = ticket;
 
         // Tarkista käyttäjän oikeudet kommentoida tikettiin
         if (user.role === 'SUPPORT' && ticket.responseFormat !== 'TEKSTI' && ticket.assignedToId === user.id) {
@@ -396,126 +405,162 @@ export const ticketController = {
           // Jos mediavastausta ei ole vielä lisätty, estä tekstikommentin lisääminen
           if (existingMediaComments.length === 0) {
             return res.status(400).json({ 
-              error: `Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen.
-                     Käytä media-kommenttitoimintoa vastaamiseen.`
+              error: `Tämä tiketti vaatii ${ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'} sisältävän vastauksen.\n                     Käytä media-kommenttitoimintoa vastaamiseen.`
             });
           }
         }
 
         // Luo kommentti
-        const comment = await prisma.comment.create({
+        comment = await prisma.comment.create({
           data: {
             content,
             ticket: { connect: { id } },
             author: { connect: { id: user.id } }
           },
           include: {
-            author: true
+            author: true // Include author details in the created comment
           }
         });
 
         console.log('Created comment:', comment);
 
-        // Get the ticket information again to ensure it has all needed properties
-        const ticketDetails = await prisma.ticket.findUnique({
-          where: { id },
-          select: {
-            id: true,
-            title: true,
-            createdById: true,
-            isAiGenerated: true
-          }
-        });
-
-        // Lähetä ilmoitus tiketin luojalle, jos kommentoija on eri henkilö
-        if (ticketDetails && ticketDetails.createdById !== user.id) {
-          const creatorNotification = await createNotification(
-            ticketDetails.createdById,
-            'COMMENT_ADDED',
-            `Uusi kommentti tiketissä "${ticketDetails.title}"`,
-            id,
-            { commentId: comment.id }
-          );
-          console.log('Created notification for ticket creator:', creatorNotification);
-        }
-
-        // Lähetä ilmoitukset mainituille käyttäjille
-        for (const mentionedUser of mentionedUsers) {
-          console.log('Creating mention notification for user:', mentionedUser.email);
-          const mentionNotification = await createNotification(
-            mentionedUser.id,
-            'MENTIONED',
-            `${user.name} mainitsi sinut kommentissa tiketissä "${ticketDetails?.title}"`,
-            id,
-            { 
-              commentId: comment.id,
-              mentionedBy: user.name,
-              mentionedByEmail: user.email
-            }
-          );
-          console.log('Created mention notification:', mentionNotification);
-        }
+        // Store AI generation details if needed
+        let aiGenerationNeeded = false;
+        let aiApiUrl = '';
+        let aiToken = '';
+        let aiPayload = {};
 
         // Check if this is an AI-generated ticket and the comment is from a support agent
-        // If so, trigger an AI response as the ticket creator
+        // If so, prepare to trigger an AI response as the ticket creator
         if (
-          ticketDetails?.isAiGenerated && 
+          ticketDetails?.isAiGenerated &&
           (user.role === 'SUPPORT' || user.role === 'ADMIN') &&
           user.id !== ticketDetails.createdById
         ) {
-          try {
-            console.log('AI-generated ticket detected, generating user response...');
-            
-            // Make a request to the AI controller to generate a response
-            // We do this in a non-blocking way so the comment is returned immediately
-            setTimeout(async () => {
-              try {
-                const apiUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-                const token = req.headers.authorization?.split(' ')[1];
-                
-                await axios.post(
-                  `${apiUrl}/api/ai/tickets/${id}/generate-response`, 
+          aiGenerationNeeded = true;
+          aiApiUrl = process.env.FRONTEND_URL || 'http://localhost:3000'; // Assuming API route is accessible via frontend URL structure
+          aiToken = req.headers.authorization?.split(' ')[1] || '';
+          aiPayload = {
+            ticketId: id,
+            commentText: content, // The user comment text
+            supportUserId: user.id
+          };
+          console.log('AI response generation will be triggered for ticket:', id);
+        }
+
+        // Respond to the client first
+        res.status(201).json(comment);
+
+        // --- Notifications and Socket Emission START ---
+        try {
+            const socketService = getSocketService();
+            const recipients = new Set<string>();
+
+            // Add ticket creator if they are not the commenter
+            if (ticketDetails.createdBy?.email && ticketDetails.createdBy.email !== user.email) {
+              recipients.add(ticketDetails.createdBy.email);
+              const creatorNotification = await createNotification(
+                ticketDetails.createdById,
+                'COMMENT_ADDED',
+                `Uusi kommentti tiketissä "${ticketDetails.title}"`,
+                id,
+                { commentId: comment.id }
+              );
+              console.log('Created notification for ticket creator:', creatorNotification);
+            }
+
+            // Add assigned user if they exist and are not the commenter
+            if (ticketDetails.assignedTo?.email && ticketDetails.assignedTo.email !== user.email) {
+              recipients.add(ticketDetails.assignedTo.email);
+              // Optionally, send notification to assigned user as well
+            }
+
+            // Add mentioned users (if they are not the commenter)
+            for (const mentionedUser of mentionedUsers) {
+              if (mentionedUser.email !== user.email) {
+                recipients.add(mentionedUser.email);
+                console.log('Creating mention notification for user:', mentionedUser.email);
+                const mentionNotification = await createNotification(
+                  mentionedUser.id,
+                  'MENTIONED',
+                  `${user.name} mainitsi sinut kommentissa tiketissä "${ticketDetails?.title}"`,
+                  id,
                   {
-                    ticketId: id,
-                    commentText: content,
-                    supportUserId: user.id
-                  },
-                  {
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}`
-                    }
+                    commentId: comment.id,
+                    mentionedBy: user.name,
+                    mentionedByEmail: user.email
                   }
                 );
-                console.log('AI response successfully generated');
-              } catch (innerError) {
-                console.error('Error in async AI response generation:', innerError);
+                console.log('Created mention notification:', mentionNotification);
               }
-            }, 10); // Small timeout to ensure the main response is sent first
+            }
             
-            console.log('AI response generation initiated');
-          } catch (aiError) {
-            // Log the error but don't fail the comment creation
-            console.error('Failed to generate AI response:', aiError);
+            // Emit socket event to all unique recipients
+            recipients.forEach(email => {
+                socketService.emitNewCommentToUser(email, comment); 
+            });
+
+        } catch (socketError) {
+          console.error('[Socket/Notification Error] Failed to send updates:', socketError);
+        }
+        // --- Notifications and Socket Emission END ---
+
+        // Trigger AI generation *after* responding and sending updates, if needed
+        if (aiGenerationNeeded && aiToken) {
+          try {
+            console.log('Triggering background AI response generation...');
+            // Use a non-blocking call, but without setTimeout to avoid race condition
+            axios.post(
+              `${aiApiUrl}/api/ai/tickets/${id}/generate-response`,
+              aiPayload,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${aiToken}`
+                },
+                // Optional: Set a timeout for the AI request itself
+                timeout: 30000 // e.g., 30 seconds
+              }
+            ).then(response => {
+              console.log('Background AI response generation successful:', response.status);
+            }).catch(aiError => {
+              // Log the error for background task failure
+              console.error('Error during background AI response generation:', aiError.response?.data || aiError.message);
+            });
+          } catch (error) {
+            // Catch potential immediate errors from initiating the axios call
+             console.error('Error initiating background AI response generation call:', error);
           }
         }
 
-        res.status(201).json(comment);
-      } catch (error) {
-        // Jos virhe on businesslogiikasta (esim. ei oikeuksia), palautetaan 403
-        if (error instanceof Error) {
-          return res.status(403).json({ error: error.message });
+      } catch (error) { // Inner catch for processing logic
+        console.error('Error during comment processing logic:', error);
+        // Ensure a response is sent if not already handled
+        if (!res.headersSent) {
+           if (error instanceof Error) {
+             // Specific business logic errors
+             if (error.message.includes('Tiketti on ratkaistu') || error.message.includes('Tiketti vaatii')) {
+               return res.status(403).json({ error: error.message });
+             }
+           }
+           // Rethrow unexpected errors to be caught by the outer catch
+           throw error;
         }
-        throw error; // Heitetään muut virheet catch-lohkoon
       }
-    } catch (error) {
-      console.error('Virhe kommentin lisäämisessä:', error);
-      res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
+    } catch (error) { // Outer catch for general/unexpected errors
+      console.error('Virhe kommentin lisäämisessä (outer catch):', error);
+      // Ensure a response is sent if not already handled by inner logic/catches
+      if (!res.headersSent) {
+          res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
+      }
     }
   },
 
   // Lisää kommentti mediasisällöllä (kuva tai video)
   addMediaCommentToTicket: async (req: Request, res: Response) => {
+    let ticket: any = null;
+    let user: any = null;
+    let comment: any = null;
     try {
       const { id } = req.params;
       const { content } = req.body;
@@ -534,7 +579,7 @@ export const ticketController = {
       }
 
       // Haetaan käyttäjä sähköpostiosoitteen perusteella
-      const user = await prisma.user.findUnique({
+      user = await prisma.user.findUnique({
         where: { email: req.user.email }
       });
 
@@ -542,9 +587,13 @@ export const ticketController = {
         return res.status(401).json({ error: 'Käyttäjää ei löydy' });
       }
       
-      // Haetaan tiketti
-      const ticket = await prisma.ticket.findUnique({
-        where: { id }
+      // Haetaan tiketti (include assignedTo and createdBy for socket emission)
+      ticket = await prisma.ticket.findUnique({
+        where: { id },
+         include: {
+            assignedTo: { select: { email: true } }, // Get assigned user email
+            createdBy: { select: { email: true } } // Get creator email
+          }
       });
       
       if (!ticket) {
@@ -552,19 +601,14 @@ export const ticketController = {
       }
       
       // Tarkista käyttöoikeudet:
-      // 1. Tukihenkilöt (SUPPORT) ja järjestelmänvalvojat (ADMIN) voivat lisätä mediasisältöä
-      // 2. Tiketin luoja voi lisätä mediasisältöä omaan tikettiinsä
       if (user.role !== 'SUPPORT' && user.role !== 'ADMIN' && ticket.createdById !== user.id) {
         return res.status(403).json({ error: 'Vain tukihenkilöt, järjestelmänvalvojat tai tiketin luoja voivat lisätä mediasisältöä' });
       }
       
-      // Tiketin luoja voi lisätä mediasisältöä vain, jos tiketti ei ole suljettu tai ratkaistu
       if (ticket.createdById === user.id && (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED')) {
         return res.status(403).json({ error: 'Et voi lisätä mediasisältöä suljettuun tai ratkaistuun tikettiin' });
       }
       
-      // Tukihenkilö voi lisätä mediasisältöä vain, jos tiketti on osoitettu hänelle
-      // Poikkeus: admin voi aina lisätä mediasisältöä
       if (user.role === 'SUPPORT' && ticket.status === 'IN_PROGRESS' && ticket.assignedToId !== user.id) {
         return res.status(403).json({ error: 'Vain tiketin käsittelijä voi lisätä mediasisältöä' });
       }
@@ -576,7 +620,7 @@ export const ticketController = {
       const mediaUrl = `/uploads/${req.file.filename}`;
       
       // Luo kommentti mediasisällöllä
-      const comment = await prisma.comment.create({
+      comment = await prisma.comment.create({
         data: {
           content,
           mediaUrl,
@@ -585,64 +629,92 @@ export const ticketController = {
           author: { connect: { id: user.id } }
         },
         include: {
-          author: true,
-          ticket: {
-            select: {
-              title: true,
-              createdById: true
-            }
-          }
+          author: true // Include author details in the created comment
         }
       });
-      
-      // Lähetä ilmoitus tiketin luojalle
-      if (ticket.createdById !== user.id) {
-        await createNotification(
-          ticket.createdById,
-          'COMMENT_ADDED',
-          `Uusi ${mediaType === 'image' ? 'kuva' : 'video'}-vastaus tiketissä "${ticket.title}"`,
-          id,
-          { commentId: comment.id }
-        );
-      }
-      
-      // Käsitellään maininnat
-      const mentionRegex = /@([a-zA-Z0-9äöåÄÖÅ\s]+)/g;
-      const mentions = content.match(mentionRegex) || [];
-      const mentionedNames = mentions.map((mention: string) => mention.slice(1).trim());
-      
-      if (mentionedNames.length > 0) {
-        const mentionedUsers = await prisma.user.findMany({
-          where: {
-            OR: mentionedNames.map((name: string) => ({
-              name: {
-                equals: name,
-                mode: 'insensitive'
-              }
-            }))
-          }
-        });
-        
-        // Lähetä ilmoitukset mainituille käyttäjille
-        for (const mentionedUser of mentionedUsers) {
-          await createNotification(
-            mentionedUser.id,
-            'MENTIONED',
-            `${user.name} mainitsi sinut kommentissa tiketissä "${ticket.title}"`,
-            id,
-            { 
-              commentId: comment.id,
-              mentionedBy: user.name,
-              mentionedByEmail: user.email
-            }
-          );
-        }
-      }
-      
+
+      // Respond to client first
       res.status(201).json(comment);
+      
+      // --- Notifications and Socket Emission START ---
+      try {
+        const socketService = getSocketService();
+        const recipients = new Set<string>();
+        
+        // Add ticket creator if they are not the commenter
+        if (ticket.createdBy?.email && ticket.createdBy.email !== user.email) {
+            recipients.add(ticket.createdBy.email);
+            await createNotification(
+                ticket.createdById,
+                'COMMENT_ADDED',
+                `Uusi ${mediaType === 'image' ? 'kuva' : 'video'}-vastaus tiketissä "${ticket.title}"`,
+                id,
+                { commentId: comment.id }
+            );
+        }
+
+        // Add assigned user if they exist and are not the commenter
+        if (ticket.assignedTo?.email && ticket.assignedTo.email !== user.email) {
+              recipients.add(ticket.assignedTo.email);
+              // Optionally, send notification to assigned user as well
+        }
+      
+        // Käsitellään maininnat (Use matchAll here too)
+        const mentionRegex = /@([a-zA-Z0-9äöåÄÖÅ\s]+)/g;
+        const mentionsIterator = content.matchAll(mentionRegex);
+        const mentionedNames = Array.from(mentionsIterator, (match: RegExpMatchArray) => match[1].trim());
+      
+        if (mentionedNames.length > 0) {
+          console.log('Found media comment mentions:', mentionedNames);
+          const mentionedUsers = await prisma.user.findMany({
+            where: {
+              OR: mentionedNames.map((name: string) => ({
+                name: {
+                  equals: name,
+                  mode: 'insensitive'
+                }
+              }))
+            }
+          });
+        
+          // Add mentioned users to recipients and send notifications
+          for (const mentionedUser of mentionedUsers) {
+             if (mentionedUser.email !== user.email) {
+                recipients.add(mentionedUser.email);
+                await createNotification(
+                    mentionedUser.id,
+                    'MENTIONED',
+                    `${user.name} mainitsi sinut kommentissa tiketissä "${ticket.title}"`,
+                    id,
+                    { 
+                      commentId: comment.id,
+                      mentionedBy: user.name,
+                      mentionedByEmail: user.email
+                    }
+                );
+             }
+          }
+        }
+
+        // Emit socket event to all unique recipients
+        recipients.forEach(email => {
+            socketService.emitNewCommentToUser(email, comment);
+        });
+
+      } catch(socketError) {
+        console.error('[Socket/Notification Error] Failed to send media comment updates:', socketError);
+      }
+       // --- Notifications and Socket Emission END ---
+      
     } catch (error) {
       console.error('Virhe media-kommentin lisäämisessä:', error);
-      res.status(500).json({ error: 'Media-kommentin lisääminen epäonnistui' });
+       if (!res.headersSent) {
+          // Handle specific business errors
+          if (error instanceof Error && (error.message.includes('Vain tukihenkilöt') || error.message.includes('Et voi lisätä mediasisältöä'))) {
+              return res.status(403).json({ error: error.message });
+          }
+          res.status(500).json({ error: 'Media-kommentin lisääminen epäonnistui' });
+       }
     }
   },
 

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
 import { useAuth } from '../../providers/AuthProvider';
+import { useSocket } from '../../hooks/useSocket';
 import axios from 'axios';
 import {
   Card,
@@ -84,6 +85,7 @@ const SUPPORT_COLOR = {
 };
 
 const TabButton = ({ isActive, onClick, icon, label, badge = null }) => {
+  const IconComponent = icon;
   return (
     <button
       onClick={onClick}
@@ -95,10 +97,10 @@ const TabButton = ({ isActive, onClick, icon, label, badge = null }) => {
     >
       <div className={`flex items-center gap-2 ${isActive ? '' : 'group-hover:translate-y-[-1px] transition-transform'}`}>
         <div className={`${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'} transition-colors duration-200`}>
-          {icon}
+          <IconComponent className="w-4 h-4" />
         </div>
         <span>{label}</span>
-        {badge && (
+        {badge !== null && (
           <span className={`text-xs px-2 py-0.5 rounded-full transition-colors duration-200 ${
             isActive 
               ? 'bg-blue-100 text-blue-600' 
@@ -122,12 +124,9 @@ const StatusBadge = ({ status, icon: Icon, color, animation }) => {
   const colorName = color.match(/bg-(\w+)-\d+/)?.[1] || 'gray';
   
   return (
-    <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full ${color} ${animation} shadow-sm backdrop-filter backdrop-blur-sm transition-all duration-300 hover:shadow-md group relative overflow-hidden`}>
-      <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-50"></div>
-      <div className={`p-1 rounded-full bg-${colorName}-200/30 backdrop-blur-lg flex items-center justify-center`}>
-        <Icon className="w-3.5 h-3.5" />
-      </div>
-      <span className="text-sm font-medium group-hover:translate-x-0.5 transition-transform relative z-10">{status}</span>
+    <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full shadow-sm ${color.bg} ${color.border} ${animation ? 'animate-pulse' : ''}`}>
+      <Icon className={`w-3.5 h-3.5 ${color.icon}`} />
+      <span className={`text-xs font-medium ${color.text}`}>{status}</span>
     </div>
   );
 };
@@ -141,6 +140,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const ticketActionsRef = useRef(null);
   const queryClient = useQueryClient();
   const { userRole, user } = useAuth();
+  const { subscribe } = useSocket();
   const [activeTab, setActiveTab] = useState('details');
 
   const {
@@ -152,6 +152,40 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     queryFn: () => fetchTicket(ticketId),
     enabled: !!ticketId,
   });
+
+  useEffect(() => {
+    if (!ticketId || !subscribe || !queryClient) return;
+
+    console.log(`[TicketDetailsModal] useEffect triggered with ticketId: ${ticketId}`);
+
+    console.log(`[Socket] Subscribing to newComment events for ticket ${ticketId}`);
+
+    const setupSubscription = async () => {
+      try {
+        const unsubscribe = await subscribe('newComment', (commentData) => {
+          console.log(`[Socket] Received newComment event:`, commentData);
+          if (commentData && commentData.ticketId === ticketId) {
+            console.log(`[Socket] Comment matches current ticket (${ticketId}). Invalidating query.`);
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+          } else {
+             console.log(`[Socket] Comment does not match current ticket (${ticketId}). Ignoring.`);
+          }
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('[Socket] Error setting up newComment subscription:', error);
+        return () => {};
+      }
+    };
+
+    const cleanupPromise = setupSubscription();
+
+    return () => {
+      console.log(`[Socket] Cleaning up newComment subscription for ticket ${ticketId}`);
+      cleanupPromise.then(cleanup => cleanup());
+    };
+  }, [ticketId, subscribe, queryClient]);
 
   const { data: supportUsers } = useQuery({
     queryKey: ['support-users'],
@@ -517,13 +551,13 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const category = ticketData?.category?.name || 'Ei määritelty';
 
   // Debug tulostukset
-  console.log('Tiketin tiedot:', ticketData);
-  console.log('User role:', userRole);
-  console.log('User id:', user?.id);
-  console.log('Ticket status:', ticketData?.status);
-  console.log('Ticket assignedToId:', ticketData?.assignedToId);
-  console.log('Should show take button:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'OPEN' && !ticketData?.assignedToId);
-  console.log('Should show control buttons:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'IN_PROGRESS' && (ticketData?.assignedToId === user?.id || userRole === 'ADMIN'));
+  //console.log('Tiketin tiedot:', ticketData);
+  //console.log('User role:', userRole);
+  //console.log('User id:', user?.id);
+  //console.log('Ticket status:', ticketData?.status);
+  //console.log('Ticket assignedToId:', ticketData?.assignedToId);
+  //console.log('Should show take button:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'OPEN' && !ticketData?.assignedToId);
+  //console.log('Should show control buttons:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'IN_PROGRESS' && (ticketData?.assignedToId === user?.id || userRole === 'ADMIN'));
 
   const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
   const isAssignedToUser = ticketData?.assignedToId === user?.id;
@@ -703,7 +737,15 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         isSystemEvent: true,
         isSystemMessage: true
       }] : [])
-    ].sort((a, b) => new Date(a.date) - new Date(b.date));
+    ].sort((a, b) => {
+        const dateDiff = new Date(a.date) - new Date(b.date);
+        if (dateDiff !== 0) {
+          return dateDiff;
+        }
+        if (a.id < b.id) return -1;
+        if (a.id > b.id) return 1;
+        return 0;
+      });
 
     const systemEventsCount = allEvents.filter(e => e.isSystemEvent).length;
     const commentCount = allEvents.filter(e => !e.isSystemEvent).length;
@@ -1028,27 +1070,27 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 <TabButton 
                   isActive={activeTab === 'details'}
                   onClick={() => setActiveTab('details')}
-                  icon={<InfoIcon className="w-4 h-4" />}
+                  icon={InfoIcon}
                   label="Tiedot"
                 />
                 <TabButton 
                   isActive={activeTab === 'conversation'}
                   onClick={() => setActiveTab('conversation')}
-                  icon={<MessageSquare className="w-4 h-4" />}
+                  icon={MessageSquare}
                   label="Keskustelu"
                   badge={comments.filter(comment => comment.author?.email !== 'system@esedu.fi').length || null}
                 />
                 <TabButton 
                   isActive={activeTab === 'attachments'}
                   onClick={() => setActiveTab('attachments')}
-                  icon={<FileIcon className="w-4 h-4" />}
+                  icon={FileIcon}
                   label="Liitteet"
                   badge={ticketData.attachments?.length || null}
                 />
                 <TabButton 
                   isActive={activeTab === 'timeline'}
                   onClick={() => setActiveTab('timeline')}
-                  icon={<History className="w-4 h-4" />}
+                  icon={History}
                   label="Aikajana"
                 />
                 </div>
@@ -1088,7 +1130,17 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 {activeTab === 'conversation' && (
                   <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeIn">
                     <CommentSection
-                      comments={(ticketData.comments || []).filter(comment => comment.author?.email !== 'system@esedu.fi')}
+                      comments={(
+                        (ticketData.comments || [])
+                        .filter(comment => comment.author?.email !== 'system@esedu.fi')
+                        .sort((a, b) => {
+                          const dateDiff = new Date(a.createdAt) - new Date(b.createdAt);
+                          if (dateDiff !== 0) return dateDiff;
+                          if (a.id < b.id) return -1;
+                          if (a.id > b.id) return 1;
+                          return 0;
+                        })
+                      )}
                       newComment={newComment}
                       setNewComment={setNewComment}
                       handleAddComment={handleAddComment}

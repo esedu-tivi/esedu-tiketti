@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import MentionInput from '../MentionInput';
 import { useAuth } from '../../providers/AuthProvider';
+import { useSocket } from '../../hooks/useSocket';
 import { Avatar, AvatarFallback, Badge } from '../ui/Avatar';
 import ProfilePicture from '../User/ProfilePicture';
 
@@ -92,6 +93,7 @@ export default function CommentSection({
   onAddMediaComment
 }) {
   const { user, userRole } = useAuth();
+  const { subscribe } = useSocket();
   const [showForm, setShowForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -100,8 +102,45 @@ export default function CommentSection({
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [hasAddedMediaResponse, setHasAddedMediaResponse] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const commentsEndRef = useRef(null);
 
-  // Check if support staff has already added a media response
+  useEffect(() => {
+    commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [comments, isAiTyping]);
+
+  useEffect(() => {
+    if (!ticket?.id || !subscribe) return;
+
+    console.log(`[CommentSection Socket] Subscribing to updateTypingStatus for ticket ${ticket.id}`);
+
+    const setupSubscription = async () => {
+      try {
+        const unsubscribe = await subscribe('updateTypingStatus', (data) => {
+          console.log(`[CommentSection Socket] Received updateTypingStatus event:`, data);
+          if (data && data.ticketId === ticket.id) {
+            console.log(`[CommentSection Socket] Typing status matches current ticket (${ticket.id}). Setting typing to ${data.isTyping}`);
+            setIsAiTyping(data.isTyping);
+          } else {
+            console.log(`[CommentSection Socket] Typing status does not match current ticket (${ticket.id}). Ignoring.`);
+          }
+        });
+        return unsubscribe;
+      } catch (error) {
+        console.error('[CommentSection Socket] Error setting up updateTypingStatus subscription:', error);
+        return () => {};
+      }
+    };
+
+    const cleanupPromise = setupSubscription();
+
+    return () => {
+      console.log(`[CommentSection Socket] Cleaning up updateTypingStatus subscription for ticket ${ticket.id}`);
+      setIsAiTyping(false);
+      cleanupPromise.then(cleanup => cleanup());
+    };
+  }, [ticket?.id, subscribe]);
+
   useEffect(() => {
     if (userRole === 'SUPPORT' || userRole === 'ADMIN') {
       const hasMedia = comments.some(comment => 
@@ -139,27 +178,22 @@ export default function CommentSection({
   };
 
   const canAddMediaComment = () => {
-    // Allow ticket creators to add media comments
     if (ticket.createdById === user?.id) {
       return ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED';
     }
     
-    // All support staff and admins can add media comments if they can comment at all
     return (userRole === 'SUPPORT' || userRole === 'ADMIN') && canComment();
   };
 
   const canAddTextComment = () => {
-    // For ticket creators, they can always add text comments if the ticket is open
     if (ticket.createdById === user?.id) {
       return ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED';
     }
     
-    // For support staff handling tickets requiring media, they need to add a media response first
     if (shouldUseMediaResponse()) {
       return hasAddedMediaResponse;
     }
     
-    // Otherwise, use the standard commenting rules
     return canComment();
   };
 
@@ -209,14 +243,12 @@ export default function CommentSection({
       setSuccessMessage('Kommentti lisätty onnistuneesti');
       setShowForm(false);
       
-      // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage('');
       }, 3000);
     } catch (error) {
       setErrorMessage('Kommentin lisääminen epäonnistui: ' + (error.message || 'Tuntematon virhe'));
       
-      // Clear error message after 5 seconds
       setTimeout(() => {
         setErrorMessage('');
       }, 5000);
@@ -261,14 +293,12 @@ export default function CommentSection({
       setShowMediaForm(false);
       setSuccessMessage('Media lisätty onnistuneesti');
       
-      // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage('');
       }, 3000);
     } catch (error) {
       setErrorMessage('Median lisääminen epäonnistui: ' + (error.message || 'Tuntematon virhe'));
       
-      // Clear error message after 5 seconds
       setTimeout(() => {
         setErrorMessage('');
       }, 5000);
@@ -283,271 +313,221 @@ export default function CommentSection({
     setSelectedMedia(null);
   };
 
+  const disabledMessage = getCommentDisabledMessage();
+  const textInputDisabled = !canAddTextComment() || addCommentMutation.isLoading;
+  const mediaInputDisabled = !canAddMediaComment() || addCommentMutation.isLoading;
+
   return (
-    <div className="space-y-4">
-      {comments.length === 0 ? (
-        <div className="bg-gray-50 text-gray-500 p-6 rounded-lg text-sm text-center border border-gray-200">
-          <p>Ei vielä kommentteja. Aloita keskustelu!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {comments.map((comment) => {
-            const styles = getCommentStyle(comment);
-            return (
-              <div key={comment.id} className={`p-5 rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 ${styles.container}`}>
-                <div className="flex items-start gap-3 mb-3">
-                  <ProfilePicture 
-                    email={comment.author?.email}
-                    name={comment.author?.name || 'Tuntematon'}
-                    size="sm"
-                    className="flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={styles.author}>
-                        {comment.author?.name || comment.author?.email || 'Tuntematon'}
-                      </span>
-                      {comment.mediaType && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                          {comment.mediaType === 'image' ? 'Kuva' : 'Video'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(comment.createdAt).toLocaleDateString('fi-FI', {
-                        day: 'numeric',
-                        month: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </div>
-                </div>
-                
-                <div 
-                  className={`text-sm ${styles.text} comment-content leading-relaxed`}
-                  dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
-                />
-                
-                {/* Render media content if present */}
-                {comment.mediaUrl && (
-                  <MediaContent 
-                    mediaUrl={comment.mediaUrl} 
-                    mediaType={comment.mediaType}
-                    onClick={handleMediaClick}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Media Lightbox */}
-      {selectedMedia && selectedMedia.type === 'image' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm" onClick={closeLightbox}>
-          <div className="relative max-w-4xl max-h-[90vh] w-full mx-4">
-            <div className="absolute top-4 right-4 z-10">
-              <button 
-                onClick={closeLightbox}
-                className="bg-black/50 text-white p-2 rounded-full hover:bg-white/20 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <img 
-              src={selectedMedia.url} 
-              alt="Mediakuva" 
-              className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Success message */}
-      {successMessage && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center">
-          <Check className="h-5 w-5 mr-2 text-green-500" />
-          <p>{successMessage}</p>
-        </div>
-      )}
+    <div className="flex flex-col h-full">
+      <h3 className="text-lg font-semibold mb-4 text-gray-800">Keskustelu</h3>
       
-      {/* Error message */}
-      {errorMessage && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          <p>{errorMessage}</p>
-        </div>
-      )}
-
-      <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-        {!showForm && !showMediaForm ? (
-          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowForm(true)}
-              disabled={!canAddTextComment()}
-              title={!canAddTextComment() ? getCommentDisabledMessage() : undefined}
-              className="shadow-sm hover:shadow transition-shadow w-full sm:w-auto flex items-center justify-center gap-2"
-            >
-              <Send className="w-4 h-4" />
-              Lisää tekstikommentti
-            </Button>
-            
-            {/* Show media button for both ticket creator and support staff */}
-            {(canAddMediaComment()) && (
-              <Button
-                variant="default"
-                onClick={() => setShowMediaForm(true)}
-                disabled={!canComment()}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow transition-shadow w-full sm:w-auto flex items-center justify-center gap-2"
-              >
-                <Paperclip className="w-4 h-4" />
-                Lisää media
-              </Button>
-            )}
+      <div className="flex-grow overflow-y-auto space-y-4 pr-2 mb-4" style={{ maxHeight: '400px' }}>
+        {comments.length === 0 ? (
+          <div className="text-center text-gray-500 py-6">
+            Ei vielä kommentteja.
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row gap-3 w-full">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setShowForm(false);
-                setShowMediaForm(false);
-                setMediaFile(null);
-                setPreviewUrl(null);
-              }}
-              className="shadow-sm hover:shadow transition-shadow w-full sm:w-auto"
-            >
-              Peruuta
-            </Button>
-            
-            {showForm && (
-              <Button
-                type="submit"
-                disabled={!canAddTextComment() || addCommentMutation.isLoading || !newComment.trim()}
-                onClick={handleSubmit}
-                className="shadow-sm hover:shadow transition-shadow w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
-              >
-                <Send className="w-4 h-4" />
-                {addCommentMutation.isLoading ? 'Lisätään...' : 'Lähetä kommentti'}
-              </Button>
-            )}
-            
-            {showMediaForm && (
-              <Button
-                type="submit"
-                disabled={!canComment() || addCommentMutation.isLoading || !mediaFile}
-                onClick={handleMediaSubmit}
-                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow transition-shadow w-full sm:w-auto flex items-center justify-center gap-2"
-              >
-                <Paperclip className="w-4 h-4" />
-                {addCommentMutation.isLoading ? 'Lisätään...' : 'Lisää media'}
-              </Button>
-            )}
+          comments.map((comment) => {
+            const style = getCommentStyle(comment);
+            return (
+              <div key={comment.id} className={`p-4 rounded-lg border ${style.container} shadow-sm animate-fadeIn`}>
+                <div className="flex items-start space-x-3">
+                  <ProfilePicture 
+                      email={comment.author?.email}
+                      name={comment.author?.name}
+                      size={40} 
+                      className="flex-shrink-0 rounded-full shadow-sm border border-gray-200"
+                   />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1 flex-wrap">
+                      <span className={style.author}>{comment.author?.name || 'Tuntematon'}</span>
+                      <span className="text-xs text-gray-400 flex items-center flex-shrink-0 ml-2">
+                        <Calendar size={12} className="mr-1" />
+                        {new Date(comment.createdAt).toLocaleString('fi-FI')}
+                      </span>
+                    </div>
+                    <div 
+                       className={`${style.text} whitespace-pre-wrap comment-content`}
+                       dangerouslySetInnerHTML={{ __html: formatCommentContent(comment.content) }}
+                     />
+                    <MediaContent 
+                      mediaUrl={comment.mediaUrl} 
+                      mediaType={comment.mediaType} 
+                      onClick={handleMediaClick}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+        
+        {isAiTyping && (
+          <div className="flex items-center space-x-2 pl-4 pt-2 animate-fadeIn">
+            <ProfilePicture 
+                userId={ticket?.createdById}
+                size={32} 
+                className="flex-shrink-0 rounded-full shadow-sm border border-gray-200 opacity-80"
+             />
+            <div className="flex items-center space-x-1.5 bg-gray-100 px-3 py-1.5 rounded-full">
+                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+             </div>
           </div>
+        )}
+        
+        <div ref={commentsEndRef} /> 
+      </div>
+
+      <div className="mt-auto pt-4 border-t border-gray-200">
+        {successMessage && <div className="mb-2 text-sm text-green-600 bg-green-50 p-2 rounded border border-green-200 transition-all duration-300 animate-fadeIn">{successMessage}</div>}
+        {errorMessage && <div className="mb-2 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200 transition-all duration-300 animate-fadeIn">{errorMessage}</div>}
+
+        {shouldUseMediaResponse() && !hasAddedMediaResponse ? (
+          <form onSubmit={handleMediaSubmit} className="space-y-3">
+             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 flex items-start gap-2">
+                <InfoIcon size={16} className="flex-shrink-0 mt-0.5" />
+                <span>Tämä tiketti vaatii vastaukseksi {ticket.responseFormat === 'KUVA' ? 'kuvan' : 'videon'}. Lisää ensin mediavastaus.</span>
+              </div>
+            <div>
+              <Label htmlFor="required-media-comment">Liitä {ticket.responseFormat === 'KUVA' ? 'kuva' : 'video'}</Label>
+              <input
+                id="required-media-comment"
+                type="file"
+                accept={ticket.responseFormat === 'KUVA' ? 'image/*' : 'video/*'}
+                onChange={handleMediaChange}
+                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={addCommentMutation.isLoading}
+              />
+              {previewUrl && ticket.responseFormat === 'KUVA' && (
+                <img src={previewUrl} alt="Esikatselu" className="mt-2 rounded max-h-40 border" />
+              )}
+            </div>
+            <div>
+              <Label htmlFor="required-media-description">Lyhyt kuvaus (valinnainen)</Label>
+              <MentionInput
+                id="required-media-description"
+                value={newComment}
+                onChange={setNewComment}
+                placeholder="Kirjoita lyhyt kuvaus medialle... Voit mainita @käyttäjän."
+                disabled={!mediaFile || addCommentMutation.isLoading}
+                className="mt-1"
+              />
+            </div>
+            <Button 
+              type="submit" 
+              disabled={!mediaFile || addCommentMutation.isLoading}
+            >
+              {addCommentMutation.isLoading ? 'Lähetetään...' : 'Lähetä mediavastaus'}
+            </Button>
+          </form>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <MentionInput
+                value={newComment}
+                onChange={setNewComment}
+                placeholder={disabledMessage || "Kirjoita kommentti... Voit mainita @käyttäjän."}
+                disabled={textInputDisabled}
+                aria-label="Uusi kommentti"
+              />
+               <div className="flex justify-between items-center">
+                 <span className="text-xs text-red-500">{textInputDisabled ? disabledMessage : ''}</span>
+                  <Button 
+                    type="submit" 
+                    disabled={textInputDisabled || !newComment.trim()}
+                    size="sm"
+                  >
+                     {addCommentMutation.isLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                         <Send className="mr-1.5 h-4 w-4" />
+                     )}
+                     <span>Lähetä</span>
+                   </Button>
+               </div>
+            </form>
+            
+             {canAddMediaComment() && (
+               <button 
+                  onClick={() => setShowMediaForm(!showMediaForm)}
+                  className="mt-2 text-sm text-blue-600 hover:underline flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={mediaInputDisabled}
+                  title={mediaInputDisabled ? disabledMessage : ''}
+                >
+                 {showMediaForm ? <X size={14} className="mr-1" /> : <Paperclip size={14} className="mr-1" />}
+                 {showMediaForm ? 'Peruuta media' : 'Liitä kuva/video'}
+               </button>
+              )}
+
+            {showMediaForm && canAddMediaComment() && (
+              <form onSubmit={handleMediaSubmit} className="mt-3 space-y-3 p-4 border rounded bg-gray-50 animate-fadeIn">
+                 <h4 className="font-medium text-sm">Liitä media</h4>
+                <div>
+                  <Label htmlFor="optional-media-comment">Valitse kuva tai video</Label>
+                  <input
+                    id="optional-media-comment"
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleMediaChange}
+                    className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    disabled={addCommentMutation.isLoading}
+                  />
+                  {previewUrl && mediaFile?.type.startsWith('image/') && (
+                    <img src={previewUrl} alt="Esikatselu" className="mt-2 rounded max-h-40 border" />
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="optional-media-description">Lyhyt kuvaus (valinnainen)</Label>
+                  <MentionInput
+                    id="optional-media-description"
+                    value={newComment}
+                    onChange={setNewComment}
+                    placeholder="Kirjoita lyhyt kuvaus medialle..."
+                    disabled={!mediaFile || addCommentMutation.isLoading}
+                    className="mt-1"
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  disabled={!mediaFile || addCommentMutation.isLoading}
+                  size="sm"
+                >
+                  {addCommentMutation.isLoading ? 'Lähetetään...' : 'Lähetä media'}
+                </Button>
+              </form>
+            )}
+          </>
         )}
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <Label htmlFor="new-comment" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-blue-500" />
-            Lisää kommentti
-          </Label>
-          <MentionInput
-            value={newComment}
-            onChange={(value) => setNewComment(value)}
-            placeholder="Kirjoita kommentti... Käytä @-merkkiä mainitaksesi käyttäjän"
-            className="min-h-24 focus:border-blue-400 focus:ring-blue-400 rounded-lg"
-          />
-        </form>
-      )}
-      
-      {showMediaForm && (
-        <form onSubmit={handleMediaSubmit} className="mt-4 space-y-4 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <Label htmlFor="media-file" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-            <Paperclip className="w-4 h-4 text-blue-500" />
-            Lisää mediatiedosto
-          </Label>
-          
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => document.getElementById('media-file').click()}>
-            <input
-              type="file"
-              id="media-file"
-              accept="image/*,video/*"
-              onChange={handleMediaChange}
-              className="hidden"
-            />
-            
-            {!mediaFile ? (
-              <div>
-                <Paperclip className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">Klikkaa lisätäksesi kuva tai video</p>
-                <p className="text-xs text-gray-400 mt-1">tai raahaa tiedosto tähän</p>
-              </div>
-            ) : previewUrl ? (
-              <div className="relative">
-                <img src={previewUrl} alt="Preview" className="max-h-64 mx-auto rounded" />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMediaFile(null);
-                    setPreviewUrl(null);
-                  }}
-                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+      {selectedMedia && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm" onClick={closeLightbox}>
+          <div className="relative max-w-3xl max-h-[80vh] w-full mx-4">
+            <button 
+              onClick={closeLightbox}
+              className="absolute -top-2 -right-2 z-10 bg-black/50 text-white p-1.5 rounded-full hover:bg-opacity-70 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            {selectedMedia.type === 'image' ? (
+              <img 
+                src={selectedMedia.url} 
+                alt="Media liite" 
+                className="block max-h-[80vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              />
             ) : (
-              <div className="flex items-center justify-center gap-2 text-blue-600">
-                <FileIcon className="w-5 h-5" />
-                <span>{mediaFile.name}</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMediaFile(null);
-                  }}
-                  className="bg-red-600 text-white rounded-full p-1 hover:bg-red-700 transition-colors ml-2"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <video 
+                src={selectedMedia.url} 
+                controls 
+                autoPlay
+                className="block max-h-[80vh] max-w-full mx-auto rounded-lg shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              />
             )}
           </div>
-          
-          <Label htmlFor="comment-text" className="text-sm font-medium text-gray-700 mt-4 flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-blue-500" />
-            Kommentin teksti (valinnainen)
-          </Label>
-          <MentionInput
-            value={newComment}
-            onChange={(value) => setNewComment(value)}
-            placeholder="Voit lisätä kuvailevan tekstin..."
-            className="min-h-24 focus:border-blue-400 focus:ring-blue-400 rounded-lg"
-          />
-        </form>
-      )}
-
-      {!canComment() && (
-        <div className="text-sm text-gray-500 italic p-4 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-2">
-          <InfoIcon className="w-4 h-4 text-gray-400" />
-          {getCommentDisabledMessage()}
-        </div>
-      )}
-      
-      {shouldUseMediaResponse() && !hasAddedMediaResponse && (
-        <div className="text-sm text-blue-700 bg-blue-50 p-4 mt-2 rounded-lg border border-blue-200 flex items-center gap-2">
-          {ticket.responseFormat === 'KUVA' ? <ImageIcon className="w-4 h-4" /> : <VideoIcon className="w-4 h-4" />}
-          <p>Tämä tiketti vaatii mediavastauksen ({ticket.responseFormat.toLowerCase()}). Lisää se ennen tekstikommentteja.</p>
         </div>
       )}
     </div>

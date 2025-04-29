@@ -2,6 +2,20 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 30.04.2025 - fix: Korjattu AI-chatin toimintaa ja lisätty kirjoitusindikaattori
+- **AI Chat Agent -korjaukset (`TicketDetailsModal`, `CommentSection`):
+  - Korjattu ongelma, jossa AI-agentin vastaukset saattoivat näkyä väärässä järjestyksessä (ennen käyttäjän viestiä).
+  - Varmistettu kommenttien tallennusjärjestys backendissä (`ticketController.ts`) ennen AI-vastauksen generointia.
+  - Lisätty ID toissijaiseksi lajitteluavaimeksi frontendin kommenttilistoihin (`TicketDetailsModal.jsx`) aikaleimojen ollessa identtiset.
+  - Korjattu ongelma, jossa AI-vastaukset eivät päivittyneet reaaliaikaisesti käyttöliittymään ilman modaalin uudelleenavaamista.
+  - Toteutettu WebSocket-kuuntelija (`CommentSection.jsx`, `TicketDetailsModal.jsx`) vastaanottamaan `'newComment'`-tapahtumia ja päivittämään näkymä.
+  - Lisätty backend-logiikka (`socketService.ts`, `ticketController.ts`, `aiController.ts`) lähettämään `'newComment'`-tapahtumat asiaankuuluville käyttäjille.
+  - Korjattu bugi, jossa `@mentions` välilyönneillä ei tunnistettu oikein (`ticketController.ts`).
+  - Korjattu bugi, jossa profiilikuvat eivät näkyneet kommenteissa (`CommentSection.jsx`).
+- **Uusi ominaisuus: AI Typing Indicator:**
+  - Lisätty reaaliaikainen kirjoitusindikaattori (`CommentSection.jsx`), joka näyttää, kun AI-agentti käsittelee ja generoi vastausta.
+  - Lisätty backend-logiikka (`socketService.ts`, `aiController.ts`) lähettämään `'updateTypingStatus'` (start/stop) -tapahtumat WebSocketin kautta.
+
 # 17.04.2025 - feat: Parannettu tiketin poistoprosessia ja käyttöliittymää + bulk-generointi AI-tiketeille
 - **Käyttöliittymän parannukset (TicketList):**
   - Korvattu tiketin poiston vahvistusdialogi (`AlertDialog`) `react-hot-toast`-ilmoituksella, joka sisältää vahvistus- ja peruutuspainikkeet.

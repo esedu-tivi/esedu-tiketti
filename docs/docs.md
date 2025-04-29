@@ -179,7 +179,7 @@ Admin-käyttäjät voivat hallita käyttäjien rooleja käyttöliittymän kautta
 Kehitysympäristössä luodaan automaattisesti seuraavat käyttäjät:
 
 1. Admin-käyttäjä:
-   - Nimi: Admin User
+   - Nimi: EseduTiketti AI
    - Email: admin@example.com
    - Rooli: ADMIN
 

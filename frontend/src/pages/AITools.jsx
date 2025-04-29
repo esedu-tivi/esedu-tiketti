@@ -39,6 +39,7 @@ const AITools = () => {
 
   // Handler to open conversation modal
   const handleViewConversation = (ticketId) => {
+    console.log('[AITools] handleViewConversation received ticketId:', ticketId);
     setSelectedConvTicketId(ticketId);
     setIsConvModalOpen(true);
   };
@@ -63,6 +64,7 @@ const AITools = () => {
 
   // NEW: Handlers for TicketDetailsModal
   const handleOpenTicketDetails = (ticketId) => {
+    console.log('[AITools] handleOpenTicketDetails received ticketId:', ticketId);
     setSelectedTicketForDetails(ticketId);
     setIsTicketDetailsModalOpen(true);
   };

@@ -6,6 +6,7 @@ import { ticketService } from '../services/ticketService.js';
 import { CreateTicketDTO } from '../types/index.js';
 import { Prisma } from '@prisma/client';
 import { summarizerAgent } from '../ai/agents/summarizerAgent.js';
+import { getSocketService } from '../services/socketService.js';
 
 const prisma = new PrismaClient();
 
@@ -173,11 +174,12 @@ export const aiController = {
    * This makes AI-generated tickets interactive for training purposes
    */
   generateUserResponse: async (req: Request, res: Response) => {
+    const ticketId = req.params.id || req.body.ticketId;
+    const { commentText, supportUserId } = req.body;
+    let supportUserEmail: string | null = null;
+    const socketService = getSocketService(); // Get socket service instance
+
     try {
-      // Get ticketId from route parameters or body
-      const ticketId = req.params.id || req.body.ticketId;
-      const { commentText, supportUserId } = req.body;
-      
       console.log(`Received request to generate AI chat response for ticket ${ticketId}`);
       
       // Validate parameters
@@ -187,20 +189,31 @@ export const aiController = {
           details: 'ticketId, commentText and supportUserId are required'
         });
       }
+
+      // Find the support user's email early for socket events
+      const supportUser = await prisma.user.findUnique({
+        where: { id: supportUserId },
+        select: { email: true }
+      });
+      supportUserEmail = supportUser?.email || null;
+
+      if (!supportUserEmail) {
+         console.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI typing status.`);
+         // Proceed without sending typing status if user not found, but maybe log?
+      }
       
-      // Get the ticket with its context, including userProfile
+      // Get the ticket with its context
       const ticket = await prisma.ticket.findUnique({
         where: { 
           id: ticketId,
           isAiGenerated: true // Only allow responses for AI-generated tickets
         },
-        include: { // Revert back to include
+        include: {
           comments: {
             orderBy: { createdAt: 'asc' }
           },
           category: true,
           createdBy: true
-          // userProfile is now part of the base Ticket model and should be included by default
         }
       });
       
@@ -220,11 +233,11 @@ export const aiController = {
       
       console.log('Using ChatAgent to generate interactive response');
       
-      // Get userProfile from the fetched ticket, default to 'student' if null/undefined
+      // Get userProfile from the fetched ticket
       const userProfile = ticket.userProfile || 'student'; 
-      console.log(`Using userProfile from ticket: ${userProfile}`); // Log the fetched profile
+      console.log(`Using userProfile from ticket: ${userProfile}`);
 
-      // Translate user profile to Finnish for the Chat Agent
+      // Translate user profile
       let userProfileFinnish: string;
       switch (userProfile) {
         case 'student':
@@ -240,9 +253,16 @@ export const aiController = {
           userProfileFinnish = 'Järjestelmänvalvoja';
           break;
         default:
-          userProfileFinnish = userProfile; // Fallback to the original value if unknown
+          userProfileFinnish = userProfile; // Fallback
       }
-      console.log(`Translated userProfile to Finnish for ChatAgent: ${userProfileFinnish}`); // Log translated profile
+      console.log(`Translated userProfile to Finnish for ChatAgent: ${userProfileFinnish}`);
+
+      // --- Emit AI Typing Start ---
+      if (supportUserEmail) {
+        console.log(`[Socket] Emitting AI typing start to support user: ${supportUserEmail}`);
+        socketService.emitTypingStatus(supportUserEmail, { isTyping: true, ticketId });
+      }
+      // -------------------------
       
       // Generate AI response as the ticket creator using the chat agent
       const { responseText, evaluation } = await chatAgent.generateChatResponse({
@@ -272,16 +292,37 @@ export const aiController = {
       
       console.log(`Chat response generated successfully. Evaluation: ${evaluation}`);
       
-      // Create the comment from the AI user, including the evaluation result
+      // Create the comment from the AI user
       const comment = await prisma.comment.create({
         data: {
-          content: responseText, // Use the response text from the agent
+          content: responseText,
           ticketId: ticket.id,
-          authorId: ticket.createdById, // Comment as the original ticket creator
-          isAiGenerated: true, // Flag for analytics but not shown to user
-          evaluationResult: evaluation // Store the evaluation result
+          authorId: ticket.createdById,
+          isAiGenerated: true,
+          evaluationResult: evaluation
+        },
+        include: { 
+          author: true
         }
       });
+
+      // --- Emit AI Typing Stop & New Comment START ---
+      if (supportUserEmail) {
+         try {
+           // Emit that AI stopped typing *before* sending the comment
+           console.log(`[Socket] Emitting AI stopped typing to support user: ${supportUserEmail}`);
+           socketService.emitTypingStatus(supportUserEmail, { isTyping: false, ticketId: ticket.id });
+
+           // Emit the actual comment
+           console.log(`[Socket] Emitting AI comment back to support user: ${supportUserEmail}`);
+           socketService.emitNewCommentToUser(supportUserEmail, comment);
+         } catch (socketError) {
+           console.error('[Socket Error] Failed to send AI comment update/stop typing:', socketError);
+         }
+      } else {
+          console.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI comment update.`);
+      }
+      // --- Emit AI Typing Stop & New Comment END ---
       
       // Return the created comment
       return res.status(201).json({ 
@@ -290,6 +331,17 @@ export const aiController = {
       });
       
     } catch (error: any) {
+       // --- Emit AI Typing Stop on Error --- 
+       if (supportUserEmail) {
+         try {
+            console.log(`[Socket] Emitting AI stopped typing due to error for user: ${supportUserEmail}`);
+            socketService.emitTypingStatus(supportUserEmail, { isTyping: false, ticketId });
+         } catch (emitError) {
+            console.error('[Socket Error] Failed to emit stop typing on error:', emitError);
+         }
+       }
+      // -----------------------------------
+
       console.error('Error generating chat response:', error);
       res.status(500).json({
         error: 'Failed to generate chat response',
@@ -622,7 +674,7 @@ export const aiController = {
    * @access Admin, Support
    */
   summarizeConversation: async (req: Request, res: Response) => {
-    const { id: ticketId } = req.params;
+    const { ticketId } = req.params; 
     console.log(`Received request to generate/regenerate summary for ticket ${ticketId}`);
     
     try {

@@ -86,6 +86,7 @@ const ConversationModal = ({
   // Effect to fetch data
   useEffect(() => {
     if (open && ticketId) {
+      console.log(`[ConversationModal] useEffect triggered with ticketId:`, ticketId); // Added for debugging
       const fetchData = async () => {
         // Reset states
         setLoading(true);

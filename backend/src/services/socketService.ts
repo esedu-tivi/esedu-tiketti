@@ -139,6 +139,32 @@ class SocketService {
       timestamp: new Date().toISOString()
     });
   }
+
+  // Emit a new comment event to specific user sockets
+  emitNewCommentToUser(userEmail: string, commentData: any) {
+    const socketIds = this.userSockets.get(userEmail);
+    if (socketIds && socketIds.length > 0) {
+      console.log(`[SocketService] Emitting newComment event to user ${userEmail} on sockets: ${socketIds.join(', ')}`);
+      socketIds.forEach(socketId => {
+        this.io.to(socketId).emit('newComment', commentData);
+      });
+    } else {
+      console.log(`[SocketService] No active sockets found for user ${userEmail} to send newComment.`);
+    }
+  }
+
+  // Emit a typing status update event to specific user sockets
+  emitTypingStatus(userEmail: string, typingStatus: { isTyping: boolean, ticketId: string }) {
+    const socketIds = this.userSockets.get(userEmail);
+    if (socketIds && socketIds.length > 0) {
+      console.log(`[SocketService] Emitting updateTypingStatus (${typingStatus.isTyping}) for ticket ${typingStatus.ticketId} to user ${userEmail} on sockets: ${socketIds.join(', ')}`);
+      socketIds.forEach(socketId => {
+        this.io.to(socketId).emit('updateTypingStatus', typingStatus);
+      });
+    } else {
+      console.log(`[SocketService] No active sockets found for user ${userEmail} to send typing status.`);
+    }
+  }
 }
 
 let instance: SocketService | null = null;
