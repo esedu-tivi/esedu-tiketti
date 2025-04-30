@@ -124,13 +124,25 @@
 - AI Tools -hallintanäkymä tekoälyominaisuuksille
 
 ## 📚 Dokumentaatio
-- [CHANGELOG.md](./docs/CHANGELOG.md) - Versiohistoria ja muutosloki
-- [docs.md](./docs/docs.md) - Tekninen dokumentaatio
-- [ai-docs-1.md](./docs/ai-docs-1.md) - Tekoälyominaisuuksien dokumentaatio
-- [ai-agents/index.md](./docs/ai-agents/index.md) - Tekoälyagenttien kuvaukset
-- [ai-agents/ticketGenerator.md](./docs/ai-agents/ticketGenerator.md) - Tikettigeneraattorin dokumentaatio
-- [ai-agents/chatAgent.md](./docs/ai-agents/chatAgent.md) - ChatAgentin dokumentaatio
-- Koodin sisäinen dokumentaatio
+Projektin tarkempi dokumentaatio löytyy `new_docs`-kansiosta:
+
+- **Yleiskatsaus & Arkkitehtuuri:**
+  - [`new_docs/description.md`](./new_docs/description.md): Projektin yleiskuvaus.
+  - [`new_docs/architecture.md`](./new_docs/architecture.md): Tekninen arkkitehtuuri, pystytys, roolit, päivitys.
+- **Toteutus:**
+  - [`new_docs/backend.md`](./new_docs/backend.md): Backendin tarkemmat tiedot.
+  - [`new_docs/frontend.md`](./new_docs/frontend.md): Frontendin tarkemmat tiedot.
+  - [`new_docs/datamodel.md`](./new_docs/datamodel.md): Tietokannan rakenne (Prisma).
+  - [`new_docs/api-endpoints.md`](./new_docs/api-endpoints.md): REST API -rajapinnan kuvaus.
+  - [`new_docs/ticket-workflow.md`](./new_docs/ticket-workflow.md): Tikettien käsittelyprosessi.
+- **Tekoäly:**
+  - [`new_docs/ai-features.md`](./new_docs/ai-features.md): Tekoälyominaisuuksien yleiskatsaus.
+  - [`new_docs/ai-agents/index.md`](./new_docs/ai-agents/index.md): Tekoälyagenttien yleiskuvaus ja flowchartit.
+  - (`new_docs/ai-agents/` -kansion muut tiedostot agenttikohtaisesti)
+- **Muut:**
+  - [`new_docs/changelog.md`](./new_docs/changelog.md): Muutosloki.
+  - [`new_docs/todo.md`](./new_docs/todo.md): Tehtävälista.
+  - [`new_docs/learnings.md`](./new_docs/learnings.md): Projektin opit.
 
 ## 🔒 Tietoturva
 - Azure AD autentikointi
