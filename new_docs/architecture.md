@@ -65,7 +65,7 @@ FRONTEND_URL=http://localhost:3000
 # JWT-allekirjoitusavain
 JWT_SECRET=your-super-secret-key-here-change-me
 
-# Azure AD -asetukset (Passport.js)
+# Azure AD -asetukset 
 AZURE_AD_CLIENT_ID=your-azure-ad-client-id
 AZURE_AD_CLIENT_SECRET=your-azure-ad-client-secret
 AZURE_AD_TENANT_ID=your-azure-ad-tenant-id
@@ -192,8 +192,7 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
     *   OpenAI API: Yhteys OpenAI:n kielimalleihin.
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/)
 *   **Autentikointi (Server):**
-    *   [Passport.js](http://www.passportjs.org/) yhdessä `passport-azure-ad` -strategian kanssa (Azure AD OIDC-integraatio).
-    *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) JWT-tokenien käsittelyyn (validointi/dekoodaus middlewareissa).
+    *   Vastaanotettujen JWT-tokenien (Azure AD ID-tokeneita frontendistä) dekoodaus käyttäen [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) -kirjastoa omassa `authMiddleware`-toteutuksessa käyttäjätietojen poimimiseksi.
 *   **Tiedostojen Lataus:** [Multer](https://github.com/expressjs/multer)
 
 ## Hakemistorakenne

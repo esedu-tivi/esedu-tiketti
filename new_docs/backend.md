@@ -107,7 +107,7 @@ Virheelliset syötteet hylätään, ja API palauttaa yleensä 400 Bad Request -v
     *   `Migration errors`: Tarkista migraatiohistoria ja tietokannan tila. Kokeile `npx prisma migrate resolve --applied [migration_id]` tai kehityksessä `npm run db:reset`.
     *   `Prisma Client is not generated`: Aja `npx prisma generate`.
 *   **TypeScript-virheet:** Tarkista `tsconfig.json`, varmista että `npm install` on ajettu ja kokeile buildata: `npm run build`.
-*   **Autentikointivirheet:** Varmista `JWT_SECRET` ja Azure AD -asetukset `.env`-tiedostossa. Tarkista Passport.js-konfiguraatio (`config/passport.ts`).
+*   **Autentikointivirheet:** Varmista `JWT_SECRET` ja Azure AD -asetukset (`AZURE_AD_CLIENT_ID`, `AZURE_AD_TENANT_ID`) `.env`-tiedostossa. Tarkista `authMiddleware.ts`:n tokenin validointilogiikka.
 *   **API-kutsut epäonnistuvat:** Tarkista backendin lokit (`npm run dev` tai `docker-compose logs -f backend`) tarkempien virheilmoitusten varalta.
 
 ## Teknologiapino ja Keskeiset Kirjastot
@@ -120,9 +120,7 @@ Backend on rakennettu Node.js-ympäristöön käyttäen seuraavia teknologioita 
 *   **Tietokannan ORM (Object-Relational Mapper):** [Prisma](https://www.prisma.io/) - Moderni ORM PostgreSQL-tietokannan käsittelyyn, sisältää skeeman hallinnan, migraatiot ja tyyppiturvallisen tietokantaklientin.
 *   **Tietokanta:** [PostgreSQL](https://www.postgresql.org/) - Tehokas ja avoimen lähdekoodin relaatiotietokanta.
 *   **Autentikointi & Auktorisointi:**
-    *   [Passport.js](http://www.passportjs.org/) - Joustava autentikointi-middleware Node.js:lle.
-    *   `passport-azure-ad` - Passport-strategia Azure AD OIDC (OpenID Connect) -integraatioon Microsoft-kirjautumista varten.
-    *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) - Kirjasto JSON Web Token (JWT) -tokenien luomiseen (kirjautumisen jälkeen) ja validointiin (API-kutsujen yhteydessä).
+    *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) - Kirjasto JSON Web Token (JWT) -tokenien (Azure AD ID-token frontendistä) dekoodaukseen `authMiddleware`:ssa käyttäjätietojen saamiseksi.
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/) - Mahdollistaa reaaliaikaisen, kaksisuuntaisen ja tapahtumapohjaisen kommunikaation selaimen ja palvelimen välillä (esim. ilmoitukset).
 *   **Tekoälyintegraatio:**
     *   [LangChain.js](https://js.langchain.com/) - Framework tekoälymalleihin perustuvien sovellusten kehittämiseen, käytetään AI-agenttien ja promptien hallintaan.
@@ -143,30 +141,35 @@ src/
 │   ├── config.ts      # AI-konfiguraatio (esim. mallinimet, API-avaimet ympäristömuuttujista)
 │   └── prompts/       # Prompt-mallipohjat AI-agenteille
 ├── app.ts           # Express-sovelluksen alustus, globaalit middlewaret (CORS, json-parser), reitityksen ja virheenkäsittelyn määrittely.
-├── config/          # Yleiset konfiguraatiot (tietokanta, passport, jne.)
-│   ├── db.ts          # Prisma-clientin alustus ja exporttaus
-│   └── passport.ts    # Passport.js:n ja Azure AD -strategian konfigurointi
+├── config/          # Yleiset konfiguraatiot
+│   └── database.ts    # Prisma-clientin alustus ja exporttaus
 ├── controllers/     # API-endpointtien käsittelijäfunktiot. Vastaavat requesteista ja responseista.
 │   ├── authController.ts
-│   ├── ticketController.ts
-│   ├── commentController.ts
-│   ├── ... (muut resurssit)
+│   ├── ticketController.ts # Tikettien ja kommenttien CRUD ym.
+│   ├── userController.ts
+│   ├── notificationController.ts
+│   ├── notificationSettingsController.ts
+│   ├── categoryController.ts
+│   └── aiController.ts
 ├── index.ts         # Sovelluksen pääkäynnistystiedosto. Alustaa HTTP-palvelimen ja Socket.IO:n.
 ├── middleware/      # Express-middlewaret
-│   ├── authMiddleware.ts # Tarkistaa JWT-tokenin validiuden ja liittää käyttäjätiedot requestiin.
+│   ├── authMiddleware.ts # Tarkistaa JWT-tokenin ja liittää käyttäjätiedot requestiin.
 │   ├── roleMiddleware.ts # Tarkistaa käyttäjän roolin pääsynhallintaa varten.
-│   ├── validationMiddleware.ts # Suorittaa input-validoinnin (jos käytössä esim. express-validator)
+│   ├── validationMiddleware.ts # Suorittaa input-validoinnin.
+│   ├── checkRole.ts # (Todennäköisesti osa roleMiddlewarea tai sen apufunktio)
 │   └── uploadMiddleware.ts # Multer-konfiguraatio tiedostolatauksille.
 ├── routes/          # API-reitityksen määrittelyt. Yhdistää URL-polut controllereihin ja middlewareihin.
 │   ├── index.ts       # Kokoaa kaikki reitit yhteen
 │   ├── authRoutes.ts
 │   ├── ticketRoutes.ts
-│   └── ... (muut resurssit)
+│   ├── userRoutes.ts
+│   ├── notificationRoutes.ts
+│   ├── notificationSettingsRoutes.ts
+│   ├── categoryRoutes.ts
+│   └── aiRoutes.ts
 ├── services/        # Sovelluksen ydinlogiikka ja tietokantainteraktiot.
-│   ├── authService.ts   # Käyttäjän autentikointi, tokenien luonti.
+
 │   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka.
-│   ├── commentService.ts # Kommenttien hallinta.
-│   ├── notificationService.ts # Ilmoitusten luonti ja hallinta.
 │   ├── socketService.ts # Socket.IO-tapahtumien hallinta ja lähetys.
 │   └── ... (muut palvelut)
 └── types/           # Jaetut TypeScript-tyyppimäärittelyt (esim. API-pyyntöjen ja vastausten tyypit).
@@ -180,22 +183,22 @@ Backend tarjoaa RESTful API:n, jota frontend-sovellus käyttää datan hallintaa
 2.  **Middlewaret:** Pyyntö kulkee määriteltyjen globaalien ja reittikohtaisten middlewarejen läpi:
     *   `cors`: Sallii pyynnön frontendistä.
     *   `express.json()`: Parsii JSON-muotoisen pyynnön bodyn.
-    *   `authMiddleware`: (Suojatuilla reiteillä) Varmistaa `Authorization`-headerissa olevan JWT-tokenin validiuden. Jos validi, liittää dekoodatut käyttäjätiedot (`req.user`).
+    *   `authMiddleware`: (Suojatuilla reiteillä) Dekoodaa `Authorization`-headerissa olevan JWT-tokenin. Jos validi, liittää käyttäjätiedot (`req.user`).
     *   `roleMiddleware`: (Tarvittaessa) Varmistaa, että `req.user`-objektin rooli on riittävä reitin suorittamiseen.
     *   `uploadMiddleware`: (Tiedostolatausreiteillä) Käsittelee tiedostolatauksen Multerilla.
     *   `validationMiddleware`: (Tarvittaessa) Validoi pyynnön bodyn, parametrit tai query-parametrit.
 3.  **Reititys:** `routes`-kansion määrittelyt ohjaavat pyynnön oikealle `controllers`-kansion funktiolle URL-polun ja HTTP-metodin perusteella.
-4.  **Controller:** Vastaava controller-funktio ottaa pyynnön vastaan. Se kutsuu yhtä tai useampaa `services`-kansion funktiota suorittamaan tarvittavan logiikan (esim. datan haku tietokannasta, tietueen päivitys).
-5.  **Service:** Palvelufunktio sisältää liiketoimintalogiikan. Se käyttää Prisma-clientiä (`config/db.ts`) kommunikoidakseen tietokannan kanssa. Se voi myös kutsua muita palveluita (esim. `notificationService` luomaan ilmoituksen tiketin päivityksen yhteydessä).
-6.  **Tietokantaoperaatiot:** Prisma kääntää palvelun kutsut SQL-kyselyiksi ja suorittaa ne PostgreSQL-tietokannassa.
-7.  **Vastaus:** Palvelu palauttaa tuloksen (tai virheen) controllerille. Controller muotoilee vastauksen (yleensä JSON-muotoon) ja lähettää sen takaisin clientille käyttäen `res.status().json()` -metodia.
-8.  **Virheenkäsittely:** Virhetilanteissa (esim. validointivirhe, tietokantavirhe, oikeusvirhe) middleware tai controller/service heittää virheen. Globaali virheenkäsittely-middleware (`app.ts`:ssä määritelty) ottaa virheen kiinni ja lähettää standardoidun virhevastauksen clientille.
+4.  **Controller:** Vastaava controller-funktio ottaa pyynnön vastaan. Se voi sisältää liiketoimintalogiikkaa suoraan tai kutsua `services`-kansion funktioita (esim. `ticketService`, `socketService`).
+5.  **Service:** Palvelufunktio (kuten `ticketService`) sisältää osan liiketoimintalogiikasta, erityisesti tiketteihin ja kommentteihin liittyen. Se käyttää Prisma-clientiä (`config/database.ts`) kommunikoidakseen tietokannan kanssa. Se voi myös kutsua muita palveluita (esim. `socketService`).
+6.  **Tietokantaoperaatiot:** Prisma kääntää kutsut SQL-kyselyiksi ja suorittaa ne PostgreSQL-tietokannassa.
+7.  **Vastaus:** Controller muotoilee vastauksen (yleensä JSON-muotoon) ja lähettää sen takaisin clientille käyttäen `res.status().json()` -metodia.
+8.  **Virheenkäsittely:** Virhetilanteissa middleware, controller tai service heittää virheen. Globaali virheenkäsittely-middleware (`app.ts`:ssä määritelty) ottaa virheen kiinni ja lähettää standardoidun virhevastauksen clientille.
 
 ## Reaaliaikainen Kommunikaatio (Socket.IO)
 
 *   **Alustus:** `index.ts` alustaa Socket.IO-palvelimen ja liittää sen HTTP-palvelimeen.
-*   **Yhteyden Hallinta:** `socketService.ts` (tai vastaava) hoitaa uusien client-yhteyksien vastaanottamisen, käyttäjien autentikoinnin (esim. JWT-tokenilla yhteydenoton yhteydessä) ja käyttäjäkohtaisten socket-yhteyksien tallentamisen (esim. map userId -> socketId).
-*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava service-funktio (esim. `commentService.createComment`) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille heidän socketId:nsä perusteella. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
+*   **Yhteyden Hallinta:** `socketService.ts` hoitaa uusien client-yhteyksien vastaanottamisen, käyttäjien autentikoinnin ja käyttäjäkohtaisten socket-yhteyksien tallentamisen.
+*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka (todennäköisesti `ticketController`issa tai `ticketService`ssä) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
 *   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia (`socket.on('new_notification', ...)`).
 
 ## Tekoälyominaisuudet
