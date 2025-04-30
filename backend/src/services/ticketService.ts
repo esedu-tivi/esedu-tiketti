@@ -233,35 +233,6 @@ export const ticketService = {
     });
   },
 
-  // Hae käyttäjän tiketit
-  getTicketsByUserId: async (userId: string) => {
-    return await prisma.ticket.findMany({
-      where: {
-        createdById: userId
-      },
-      include: {
-        category: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        assignedTo: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-  },
-
   // Päivitä tiketin tila
   updateTicketStatus: async (id: string, status: TicketStatus) => {
     return await prisma.ticket.update({

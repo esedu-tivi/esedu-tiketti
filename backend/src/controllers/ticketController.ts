@@ -1188,34 +1188,5 @@ export const ticketController = {
     }
   },
 
-  // When updating ticket priority
-  updateTicketPriority: async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { priority } = req.body;
 
-    try {
-      const ticket = await prisma.ticket.update({
-        where: { id },
-        data: { priority },
-        include: {
-          assignedTo: true,
-        },
-      });
-
-      // Create notification for assigned user if exists
-      if (ticket.assignedToId) {
-        await createNotification(
-          ticket.assignedToId,
-          'PRIORITY_CHANGED',
-          `Tiketin "${ticket.title}" prioriteetti on muuttunut: ${priority}`,
-          ticket.id
-        );
-      }
-
-      res.json(ticket);
-    } catch (error) {
-      console.error('Error updating ticket priority:', error);
-      res.status(500).json({ error: 'Failed to update ticket priority' });
-    }
-  }
 };

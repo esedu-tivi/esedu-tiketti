@@ -1,6 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { TICKET_GENERATOR_PROMPT } from "../prompts/ticketGeneratorPrompt.js";
-import CONVERSATION_PROMPT from "../prompts/conversationPrompt.js";
 import SOLUTION_GENERATOR_PROMPT from "../prompts/solutionGeneratorPrompt.js";
 import { AI_CONFIG } from "../config.js";
 import { PrismaClient, Priority, ResponseFormat } from '@prisma/client';
@@ -38,37 +37,6 @@ interface GeneratedTicket {
   categoryId: string;
   createdById: string;
   assignedToId: string | null;
-}
-
-/**
- * Interface for the comment object used in conversations
- */
-interface CommentData {
-  id: string;
-  text: string;
-  userId: string;
-  ticketId: string;
-  createdAt: Date;
-}
-
-/**
- * Interface for the parameters used to generate user responses
- */
-interface UserResponseParams {
-  ticket: {
-    id: string;
-    title: string;
-    description: string;
-    device: string;
-    priority: string;
-    categoryId: string;
-    userProfile?: string;
-    createdById: string;
-  };
-  comments: CommentData[];
-  newSupportComment: string;
-  supportUserId: string;
-  solution?: string | null;
 }
 
 /**
@@ -332,101 +300,6 @@ export class TicketGeneratorAgent {
   }
 
   /**
-   * Generates a user response to a support comment in a ticket conversation
-   * This simulates how a real user would respond to troubleshooting instructions
-   */
-  async generateUserResponse(params: UserResponseParams): Promise<string> {
-    try {
-      const { 
-        ticket, 
-        comments, 
-        newSupportComment, 
-        supportUserId,
-        solution
-      } = params;
-      
-      console.log(`Generating user response for ticket: ${ticket.id}, to support comment by user: ${supportUserId}`);
-      
-      // Get category name
-      const category = await prisma.category.findUnique({
-        where: { id: ticket.categoryId }
-      });
-      
-      if (!category) {
-        throw new Error(`Category not found for ticket ${ticket.id}`);
-      }
-      
-      // Get user name who created the ticket
-      const ticketCreator = await prisma.user.findUnique({
-        where: { id: ticket.createdById }
-      });
-      
-      if (!ticketCreator) {
-        throw new Error(`Creator not found for ticket ${ticket.id}`);
-      }
-      
-      // Format conversation history for the prompt
-      const conversationHistory = comments.map(comment => {
-        const isSupport = comment.userId !== ticket.createdById;
-        return {
-          role: isSupport ? "support" : "user",
-          name: isSupport ? "Support" : ticketCreator.name,
-          content: comment.text,
-          timestamp: comment.createdAt.toISOString()
-        };
-      });
-      
-      // Determine complexity from priority
-      const complexity = 
-        ticket.priority === 'LOW' ? 'simple' : 
-        ticket.priority === 'MEDIUM' ? 'moderate' : 
-        ticket.priority === 'HIGH' || ticket.priority === 'CRITICAL' ? 'complex' : 'moderate';
-      
-      // Estimate solution progress based on support comment
-      const progressToSolution = this.estimateSolutionProgress(
-        newSupportComment, 
-        solution || '', 
-        conversationHistory
-      );
-      
-      // Format the prompt for conversation
-      const formattedMessages = await CONVERSATION_PROMPT.formatMessages({
-        ticketTitle: ticket.title,
-        ticketDescription: ticket.description,
-        deviceInfo: ticket.device || 'Unknown device',
-        category: category.name,
-        userName: ticketCreator.name,
-        userProfile: ticket.userProfile || 'student',
-        solution: solution || 'Unknown solution',
-        conversationHistory: JSON.stringify(conversationHistory),
-        supportComment: newSupportComment,
-        complexity,
-        progressToSolution,
-        // Revert to the original complex key name expected by the prompt
-        "complexity === 'simple' ? 'vähäinen' : complexity === 'moderate' ? 'keskitasoinen' : 'hyvä'": 
-          `${complexity === 'simple' ? 'vähäinen' : complexity === 'moderate' ? 'keskitasoinen' : 'hyvä'}`
-      });
-      
-      console.log('Invoking LLM for user response generation');
-      
-      console.debug('[DEBUG] TicketGeneratorAgent.generateUserResponse - Invoking LLM for user response...'); // DEBUG LOG
-      console.debug('[DEBUG] TicketGeneratorAgent.generateUserResponse - LLM Input:', JSON.stringify(formattedMessages, null, 2)); // DEBUG LOG
-      
-      // Get AI response simulating the user
-      const response = await this.model.invoke(formattedMessages);
-      const userResponse = response.content.toString();
-      
-      console.log('Generated user response successfully');
-      
-      return userResponse;
-    } catch (error) {
-      console.error('Error generating user response:', error);
-      // Return a generic fallback response if something goes wrong
-      return "Pahoittelut, en aivan ymmärtänyt ohjeita. Voisitko selittää vielä kerran?";
-    }
-  }
-  
-  /**
    * Generates a solution and detailed troubleshooting guide for a ticket
    * This becomes the hidden solution that the AI agent knows but doesn't reveal
    */
@@ -469,69 +342,6 @@ export class TicketGeneratorAgent {
     }
   }
   
-  /**
-   * Helper method to estimate how close the support agent is to solving the problem
-   * This helps the AI know how to respond appropriately
-   */
-  private estimateSolutionProgress(
-    currentComment: string,
-    solution: string,
-    history: any[]
-  ): string {
-    if (!solution) return "UNKNOWN";
-    
-    // Extract key solution terms
-    const solutionKeywords = this.extractKeyTerms(solution);
-    
-    // Check current comment and history for matches
-    const allComments = history.map(h => h.content).join(" ") + " " + currentComment;
-    const matchCount = solutionKeywords.filter(keyword => 
-      allComments.toLowerCase().includes(keyword.toLowerCase())
-    ).length;
-    
-    // Calculate approximate progress
-    const progressPercent = Math.min(
-      100, 
-      Math.round((matchCount / Math.max(1, solutionKeywords.length)) * 100)
-    );
-    
-    console.log(`Solution progress: ${progressPercent}% (matched ${matchCount}/${solutionKeywords.length} keywords)`);
-    
-    // Return progress category
-    if (progressPercent < 25) return "EARLY";
-    if (progressPercent < 60) return "PROGRESSING";
-    if (progressPercent < 90) return "CLOSE";
-    return "SOLVED";
-  }
-  
-  /**
-   * Extract important terms from solution text
-   */
-  private extractKeyTerms(solution: string): string[] {
-    // Split solution into words, remove duplicates and common words
-    const words = solution.toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length > 3) // Skip short words
-      .filter(word => !['joka', 'että', 'tämä', 'niin', 'kuin', 'voit', 'olla', 'myös'].includes(word));
-    
-    // Remove duplicates and limit number of terms
-    const uniqueWords = [...new Set(words)].slice(0, 20);
-    
-    // Extract phrases (2-3 words) that might be important
-    const phrases = [];
-    for (let i = 0; i < words.length - 1; i++) {
-      if (words[i].length > 3 && words[i+1].length > 3) {
-        phrases.push(`${words[i]} ${words[i+1]}`);
-      }
-    }
-    
-    // Combine single words and phrases, ensuring no duplicates
-    const terms = [...uniqueWords, ...phrases.slice(0, 10)];
-    
-    return terms;
-  }
-
   /**
    * Generates a solution based on raw ticket data (used for preview)
    */
