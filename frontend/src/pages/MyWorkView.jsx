@@ -7,10 +7,13 @@ import { Alert } from '../components/ui/Alert';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { List, Grid } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 export default function MyWorkView() {
   const { user } = useAuth();
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useViewMode('myWorkView', 'card');
+  const [activeTab, setActiveTab] = useLocalStorage('myWorkView_activeTab', 'in-progress');
 
   // Query for tickets that are IN_PROGRESS and assigned to the current user
   const {
@@ -123,7 +126,11 @@ export default function MyWorkView() {
           </div>
         </div>
 
-      <Tabs defaultValue="in-progress" className="w-full">
+      <Tabs 
+        value={activeTab} 
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <TabsList>
           <TabsTrigger value="in-progress">
             Käsittelyssä ({inProgressTickets.length})

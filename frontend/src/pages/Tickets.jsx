@@ -8,13 +8,14 @@ import UserManagementDialog from '../components/Admin/UserManagementDialog';
 import FilterMenu from './FilterMenu';
 import { useQuery } from '@tanstack/react-query';
 import { List, Grid } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 
 export default function Tickets() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const { user, userRole } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useViewMode('allTickets', 'card');
 
   const {
     data: ticketsData,
@@ -82,14 +83,6 @@ export default function Tickets() {
               </button>
             </div>
 
-          {userRole === 'ADMIN' && (
-            <button
-              onClick={() => setIsUserManagementOpen(true)}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90"
-            >
-              Hallitse käyttäjiä
-            </button>
-          )}
         </div>
 
         {tickets.length === 0 ? (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AITicketGenerator from '../components/Admin/AITicketGenerator';
 import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
@@ -23,6 +23,9 @@ import {
   ThumbsUp,
   BookOpen
 } from 'lucide-react';
+import axios from 'axios';
+import { authService } from '../services/authService';
+import { aiAnalyticsService } from '../services/aiAnalyticsService';
 
 /**
  * AITools - Page for AI-related tools for administrators and support staff
@@ -45,6 +48,12 @@ const AITools = () => {
   // NEW: State for TicketDetailsModal
   const [selectedTicketForDetails, setSelectedTicketForDetails] = useState(null);
   const [isTicketDetailsModalOpen, setIsTicketDetailsModalOpen] = useState(false);
+
+  // State for stats
+  const [ticketsCount, setTicketsCount] = useState(0);
+  const [ticketsAssistedCount, setTicketsAssistedCount] = useState(0);
+  const [totalInteractions, setTotalInteractions] = useState(0);
+  const [supportAgentsCount, setSupportAgentsCount] = useState(0);
 
   // Handler to open conversation modal
   const handleViewConversation = (ticketId) => {
@@ -83,12 +92,60 @@ const AITools = () => {
     setSelectedTicketForDetails(null);
   };
   
-  // Stats used in the dashboard (these would be real metrics in production)
+  // Fetch data for dashboard stats
+  useEffect(() => {
+    const fetchStatsData = async () => {
+      try {
+        const token = await authService.acquireToken();
+        
+        // Fetch total tickets count
+        const ticketsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/tickets`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (ticketsResponse.data && ticketsResponse.data.tickets) {
+          setTicketsCount(ticketsResponse.data.tickets.length);
+        }
+        
+        // Fetch AI-assisted tickets count from AI analytics
+        const analyticsData = await aiAnalyticsService.getOverallStats();
+        if (analyticsData) {
+          setTicketsAssistedCount(analyticsData.totalTicketsAssisted || 0);
+          setTotalInteractions(analyticsData.totalInteractions || 0);
+        }
+        
+        // Fetch all users and count support personnel
+        const usersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (usersResponse.data) {
+          // Handle both array response and object with users property
+          const users = Array.isArray(usersResponse.data) 
+            ? usersResponse.data 
+            : (usersResponse.data.users || []);
+          
+          // Count users with SUPPORT role only (excluding admins)
+          const supportCount = users.filter(user => 
+            user.role === 'SUPPORT'
+          ).length;
+          
+          setSupportAgentsCount(supportCount);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error);
+      }
+    };
+    
+    fetchStatsData();
+  }, []);
+  
+  // Stats used in the dashboard (using real data from APIs)
   const stats = [
-    { label: 'Tikettejä luotu', value: '248', icon: <FileText size={16} className="text-blue-500" /> },
-    { label: 'AI:n analysoituja', value: '1,024', icon: <Brain size={16} className="text-purple-500" /> },
-    { label: 'Vastausaika', value: '2.4s', icon: <RefreshCw size={16} className="text-green-500" /> },
-    { label: 'Tarkkuus', value: '97%', icon: <ShieldAlert size={16} className="text-orange-500" /> }
+    { label: 'Tikettejä luotu', value: ticketsCount.toString(), icon: <FileText size={16} className="text-blue-500" /> },
+    { label: 'AI:n analysoituja', value: ticketsAssistedCount.toString(), icon: <Brain size={16} className="text-purple-500" /> },
+    { label: 'AI Interaktiot yhteensä', value: totalInteractions.toString(), icon: <MessageSquare size={16} className="text-green-500" /> },
+    { label: 'Tukihenkilöitä', value: supportAgentsCount.toString(), icon: <Users size={16} className="text-orange-500" /> }
   ];
 
   // Tabs available in the AI tools section
@@ -137,13 +194,6 @@ const AITools = () => {
       disabled: false
     },
     {
-      id: 'feedback',
-      label: 'Palaute',
-      icon: <ThumbsUp size={16} className="text-purple-500" />,
-      description: 'Tukihenkilöiden palaute ja avustajan kehitysideat',
-      disabled: true
-    },
-    {
       id: 'info',
       label: 'Ohjeet',
       icon: <BookOpen size={16} className="text-gray-500" />,
@@ -165,16 +215,6 @@ const AITools = () => {
               <p className="mt-2 text-indigo-100 max-w-2xl">
                 Tehosta IT-tukikeskusta tekoälypohjaisilla ratkaisuilla ja luo realistisia harjoitustilanteita
               </p>
-            </div>
-            <div className="mt-4 md:mt-0 flex space-x-3">
-              <button className="px-4 py-2 bg-white bg-opacity-10 rounded-lg text-sm font-medium hover:bg-opacity-20 transition-all flex items-center">
-                <Users size={16} className="mr-2" />
-                Tukihenkilöt
-              </button>
-              <button className="px-4 py-2 bg-white bg-opacity-10 rounded-lg text-sm font-medium hover:bg-opacity-20 transition-all flex items-center">
-                Dokumentaatio
-                <ChevronRight size={16} className="ml-2" />
-              </button>
             </div>
           </div>
           

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import NotificationSettings from '../components/Notifications/NotificationSettings';
 import { useAuth } from '../providers/AuthProvider';
-import { UserCircle, LogOut, Mail, User, Award, Edit, Settings, Briefcase } from 'lucide-react';
+import { UserCircle, LogOut, Mail, User, Award, Edit, Settings, Briefcase, Github, Linkedin } from 'lucide-react';
 import axios from 'axios';
 import { authService } from '../services/authService';
 import ProfilePicture from '../components/User/ProfilePicture';
 import { userService } from '../services/userService';
+import eseduLogo from '../assets/esedu-tiketti.png';
 
 const ProfileView = () => {
   const { user, userRole, logout } = useAuth();
@@ -137,9 +138,7 @@ const ProfileView = () => {
                   size="xl" 
                   className="border-4 border-white shadow-lg"
                 />
-                <p className="mt-2 text-sm text-white/80">
-                  Profiilikuva synkronoitu Microsoft-tililtäsi
-                </p>
+
               </div>
               <div className="flex-1">
                 <h1 className="text-2xl font-bold">{user?.name}</h1>
@@ -247,6 +246,48 @@ const ProfileView = () => {
           <div className="p-6">
             <NotificationSettings />
           </div>
+        </div>
+
+        {/* Watermark */}
+        <div className="flex flex-col items-center text-center mt-12 mb-6 ">
+          <img 
+            src={eseduLogo} 
+            alt="Esedu Tiketti Logo" 
+            className="w-80 h-auto mb-3"
+          />
+          <p className="text-xs text-gray-500 max-w-md">
+            Tämä projekti on toteutettu opiskelijan lopputyönä Esedu-oppilaitokselle.
+            <span className="font-medium mt-2 block">
+              Tobias Lång — Technical Lead & AI Solutions • <a 
+                href="https://intelliqai.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+              >
+                intelliqai.com
+              </a>
+            </span>
+            <div className="flex items-center justify-center gap-3 mt-1">
+              <a 
+                href="https://github.com/Tobsukka" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-gray-700 hover:text-blue-600 transition-colors"
+                aria-label="GitHub"
+              >
+                <Github size={16} />
+              </a>
+              <a 
+                href="https://linkedin.com/in/tobias-lång" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-gray-700 hover:text-blue-600 transition-colors"
+                aria-label="LinkedIn"
+              >
+                <Linkedin size={16} />
+              </a>
+            </div>
+          </p>
         </div>
       </div>
     </div>

@@ -91,7 +91,10 @@ const TabButton = ({ isActive, onClick, icon, label, badge = null }) => {
   const IconComponent = icon;
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.preventDefault(); // Prevent default browser behavior
+        onClick();
+      }}
       className={`px-4 py-3 flex items-center gap-2 transition-all duration-200 font-medium relative group ${
         isActive 
           ? 'text-blue-600' 
@@ -1053,7 +1056,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                   <Button 
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowAssistantChat(!showAssistantChat)}
+                    onClick={(e) => {
+                      e.preventDefault(); // Prevent default browser behavior
+                      setShowAssistantChat(!showAssistantChat);
+                    }}
                     className={`transition-all duration-200 flex items-center gap-1.5 shadow-sm border ${ 
                       showAssistantChat 
                       ? 'bg-purple-100 text-purple-800 border-purple-300 ring-2 ring-purple-200' 

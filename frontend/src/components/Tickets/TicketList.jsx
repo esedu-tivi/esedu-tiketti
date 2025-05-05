@@ -161,17 +161,6 @@ function TicketList({ tickets = [], isLoading, error }) {
                 className="ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition group relative"
                 onClick={() => handleTicketClick(ticket.id)}
               >
-                {userRole === 'ADMIN' && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 text-gray-400 hover:text-red-500 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => handleDeleteClick(e, ticket)}
-                    aria-label="Poista tiketti"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
                 <div className="block">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
@@ -202,6 +191,18 @@ function TicketList({ tickets = [], isLoading, error }) {
                     )}
                   </div>
                 </div>
+                
+                {userRole === 'ADMIN' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute bottom-4 right-4 text-gray-400 hover:text-red-500 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => handleDeleteClick(e, ticket)}
+                    aria-label="Poista tiketti"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </li>
             );
           })}

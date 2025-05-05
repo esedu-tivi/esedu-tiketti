@@ -2,6 +2,21 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 05.05.2025 - feat: Näkymäasetusten tallentaminen selaimen muistiin
+
+- **Käyttöliittymän parannukset:**
+  - Lisätty näkymäasetusten (kortti/listanäkymä) tallennus selaimen localStorage-muistiin
+  - Käyttäjien valitsemat näkymäasetukset säilyvät nyt selainikkunan sulkemisen ja uudelleen avaamisen välillä
+  - Toteutettu seuraavilla sivuilla:
+    - Kaikki tiketit (Tickets.jsx)
+    - Omat tikettini (MyTickets.jsx)
+    - Oma työnäkymä (MyWorkView.jsx)
+  - Lisätty myös tuki Oma työnäkymä -välilehden aktiivisen välilehden muistamiselle
+  - Uudelleenkäytettävät custom hookit:
+    - useViewMode: näkymäasetusten käsittelyyn
+    - useLocalStorage: yleiseen localStorage-tallennukseen
+  - Parempi käyttäjäkokemus: käyttäjän ei tarvitse vaihtaa näkymää joka kerta sivuille palatessaan
+
 # 05.05.2025 - feat: Lisätty interaktiivinen demo tukihenkilöassistentille
 
 - **AI-avustaja-välilehden parannukset:**

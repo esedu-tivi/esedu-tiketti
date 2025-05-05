@@ -141,13 +141,6 @@ const NotificationSettings = () => {
       description: 'Saat ilmoituksen kun sinut mainitaan kommentissa (@käyttäjänimi)',
       tooltip: 'Ilmoitus tulee kun joku mainitsee sinut kommentissa @-merkillä'
     },
-    {
-      field: 'notifyOnDeadline',
-      label: 'Tiketin deadline lähestyy',
-      description: 'Saat ilmoituksen kun tikettisi deadline lähestyy',
-      tooltip: 'Ilmoitus tulee kun tiketin arvioitu valmistumisaika lähestyy',
-      comingSoon: true
-    }
   ];
 
   return (
@@ -160,13 +153,7 @@ const NotificationSettings = () => {
             <h3 className="text-lg font-medium">Yleiset asetukset</h3>
           </div>
           <div className="space-y-3">
-            {renderToggle(
-              'emailNotifications',
-              'Sähköposti-ilmoitukset',
-              'Vastaanota ilmoitukset sähköpostitse',
-              true,
-              true
-            )}
+
             {renderToggle(
               'webNotifications',
               'Selainilmoitukset',

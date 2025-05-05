@@ -7,12 +7,13 @@ import { Alert } from '../components/ui/Alert';
 import FilterMenu from './FilterMenu';
 import { useQuery } from '@tanstack/react-query';
 import { List, Grid } from 'lucide-react';
+import { useViewMode } from '../hooks/useViewMode';
 
 export default function MyTickets() {
   const { user } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-  const [viewMode, setViewMode] = useState('card');
+  const [viewMode, setViewMode] = useViewMode('myTickets', 'card');
 
   const {
     data: ticketsData,

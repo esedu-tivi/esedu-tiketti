@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchSupportUsers } from '../utils/api';
 
-const MentionInput = ({ value, onChange, placeholder }) => {
+const MentionInput = ({ value, onChange, placeholder, onSubmit, disabled }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [suggestions, setSuggestions] = useState([]);
@@ -14,6 +14,49 @@ const MentionInput = ({ value, onChange, placeholder }) => {
   // Each item is either plain text or a mention object
   const [structuredContent, setStructuredContent] = useState([{ type: 'text', content: value || '' }]);
   const [plainTextValue, setPlainTextValue] = useState(value || '');
+
+  // Function to auto-resize textarea based on content
+  const autoResizeTextarea = useCallback(() => {
+    if (inputRef.current) {
+      // Reset height to get accurate scrollHeight
+      inputRef.current.style.height = 'auto';
+      
+      // Calculate new height (clamp between 40px and 150px)
+      const newHeight = Math.min(150, Math.max(40, inputRef.current.scrollHeight));
+      
+      // Set the new height
+      inputRef.current.style.height = `${newHeight}px`;
+      
+      // Add scrollbars if content exceeds max height
+      if (inputRef.current.scrollHeight > 150) {
+        inputRef.current.style.overflowY = 'auto';
+      } else {
+        inputRef.current.style.overflowY = 'hidden';
+      }
+    }
+  }, []);
+
+  // Auto-resize on input value change
+  useEffect(() => {
+    autoResizeTextarea();
+  }, [plainTextValue, autoResizeTextarea]);
+
+  // Handler for key press
+  const handleKeyDown = (e) => {
+    // Handle escape key to cancel mention (original functionality)
+    if (e.key === 'Escape' && showSuggestions) {
+      setShowSuggestions(false);
+      setMentionSearchPosition(-1);
+      e.preventDefault();
+      return;
+    }
+    
+    // If Enter is pressed without Shift key, and there's content, submit
+    if (e.key === 'Enter' && !e.shiftKey && onSubmit && plainTextValue.trim()) {
+      e.preventDefault(); // Prevent default behavior (newline)
+      onSubmit();
+    }
+  };
 
   // Fetch users for suggestions
   const { data: users = [] } = useQuery({
@@ -83,6 +126,9 @@ const MentionInput = ({ value, onChange, placeholder }) => {
     const previousValue = plainTextValue;
     setPlainTextValue(newValue);
     setCursorPosition(position);
+    
+    // Call autoResizeTextarea to adjust height immediately
+    setTimeout(autoResizeTextarea, 0);
     
     // Check if we just typed @ symbol
     if (position > 0 && newValue.charAt(position - 1) === '@') {
@@ -501,23 +547,28 @@ const MentionInput = ({ value, onChange, placeholder }) => {
           value={plainTextValue}
           onChange={handleInputChange}
           placeholder={placeholder}
-          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${hasMentions ? 'mention-textarea' : ''}`}
-          rows={3}
+          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none ${hasMentions ? 'mention-textarea' : ''}`}
+          rows={1}
           onSelect={(e) => setCursorPosition(e.target.selectionStart)}
           onClick={(e) => setCursorPosition(e.target.selectionStart)}
-          onKeyDown={(e) => {
-            // Handle escape key to cancel mention
-            if (e.key === 'Escape' && showSuggestions) {
-              setShowSuggestions(false);
-              setMentionSearchPosition(-1);
-              e.preventDefault();
-            }
+          onKeyDown={handleKeyDown}
+          style={{ 
+            minHeight: '40px',
+            maxHeight: '150px',
+            overflow: 'hidden' // Default state, will be updated by autoResizeTextarea
           }}
         />
         
         {/* Render an overlay with colored mentions */}
         {hasMentions && (
-          <div className="absolute inset-0 pointer-events-none px-3 py-2 whitespace-pre-wrap overflow-hidden mention-overlay">
+          <div 
+            className="absolute inset-0 pointer-events-none px-3 py-2 whitespace-pre-wrap overflow-hidden mention-overlay"
+            style={{ 
+              minHeight: '40px',
+              maxHeight: '150px',
+              overflowY: inputRef.current?.style.overflowY
+            }}
+          >
             {structuredContent.map((item, index) => {
               if (item.type === 'mention') {
                 return (

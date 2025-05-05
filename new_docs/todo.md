@@ -19,6 +19,9 @@ Tähän tiedostoon listataan projektin tulevat tehtävät ja niiden tila.
 *   `✅` Paranna tukihenkilöassistentin chat-käyttöliittymää:
     * Moniriviinen tekstialue yhden rivin tekstikentän sijaan
     * Aikaleimoja näytetään suomalaisessa formaatissa (24h)
+*   `✅` Tallenna käyttäjän näkymäasetukset (kortti/lista) selaimen paikallismuistiin (localStorage):
+    * Tikettilistat (Kaikki tiketit, Omat tikettini, Oma työnäkymä)
+    * Muista valittu välilehti Oma työnäkymä -sivulla
 *   `[Merkki]` Kuvaus tehtävästä...
 
 ### Backend & API
@@ -60,8 +63,3 @@ Tähän tiedostoon listataan projektin tulevat tehtävät ja niiden tila.
 4.  **Priorisointi:** Voit järjestää tehtäviä kategorian sisällä tärkeysjärjestykseen (tärkein ylimpänä) tai lisätä erillisen "Seuraavaksi Työn Alle" -osion. 
 
 ## Muutosloki
-
-### 2023-11-22
-- Toteutettu Support Assistant Agent tukihenkilöille
-- Luotu backend-toteutus, API-rajapinta ja dokumentaatio
-- Lisätty tuki tietämyskanta-artikkeleiden käyttöön avustajan vastauksissa 

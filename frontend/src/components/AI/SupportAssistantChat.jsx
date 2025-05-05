@@ -248,17 +248,28 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
     }
   }, []);
   
-  // Run autoResize when input changes
+  // Auto-scroll to bottom when conversation updates
+  const scrollToBottom = useCallback(() => {
+    if (chatEndRef.current) {
+      // Find the closest scrollable container instead of scrolling the entire page
+      const scrollContainer = chatEndRef.current.closest('.overflow-y-auto');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+      // Don't use scrollIntoView as it affects the entire page
+      // chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, []);
+  
+  // Auto-resize on input change
   useEffect(() => {
     autoResizeTextarea();
   }, [input, autoResizeTextarea]);
   
-  // Auto-scroll to bottom when conversation updates
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }, []);
+  // Scroll to bottom when conversation updates or loading changes
+  useEffect(() => {
+    scrollToBottom();
+  }, [conversation, isLoading, scrollToBottom]);
   
   // Focus input when chat opens
   useEffect(() => {
@@ -266,11 +277,6 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
       textAreaRef.current?.focus();
     }
   }, [isMinimized]);
-  
-  // Scroll to bottom when conversation updates or loading changes
-  useEffect(() => {
-    scrollToBottom();
-  }, [conversation, isLoading, scrollToBottom]);
   
   // Simulate typing indicator before AI response
   useEffect(() => {
@@ -539,7 +545,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
                   <Sparkles className="h-4 w-4 text-purple-100" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm tracking-wide">Tuki AI</h3>
+                  <h3 className="font-semibold text-sm tracking-wide">EseduTiketti AI</h3>
                   <div className="text-[11px] text-indigo-200 font-light flex items-center">
                     <span className="max-w-[180px] truncate">{ticket.title}</span>
                     <span className="ml-1.5 inline-flex h-1.5 w-1.5 rounded-full bg-green-300"></span>

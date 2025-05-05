@@ -10,6 +10,8 @@ import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon } from 'lucide-r
 import NewTicketForm from '../Tickets/NewTicketForm';
 import ProfilePicture from '../User/ProfilePicture';
 import { motion, AnimatePresence } from 'framer-motion';
+// Import placeholder for logo - this will need to be replaced with the actual logo file
+import logoPlaceholder from '../../assets/logo.png';
 
 export default function Header() {
   const { user, userRole } = useAuth();
@@ -75,7 +77,11 @@ export default function Header() {
           {/* Left section: Logo and navigation */}
           <div className="flex items-center gap-6">
             <Link to="/my-tickets" className="text-xl font-bold text-primary flex items-center">
-              <span className="text-primary">Tiketti</span>
+              <img 
+                src={logoPlaceholder} 
+                alt="EseduTiketti" 
+                className="h-12 w-auto" 
+              />
             </Link>
 
             {/* Desktop Navigation */}

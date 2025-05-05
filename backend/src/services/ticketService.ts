@@ -204,7 +204,23 @@ export const ticketService = {
       });
       console.log(`Deleted ${deletedComments.count} comments related to ticket ${id}.`);
 
-      // 3. Jos tiketti on AI-generoitu, poista siihen liittyvä KnowledgeArticle
+      // 3. Poista tikettiin liittyvät ilmoitukset
+      const deletedNotifications = await tx.notification.deleteMany({
+        where: {
+          ticketId: id
+        }
+      });
+      console.log(`Deleted ${deletedNotifications.count} notifications related to ticket ${id}.`);
+
+      // 4. Poista tikettiin liittyvät AI-interaktiot
+      const deletedAIInteractions = await tx.aIAssistantInteraction.deleteMany({
+        where: {
+          ticketId: id
+        }
+      });
+      console.log(`Deleted ${deletedAIInteractions.count} AI interactions related to ticket ${id}.`);
+
+      // 5. Jos tiketti on AI-generoitu, poista siihen liittyvä KnowledgeArticle
       if (ticketToDelete?.isAiGenerated) {
         console.log(`Ticket ${id} is AI-generated. Attempting to delete related KnowledgeArticle.`);
         const relatedArticles = await tx.knowledgeArticle.findMany({
@@ -223,7 +239,7 @@ export const ticketService = {
          console.log(`Ticket ${id} is not AI-generated. Skipping KnowledgeArticle deletion.`);
       }
 
-      // 4. Poista itse tiketti
+      // 6. Poista itse tiketti
       console.log(`Deleting ticket ${id} itself within transaction.`);
       const deletedTicket = await tx.ticket.delete({
         where: { id }

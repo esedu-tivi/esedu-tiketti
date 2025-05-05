@@ -106,7 +106,13 @@ export default function CommentSection({
   const commentsEndRef = useRef(null);
 
   useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Use container-specific scrolling instead of scrollIntoView
+    if (commentsEndRef.current) {
+      const scrollContainer = commentsEndRef.current.closest('.overflow-y-auto');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
   }, [comments, isAiTyping]);
 
   useEffect(() => {
@@ -442,14 +448,16 @@ export default function CommentSection({
             </div>
             <div>
               <Label htmlFor="required-media-description">Lyhyt kuvaus (valinnainen)</Label>
-              <MentionInput
-                id="required-media-description"
-                value={newComment}
-                onChange={setNewComment}
-                placeholder="Kirjoita lyhyt kuvaus medialle... Voit mainita @käyttäjän."
-                disabled={!mediaFile || addCommentMutation.isLoading}
-                className="mt-1"
-              />
+              <div className="relative mt-1">
+                <MentionInput
+                  id="required-media-description"
+                  value={newComment}
+                  onChange={setNewComment}
+                  placeholder="Kirjoita lyhyt kuvaus medialle... Voit mainita @käyttäjän."
+                  disabled={!mediaFile || addCommentMutation.isLoading}
+                  onSubmit={mediaFile ? handleMediaSubmit : undefined}
+                />
+              </div>
             </div>
             <Button 
               type="submit" 
@@ -461,28 +469,31 @@ export default function CommentSection({
         ) : (
           <>
             <form onSubmit={handleSubmit} className="space-y-3">
-              <MentionInput
-                value={newComment}
-                onChange={setNewComment}
-                placeholder={disabledMessage || "Kirjoita kommentti... Voit mainita @käyttäjän."}
-                disabled={textInputDisabled}
-                aria-label="Uusi kommentti"
-              />
-               <div className="flex justify-between items-center">
-                 <span className="text-xs text-red-500">{textInputDisabled ? disabledMessage : ''}</span>
-                  <Button 
-                    type="submit" 
-                    disabled={textInputDisabled || !newComment.trim()}
-                    size="sm"
-                  >
-                     {addCommentMutation.isLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                         <Send className="mr-1.5 h-4 w-4" />
-                     )}
-                     <span>Lähetä</span>
-                   </Button>
-               </div>
+              <div className="relative">
+                <MentionInput
+                  value={newComment}
+                  onChange={setNewComment}
+                  placeholder={disabledMessage || "Kirjoita kommentti... Voit mainita @käyttäjän."}
+                  disabled={textInputDisabled}
+                  aria-label="Uusi kommentti"
+                  onSubmit={handleSubmit}
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-red-500">{textInputDisabled ? disabledMessage : ''}</span>
+                <Button 
+                  type="submit" 
+                  disabled={textInputDisabled || !newComment.trim()}
+                  size="sm"
+                >
+                  {addCommentMutation.isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="mr-1.5 h-4 w-4" />
+                  )}
+                  <span>Lähetä</span>
+                </Button>
+              </div>
             </form>
             
              {canAddMediaComment() && (
@@ -516,14 +527,16 @@ export default function CommentSection({
                 </div>
                 <div>
                   <Label htmlFor="optional-media-description">Lyhyt kuvaus (valinnainen)</Label>
-                  <MentionInput
-                    id="optional-media-description"
-                    value={newComment}
-                    onChange={setNewComment}
-                    placeholder="Kirjoita lyhyt kuvaus medialle..."
-                    disabled={!mediaFile || addCommentMutation.isLoading}
-                    className="mt-1"
-                  />
+                  <div className="relative mt-1">
+                    <MentionInput
+                      id="optional-media-description"
+                      value={newComment}
+                      onChange={setNewComment}
+                      placeholder="Kirjoita lyhyt kuvaus medialle..."
+                      disabled={!mediaFile || addCommentMutation.isLoading}
+                      onSubmit={mediaFile ? handleMediaSubmit : undefined}
+                    />
+                  </div>
                 </div>
                 <Button 
                   type="submit" 

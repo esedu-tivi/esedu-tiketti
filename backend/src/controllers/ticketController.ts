@@ -815,14 +815,9 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
-      // Create notification for the assigned user
-      await createNotification(
-        user.id,
-        'TICKET_ASSIGNED',
-        `Sinulle on osoitettu uusi tiketti: ${updatedTicket.title}`,
-        updatedTicket.id
-      );
-
+      // Don't create a notification when user takes the ticket themselves
+      // The notification is unnecessary since they initiated the action
+      
       res.json({ ticket: updatedTicket });
     } catch (error) {
       console.error('Error taking ticket into processing:', error);

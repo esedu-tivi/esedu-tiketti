@@ -323,15 +323,16 @@ model AIAssistantCategoryStat {
 
 Prisma ja sovelluslogiikka varmistavat tietokannan eheyden. Koska monista relaatioista on poistettu eksplisiittiset `onDelete`-säännöt (kuten `Cascade` tai `SetNull`), Prisman oletuskäyttäytyminen tietokantatasolla estää yleensä tietueen poistamisen, jos siihen on vielä viittauksia muista tauluista (Referential Integrity).
 
-### Tikettien Poisto
+### Tikettin Poisto
 
-Kun tiketti poistetaan sovelluslogiikassa (esim. `ticketService.deleteTicket`), on **sovelluksen vastuulla** huolehtia liittyvien tietojen siistimisestä oikeassa järjestyksessä ennen varsinaisen tiketin poistamista, jotta viite-eheysrajoitteet eivät estä poistoa. Tämä tyypillisesti sisältää:
+Tiketin poistaminen käynnistää sarjan toimenpiteitä, jotka suoritetaan transaktiona tietokannan eheyden varmistamiseksi:
 
-1.  **Liittyvien Kommenttien Poisto:** Kaikki tikettiin liittyvät `Comment`-tietueet poistetaan.
+1.  **Liittyvien Kommenttien Poisto:** Kaikki tikettiin liittyvät `Comment`-tietueet poistetaan automaattisesti.
 2.  **Liittyvien Liitetiedostojen Poisto:** Kaikki tikettiin liittyvät `Attachment`-tietueet poistetaan. Fyysisten tiedostojen poisto palvelimelta tulee myös hoitaa.
-3.  **Liittyvien Ilmoitusten Poisto (tai päivitys):** Tikettiin liittyvät `Notification`-tietueet tulee joko poistaa tai niiden `ticketId`-kenttä tulee asettaa `null`iksi.
-4.  **Liittyvien AI-interaktioiden Päivitys:** Tikettiin liittyvien `AIAssistantInteraction`-tietueiden `ticketId` tulee asettaa `null`iksi.
-5.  **Varsinaisen Tiketin Poisto:** Lopuksi itse `Ticket`-tietue voidaan poistaa.
+3.  **Liittyvien Ilmoitusten Poisto:** Tikettiin liittyvät `Notification`-tietueet poistetaan automaattisesti.
+4.  **Liittyvien AI-interaktioiden Poisto:** Tikettiin liittyvät `AIAssistantInteraction`-tietueet poistetaan automaattisesti.
+5.  **Liittyvien KnowledgeArticle-tietueiden Poisto:** Jos tiketti on AI-generoitu (`isAiGenerated = true`), siihen liittyvät `KnowledgeArticle`-tietueet poistetaan.
+6.  **Varsinaisen Tiketin Poisto:** Lopuksi itse `Ticket`-tietue poistetaan.
 
 On suositeltavaa kääriä nämä operaatiot **Prisman transaktioon** (`prisma.$transaction([...])`) sovelluslogiikassa, jotta varmistetaan, että kaikki vaiheet onnistuvat tai yksikään niistä ei toteudu, pitäen tietokannan konsistenttina.
 

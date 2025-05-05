@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../utils/api';
 import { useAuth } from '../providers/AuthProvider';
+import { useSocket } from '../hooks/useSocket';
 
 import {
   Card,
@@ -34,9 +35,11 @@ import {
   Settings,
   ChevronsUpDown,
   X,
+  Sparkles
 } from 'lucide-react';
 
 import CommentSection from '../components/Tickets/CommentSection';
+import SupportAssistantChat from '../components/AI/SupportAssistantChat';
 
 const SUPPORT_COLOR = {
   bg: 'bg-[#92C01F]',
@@ -56,6 +59,8 @@ export default function TicketPage() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [showTicketActions, setShowTicketActions] = useState(false);
   const ticketActionsRef = useRef(null);
+  const [showAssistantChat, setShowAssistantChat] = useState(false);
+  const { subscribe } = useSocket();
 
   const {
     data: ticket,
@@ -66,6 +71,40 @@ export default function TicketPage() {
     queryFn: async () => fetchTicket(id),
     enabled: !!id,
   });
+
+  // Socket subscription for real-time comment updates
+  useEffect(() => {
+    if (!id || !subscribe || !queryClient) return;
+
+    console.log(`[TicketPage] useEffect triggered with ticketId: ${id}`);
+    console.log(`[Socket] Subscribing to newComment events for ticket ${id}`);
+
+    const setupSubscription = async () => {
+      try {
+        const unsubscribe = await subscribe('newComment', (commentData) => {
+          console.log(`[Socket] Received newComment event:`, commentData);
+          if (commentData && commentData.ticketId === id) {
+            console.log(`[Socket] Comment matches current ticket (${id}). Invalidating query.`);
+            queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+          } else {
+            console.log(`[Socket] Comment does not match current ticket (${id}). Ignoring.`);
+          }
+        });
+
+        return unsubscribe;
+      } catch (error) {
+        console.error('[Socket] Error setting up newComment subscription:', error);
+        return () => {};
+      }
+    };
+
+    const cleanupPromise = setupSubscription();
+
+    return () => {
+      console.log(`[Socket] Cleaning up newComment subscription for ticket ${id}`);
+      cleanupPromise.then(cleanup => cleanup());
+    };
+  }, [id, subscribe, queryClient]);
 
   const { data: supportUsers } = useQuery({
     queryKey: ['support-users'],
@@ -435,6 +474,7 @@ export default function TicketPage() {
   const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
   const isAssignedToUser = ticketData?.assignedToId === user?.id;
   const canModifyTicket = isSupportOrAdmin && (isAssignedToUser || userRole === 'ADMIN');
+  const canUseAssistant = isSupportOrAdmin && isAssignedToUser && ticketData?.status === 'IN_PROGRESS';
 
   const createdBy =
     ticketData?.createdBy?.name ||
@@ -828,6 +868,28 @@ export default function TicketPage() {
                 </div>
               )}
               
+              {/* Tukiavustaja Button - Moved here from footer */}
+              {canUseAssistant && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault(); // Prevent default browser behavior
+                    setShowAssistantChat(!showAssistantChat);
+                  }}
+                  className={`transition-all duration-200 flex items-center gap-1.5 shadow-sm border ${ 
+                    showAssistantChat 
+                    ? 'bg-purple-100 text-purple-800 border-purple-300 ring-2 ring-purple-200' 
+                    : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200'
+                  }`}
+                  aria-label={showAssistantChat ? 'Sulje tukiavustaja' : 'Avaa tukiavustaja'}
+                  title={showAssistantChat ? 'Sulje tukiavustaja' : 'Avaa tukiavustaja'}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${showAssistantChat ? 'text-purple-600' : 'text-purple-500'}`} />
+                  <span className="hidden sm:inline">{showAssistantChat ? 'Piilota avustaja' : 'Tukiavustaja'}</span>
+                </Button>
+              )}
+              
               {isSupportOrAdmin && 
                 (ticketData.status === 'RESOLVED' || ticketData.status === 'CLOSED') && (
                 <Button
@@ -1073,6 +1135,15 @@ export default function TicketPage() {
         </CardFooter>
       </Card>
       <TransferDialog />
+      
+      {/* Render Support Assistant Chat conditionally */}
+      {showAssistantChat && canUseAssistant && (
+        <SupportAssistantChat 
+          ticket={ticketData} 
+          user={user} 
+          onClose={() => setShowAssistantChat(false)}
+        />
+      )}
     </div>
   );
 }
