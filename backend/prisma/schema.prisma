@@ -21,6 +21,7 @@ model User {
   tickets         Ticket[]  @relation("CreatedTickets")
   notifications   Notification[]
   notificationSettings NotificationSettings?
+  aiInteractions  AIAssistantInteraction[]
 }
 
 model Ticket {
@@ -49,6 +50,7 @@ model Ticket {
   category       Category       @relation(fields: [categoryId], references: [id])
   isAiGenerated  Boolean        @default(false)
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
+  aiInteractions AIAssistantInteraction[]
 }
 
 model Attachment {
@@ -88,6 +90,7 @@ model Category {
   description String?
   tickets     Ticket[]
   knowledgeArticles KnowledgeArticle[]
+  aiCategoryStats AIAssistantCategoryStat[]
 }
 
 enum UserRole {
@@ -169,4 +172,46 @@ model KnowledgeArticle {
   complexity    String?
   isAiGenerated Boolean  @default(false)
   category      Category @relation(fields: [categoryId], references: [id])
+}
+
+model AIAssistantInteraction {
+  id              String   @id @default(uuid())
+  ticketId        String?
+  userId          String
+  query           String
+  response        String   @db.Text
+  responseTime    Float    // in seconds
+  rating          Int?     // 1-5 rating from user
+  feedback        String?  // Optional feedback text
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id])
+  ticket          Ticket?  @relation(fields: [ticketId], references: [id])
+  
+  @@index([ticketId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model AIAssistantUsageStat {
+  id              String   @id @default(uuid())
+  date            DateTime @default(now()) @db.Date
+  totalInteractions Int
+  avgResponseTime Float    // in seconds
+  avgRating       Float?   // average rating for that day
+  totalTicketsAssisted Int
+  
+  @@unique([date])
+}
+
+model AIAssistantCategoryStat {
+  id              String   @id @default(uuid())
+  categoryId      String
+  date            DateTime @default(now()) @db.Date
+  interactionCount Int
+  
+  category        Category @relation(fields: [categoryId], references: [id])
+  
+  @@unique([categoryId, date])
+  @@index([date])
 }

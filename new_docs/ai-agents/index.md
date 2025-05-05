@@ -9,6 +9,7 @@ Tässä dokumentissa listataan järjestelmässä käytettävät tekoälyagentit,
 | TicketGeneratorAgent | Luo realistisia harjoitustikettejä helpdesk-koulutusta varten | [ticketGenerator.md](ticketGenerator.md) |
 | ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa | [chatAgent.md](chatAgent.md) |
 | SummarizerAgent | Tuottaa tiivistelmän tiketin keskusteluhistoriasta | [summarizerAgent.md](summarizerAgent.md) |
+| SupportAssistantAgent | Auttaa tukihenkilöitä ratkaisemaan tikettejä tehokkaammin | [supportAssistantAgent.md](supportAssistantAgent.md) |
 
 ## Tulevat agentit
 
@@ -87,6 +88,39 @@ graph TD
     H --> I["<b>11. API Response</b><br/>Palauttaa generoidun yhteenvedon (JSON)"];
     G -- "Ei" --> I;
     I --> J["<b>12. UI</b><br/>Näyttää yhteenvedon käyttäjälle<br/>(esim. modaalissa tai kentässä)"];
+```
+
+### SupportAssistantAgent (Detailed)
+
+```mermaid
+graph TD
+    A["<b>1. Tukihenkilö</b><br/>Avaa tikettinäkymän<br/>ja klikkaa Tuki AI -painiketta"] --> B["<b>2. SupportAssistantChat UI</b><br/>Avaa chat-ikkunan<br/>tilassa 'Odottaa kysymystä'"];
+    
+    B --> C["<b>3. Käyttäjä</b><br/>Kirjoittaa kysymyksen<br/>ja lähettää viestin"];
+    
+    C --> D["<b>4. UI Komponentti</b><br/>Näyttää latausanimaation<br/>ja lähettää API-pyynnön"];
+    
+    D --> E["<b>5. API Endpoint</b><br/>POST /api/ai/tickets/:ticketId/support-assistant<br/>Käsittelee pyynnön"];
+    
+    E --> F["<b>6. AIController</b><br/>Tarkistaa käyttöoikeudet<br/>ja hakee tiketin tiedot"];
+    
+    F --> G["<b>7. SupportAssistantAgent</b><br/>Vastaanottaa tiketin tiedot<br/>ja käyttäjän kysymyksen"];
+    
+    G --> H["<b>8. Tietojen kokoaminen</b><br/>- Tiketin tiedot<br/>- Keskusteluhistoria<br/>- Tietämysartikkelit<br/>- Mahdolliset ratkaisut"];
+    
+    H --> I["<b>9. Promptin formatointi</b><br/>Kokoaa tiedot<br/>LLM-promptiksi"];
+    
+    I --> J["<b>10. LLM-kutsu</b><br/>Lähettää promptin<br/>OpenAI API:lle"];
+    
+    J --> K["<b>11. Vastauksen käsittely</b><br/>Muotoilee vastauksen<br/>ja palauttaa sen"];
+    
+    K --> L["<b>12. API-vastaus</b><br/>Lähettää vastauksen<br/>takaisin frontend-sovellukselle"];
+    
+    L --> M["<b>13. UI Päivitys</b><br/>Chat-ikkuna näyttää vastauksen<br/>formatoituna viestinä"];
+    
+    M --> N["<b>14. Interaktiiviset toiminnot</b><br/>- Kopiointi leikepöydälle<br/>- Palaute (peukku ylös/alas)<br/>- Keskustelun jatkaminen"];
+    
+    N --> O["<b>15. Lisätoiminnot</b><br/>- Keskustelun tyhjennys<br/>- Chat-ikkunan pienennys<br/>- Ikkunan sulkeminen"];
 ```
 
 ## Agenttien integrointi

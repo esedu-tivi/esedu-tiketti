@@ -9,6 +9,7 @@ import authRoutes from './routes/authRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import notificationSettingsRoutes from './routes/notificationSettingsRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
+import aiAnalyticsRoutes from './routes/aiAnalyticsRoutes.js';
 import { createServer } from 'http';
 import { initializeSocketService } from './services/socketService.js';
 import path from 'path';
@@ -57,6 +58,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification-settings', notificationSettingsRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/ai-analytics', aiAnalyticsRoutes);
 
 // Terveyden tarkistus
 app.get('/api/health', (req, res) => {

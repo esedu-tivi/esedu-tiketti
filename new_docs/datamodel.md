@@ -11,112 +11,147 @@ Tietomalli määrittelee järjestelmän keskeiset entiteetit, niiden attribuutit
 *   **Comment:** Tiketteihin liittyvät kommentit.
 *   **Category:** Tikettien luokittelukategoriat.
 *   **Notification:** Käyttäjille lähetettävät ilmoitukset.
-*   **NotificationSetting:** Käyttäjäkohtaiset ilmoitusasetukset.
-*   **Attachment:** Tiketteihin ja kommentteihin liitetyt tiedostot.
-*   **AITrainingTicket:** Tekoälyn generoimat harjoitustiketit.
-*   **AITrainingConversation:** Tekoälyn generoimien harjoitustikettien keskustelut.
+*   **NotificationSettings:** Käyttäjäkohtaiset ilmoitusasetukset.
+*   **Attachment:** Tiketteihin liitetyt tiedostot.
+*   **KnowledgeArticle:** Tietopankkiartikkelit.
+*   **AIAssistantInteraction:** Tekoälyavustajan käyttötapahtumat.
+*   **AIAssistantUsageStat:** Päivittäiset käyttöstatistiikat tekoälyavustajalle.
+*   **AIAssistantCategoryStat:** Kategoriakohtaiset käyttöstatistiikat tekoälyavustajalle.
 
-## Prisma Schema (`prisma/schema.prisma`)
+## Prisma Schema (`backend/prisma/schema.prisma`)
 
 ```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 // --------- ENUMERAATIOT ---------
 
-enum Role {
+enum UserRole {
+  ADMIN
   USER
   SUPPORT
-  ADMIN
 }
 
 enum TicketStatus {
   OPEN
   IN_PROGRESS
-  WAITING_FOR_CUSTOMER
-  WAITING_FOR_SUPPORT
   RESOLVED
   CLOSED
 }
 
-enum TicketPriority {
+enum Priority {
   LOW
   MEDIUM
   HIGH
+  CRITICAL
+}
+
+enum ResponseFormat {
+  TEKSTI
+  KUVA
+  VIDEO
 }
 
 enum NotificationType {
   TICKET_ASSIGNED
-  TICKET_STATUS_CHANGED
-  TICKET_PRIORITY_CHANGED
-  NEW_COMMENT
-  TICKET_RESOLVED
-  TICKET_CLOSED
-  MENTIONED_IN_COMMENT // Mahdollinen laajennus
+  COMMENT_ADDED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  MENTIONED
+  DEADLINE_APPROACHING
 }
 
 // --------- MALLIT ---------
 
 model User {
-  id                   String                @id @default(uuid())
-  email                String                @unique
-  name                 String?
-  role                 Role                  @default(USER)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  profilePictureUrl    String?               @map("profile_picture_url")
-  tickets              Ticket[]              @relation("UserTickets")
-  assignedTickets      Ticket[]              @relation("AssignedTickets")
-  comments             Comment[]
-  notifications        Notification[]
-  notificationSettings NotificationSetting?  @relation("UserSettings")
-  aiTrainingTickets    AITrainingTicket[]    @relation("UserAITickets")
+  id              String    @id @default(uuid())
+  email           String    @unique
+  name            String
+  jobTitle        String?
+  profilePicture  String?
+  role            UserRole    @default(USER)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  comments        Comment[]
+  assignedTickets Ticket[]    @relation("AssignedTickets")
+  tickets         Ticket[]    @relation("CreatedTickets")
+  notifications   Notification[]
+  notificationSettings NotificationSettings?
+  aiInteractions  AIAssistantInteraction[]
 
-  @@map("users")
+  // @@map removed
 }
 
 model Ticket {
-  id                   String                @id @default(uuid())
-  title                String
-  description          String
-  status               TicketStatus          @default(OPEN)
-  priority             TicketPriority        @default(MEDIUM)
-  userId               String                @map("user_id")
-  user                 User                  @relation("UserTickets", fields: [userId], references: [id], onDelete: Cascade)
-  assignedToId         String?               @map("assigned_to_id")
-  assignedTo           User?                 @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
-  categoryId           String?               @map("category_id")
-  category             Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  resolvedAt           DateTime?             @map("resolved_at")
-  closedAt             DateTime?             @map("closed_at")
-  comments             Comment[]
-  attachments          Attachment[]          @relation("TicketAttachments")
-  aiTrainingTicket     AITrainingTicket?     @relation(fields: [aiTrainingTicketId], references: [id], onDelete: SetNull)
-  aiTrainingTicketId   String?               @unique @map("ai_training_ticket_id")
+  id             String         @id @default(cuid())
+  title          String
+  description    String
+  device         String?
+  additionalInfo String?
+  status         TicketStatus    @default(OPEN)
+  priority       Priority        @default(MEDIUM)
+  responseFormat ResponseFormat  @default(TEKSTI)
+  aiSummary      String?         @db.Text
+  userProfile    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  processingStartedAt DateTime?
+  processingEndedAt   DateTime?
+  estimatedCompletionTime DateTime?
+  createdById    String
+  assignedToId   String?
+  categoryId     String
+  comments       Comment[]
+  notifications  Notification[]
+  attachments    Attachment[]
+  assignedTo     User?           @relation("AssignedTickets", fields: [assignedToId], references: [id])
+  category       Category        @relation(fields: [categoryId], references: [id])
+  isAiGenerated  Boolean         @default(false)
+  createdBy      User            @relation("CreatedTickets", fields: [createdById], references: [id])
+  aiInteractions AIAssistantInteraction[]
 
-  @@map("tickets")
+  // Removed resolvedAt, closedAt
+  // Removed aiTrainingTicketId, aiTrainingTicket relation
+  // @@map removed
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  filename  String
+  path      String
+  mimetype  String
+  size      Int
+  createdAt DateTime @default(now())
+  ticketId  String
+  ticket    Ticket    @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  // @@map removed
 }
 
 model Comment {
-  id          String       @id @default(uuid())
-  content     String
-  userId      String       @map("user_id")
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ticketId    String       @map("ticket_id")
-  ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  attachments Attachment[] @relation("CommentAttachments")
+  id            String   @id @default(uuid())
+  content       String
+  mediaUrl      String?
+  mediaType     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  ticketId      String
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  ticket        Ticket      @relation(fields: [ticketId], references: [id])
+  isAiGenerated Boolean     @default(false)
+  evaluationResult String?
 
-  @@map("comments")
+  @@index([ticketId])
+  @@index([authorId])
+  // @@map removed
 }
 
 model Category {
@@ -124,147 +159,180 @@ model Category {
   name        String   @unique
   description String?
   tickets     Ticket[]
+  knowledgeArticles KnowledgeArticle[]
+  aiCategoryStats AIAssistantCategoryStat[]
 
-  @@map("categories")
+  // @@map removed
 }
 
 model Notification {
   id        String           @id @default(uuid())
-  userId    String           @map("user_id")
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      NotificationType
-  message   String
-  ticketId  String?          @map("ticket_id") // Linkki tikettiin, jos relevantti
-  isRead    Boolean          @default(false) @map("is_read")
+  content   String
+  read      Boolean          @default(false)
   createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  userId    String
+  ticketId  String?
+  metadata  Json?
+  user      User              @relation(fields: [userId], references: [id])
+  ticket    Ticket?           @relation(fields: [ticketId], references: [id])
 
-  @@map("notifications")
+  @@index([userId])
+  @@index([ticketId])
+  // @@map removed
 }
 
-model NotificationSetting {
-  id                       String   @id @default(uuid())
-  userId                   String   @unique @map("user_id")
-  user                     User     @relation("UserSettings", fields: [userId], references: [id], onDelete: Cascade)
-  emailOnNewComment        Boolean  @default(true) @map("email_on_new_comment")
-  emailOnStatusChange      Boolean  @default(true) @map("email_on_status_change")
-  emailOnAssignment        Boolean  @default(true) @map("email_on_assignment")
-  inAppOnNewComment        Boolean  @default(true) @map("in_app_on_new_comment")
-  inAppOnStatusChange      Boolean  @default(true) @map("in_app_on_status_change")
-  inAppOnAssignment        Boolean  @default(true) @map("in_app_on_assignment")
-  // Lisää muita asetuksia tarvittaessa
-  updatedAt                DateTime @updatedAt
+model NotificationSettings {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  emailNotifications    Boolean   @default(true)
+  webNotifications      Boolean   @default(true)
+  notifyOnAssigned      Boolean   @default(true)
+  notifyOnStatusChange  Boolean   @default(true)
+  notifyOnComment       Boolean   @default(true)
+  notifyOnPriority      Boolean   @default(true)
+  notifyOnMention       Boolean   @default(true)
+  notifyOnDeadline      Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id])
 
-  @@map("notification_settings")
+  // @@map removed
 }
 
-model Attachment {
-  id          String   @id @default(uuid())
-  filename    String
-  url         String   // URL tiedostoon (esim. S3, paikallinen polku)
-  mimetype    String
-  size        Int
-  ticketId    String?  @map("ticket_id")
-  ticket      Ticket?  @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Cascade)
-  commentId   String?  @map("comment_id")
-  comment     Comment? @relation("CommentAttachments", fields: [commentId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-
-  @@map("attachments")
+model KnowledgeArticle {
+  id            String   @id @default(uuid())
+  title         String
+  content       String   @db.Text
+  categoryId    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  relatedTicketIds String[]
+  complexity    String?
+  isAiGenerated Boolean  @default(false)
+  category      Category  @relation(fields: [categoryId], references: [id])
 }
 
-// --------- TEKOÄLYHARJOITUSTEN MALLIT ---------
+// --------- TEKOÄLYASSISTENTTI-ANALYTIIKAN MALLIT ---------
 
-model AITrainingTicket {
-  id               String                    @id @default(uuid())
-  originalTicketId String?                   @unique @map("original_ticket_id") // Linkki mahdolliseen alkuperäiseen tikettiin
-  generatedById    String                    @map("generated_by_id")
-  generatedBy      User                      @relation("UserAITickets", fields: [generatedById], references: [id], onDelete: Cascade)
-  scenario         String                    // Kuvaus generoidusta skenaariosta
-  difficulty       String?                   // Vaikeustaso (esim. helppo, keskitaso, vaikea)
-  solution         String?                   // Malliratkaisu tikettiin
-  createdAt        DateTime                  @default(now())
-  conversations    AITrainingConversation[]
-  linkedTicket     Ticket?                   @relation(references: [id]) // Viite luotuun varsinaiseen tikettiin
+model AIAssistantInteraction {
+  id              String   @id @default(uuid())
+  ticketId        String?
+  userId          String
+  query           String
+  response        String   @db.Text
+  responseTime    Float
+  rating          Int?
+  feedback        String?
+  createdAt       DateTime @default(now())
 
-  @@map("ai_training_tickets")
+  user            User        @relation(fields: [userId], references: [id])
+  ticket          Ticket?     @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@index([userId])
+  @@index([createdAt])
+  // @@map removed
 }
 
-model AITrainingConversation {
-  id                   String           @id @default(uuid())
-  aiTrainingTicketId   String           @map("ai_training_ticket_id")
-  aiTrainingTicket     AITrainingTicket @relation(fields: [aiTrainingTicketId], references: [id], onDelete: Cascade)
-  senderType           String           // 'AI' tai 'USER' (simuloitu käyttäjä)
-  message              String
-  timestamp            DateTime         @default(now())
+model AIAssistantUsageStat {
+  id              String   @id @default(uuid())
+  date            DateTime @default(now()) @db.Date
+  totalInteractions Int
+  avgResponseTime Float
+  avgRating       Float?
+  totalTicketsAssisted Int
 
-  @@map("ai_training_conversations")
+  @@unique([date])
+  // @@map removed
 }
-```
+
+model AIAssistantCategoryStat {
+  id              String   @id @default(uuid())
+  categoryId      String
+  date            DateTime @default(now()) @db.Date
+  interactionCount Int
+
+  category        Category    @relation(fields: [categoryId], references: [id])
+
+  @@unique([categoryId, date])
+  @@index([date])
+  // Removed timeRange
+  // @@map removed
+}
 
 ## Suhteet ja Kardinaalisuudet
 
 *   **User <-> Ticket:**
-    *   Yksi käyttäjä (`User`) voi luoda monta tikettiä (`Ticket[]`, `UserTickets`-relaatio). (1-to-N)
+    *   Yksi käyttäjä (`User`) voi luoda monta tikettiä (`Ticket[]`, `CreatedTickets`-relaatio). (1-to-N)
     *   Yksi käyttäjä (`User`) voi olla määrättynä monta tikettiä (`Ticket[]`, `AssignedTickets`-relaatio). (1-to-N)
-    *   Yksi tiketti (`Ticket`) kuuluu yhdelle käyttäjälle (`User`, `user`-kenttä).
+    *   Yksi tiketti (`Ticket`) kuuluu yhdelle käyttäjälle (`User`, `createdBy`-kenttä).
     *   Yksi tiketti (`Ticket`) voi olla määrättynä yhdelle käyttäjälle (`User?`, `assignedTo`-kenttä) tai ei kenellekään.
 *   **User <-> Comment:**
     *   Yksi käyttäjä (`User`) voi kirjoittaa monta kommenttia (`Comment[]`). (1-to-N)
-    *   Yksi kommentti (`Comment`) kuuluu yhdelle käyttäjälle (`User`).
+    *   Yksi kommentti (`Comment`) kuuluu yhdelle käyttäjälle (`User`, `author`-kenttä).
 *   **Ticket <-> Comment:**
     *   Yksi tiketti (`Ticket`) voi sisältää monta kommenttia (`Comment[]`). (1-to-N)
     *   Yksi kommentti (`Comment`) kuuluu yhteen tikettiin (`Ticket`).
 *   **User <-> Notification:**
     *   Yksi käyttäjä (`User`) voi saada monta ilmoitusta (`Notification[]`). (1-to-N)
     *   Yksi ilmoitus (`Notification`) kuuluu yhdelle käyttäjälle (`User`).
-*   **User <-> NotificationSetting:**
-    *   Yksi käyttäjä (`User`) voi omistaa yhden ilmoitusasetuksen (`NotificationSetting?`). (1-to-1)
+*   **User <-> NotificationSettings:**
+    *   Yksi käyttäjä (`User`) voi omistaa yhden ilmoitusasetuksen (`NotificationSettings?`). (1-to-1)
 *   **Ticket <-> Category:**
     *   Yksi kategoria (`Category`) voi liittyä moneen tikettiin (`Ticket[]`). (1-to-N)
-    *   Yksi tiketti (`Ticket`) voi kuulua yhteen kategoriaan (`Category?`) tai ei mihinkään.
+    *   Yksi tiketti (`Ticket`) voi kuulua yhteen kategoriaan (`Category`).
 *   **Ticket <-> Attachment:**
-    *   Yksi tiketti (`Ticket`) voi sisältää monta liitettä (`Attachment[]`, `TicketAttachments`-relaatio). (1-to-N)
-    *   Yksi liite (`Attachment`) voi kuulua yhteen tikettiin (`Ticket?`).
+    *   Yksi tiketti (`Ticket`) voi sisältää monta liitettä (`Attachment[]`). (1-to-N)
+    *   Yksi liite (`Attachment`) kuuluu yhteen tikettiin (`Ticket`).
 *   **Comment <-> Attachment:**
-    *   Yksi kommentti (`Comment`) voi sisältää monta liitettä (`Attachment[]`, `CommentAttachments`-relaatio). (1-to-N)
-    *   Yksi liite (`Attachment`) voi kuulua yhteen kommenttiin (`Comment?`).
-*   **User <-> AITrainingTicket:**
-    *   Yksi käyttäjä (`User`) voi generoida monta AI-harjoitustikettiä (`AITrainingTicket[]`, `UserAITickets`-relaatio). (1-to-N)
-    *   Yksi AI-harjoitustiketti (`AITrainingTicket`) on yhden käyttäjän (`User`) generoima.
-*   **AITrainingTicket <-> AITrainingConversation:**
-    *   Yksi AI-harjoitustiketti (`AITrainingTicket`) voi sisältää monta keskusteluviestiä (`AITrainingConversation[]`). (1-to-N)
-    *   Yksi keskusteluviesti (`AITrainingConversation`) kuuluu yhteen AI-harjoitustikettiin (`AITrainingTicket`).
-*   **Ticket <-> AITrainingTicket:**
-    *   Yksi AI-harjoitustiketti (`AITrainingTicket`) voi liittyä yhteen varsinaiseen tikettiin (`Ticket?`, `linkedTicket`). (1-to-1, optioonaalinen)
-    *   Yksi varsinainen tiketti (`Ticket`) voi olla luotu yhdestä AI-harjoitustiketistä (`AITrainingTicket?`). (1-to-1, optioonaalinen)
+    *   ~~Yksi kommentti (`Comment`) voi sisältää monta liitettä (`Attachment[]`, `CommentAttachments`-relaatio). (1-to-N)~~
+    *   ~~Yksi liite (`Attachment`) voi kuulua yhteen kommenttiin (`Comment?`).~~
+*   **User <-> AIAssistantInteraction:**
+    *   Yksi käyttäjä (`User`) voi suorittaa monta AI-assistentti-interaktiota (`AIAssistantInteraction[]`). (1-to-N)
+    *   Yksi AI-assistentti-interaktio (`AIAssistantInteraction`) liittyy yhteen käyttäjään (`User`).
+*   **Ticket <-> AIAssistantInteraction:**
+    *   Yksi tiketti (`Ticket`) voi sisältää monta AI-assistentti-interaktiota (`AIAssistantInteraction[]`). (1-to-N)
+    *   Yksi AI-assistentti-interaktio (`AIAssistantInteraction`) voi liittyä yhteen tikettiin (`Ticket?`) tai ei mihinkään.
+*   **Category <-> AIAssistantCategoryStat:**
+    *   Yksi kategoria (`Category`) voi liittyä moneen AI-assistentti-kategoriatilastoon (`AIAssistantCategoryStat[]`). (1-to-N)
+    *   Yksi AI-assistentti-kategoriatilasto (`AIAssistantCategoryStat`) liittyy yhteen kategoriaan (`Category`).
+*   **Category <-> KnowledgeArticle:**
+    *   Yksi kategoria (`Category`) voi sisältää monta tietopankkiartikkelia (`KnowledgeArticle[]`). (1-to-N)
+    *   Yksi tietopankkiartikkeli (`KnowledgeArticle`) kuuluu yhteen kategoriaan (`Category`).
 
 ## Kenttien Selitykset
 
 *   `@id`: Määrittelee kentän pääavaimeksi.
 *   `@default(uuid())`: Generoi automaattisesti UUID:n oletusarvoksi.
+*   `@default(cuid())`: Generoi automaattisesti CUID:n oletusarvoksi (käytössä Ticket-mallissa).
 *   `@default(now())`: Asettaa oletusarvoksi nykyisen aikaleiman.
 *   `@updatedAt`: Päivittää aikaleiman automaattisesti, kun tietue päivitetään.
 *   `@unique`: Varmistaa, että kentän arvo on uniikki taulussa.
 *   `@relation(...)`: Määrittelee suhteen toiseen malliin.
     *   `fields`: Viittaa tämän mallin kenttään, joka toimii vierasavaimena.
     *   `references`: Viittaa toisen mallin kenttään (yleensä pääavain).
-    *   `onDelete`: Määrittää, mitä tapahtuu viitatulle tietueelle, kun tämä tietue poistetaan (esim. `Cascade` poistaa myös viitatut, `SetNull` asettaa viiteavaimen `NULL`iksi).
-*   `@map(...)`: Määrittelee vastaavan sarakkeen nimen tietokannassa (käytetään usein snake_case-konvention ylläpitämiseksi tietokannassa).
+    *   `onDelete`: Määrittää, mitä tapahtuu viitatulle tietueelle, kun tämä tietue poistetaan (esim. `Cascade` poistaa myös viitatut, `SetNull` asettaa viiteavaimen `NULL`iksi). *Huom: Monista relaatioista on poistettu `onDelete`-määritykset, jolloin oletuskäyttäytyminen (yleensä estää poiston, jos viittauksia on) pätee.*
+*   `@map(...)`: Määrittelee vastaavan sarakkeen nimen tietokannassa. *Huom: Useimmat `@map`-direktiivit on poistettu, joten Prisma käyttää oletusnimeämiskäytäntöä.*
+*   `@db.Text`: Määrittelee kentän tietokantatyypiksi TEXT, joka soveltuu pitkille merkkijonoille.
+*   `@db.Date`: Määrittelee kentän tietokantatyypiksi DATE (vain päivämäärä ilman aikaa).
+*   `@@index([...])`: Luo tietokantaindeksin määritellyille kentille, mikä nopeuttaa kyselyjä.
 
 ## Tietokannan Eheys ja Poistotoiminnot
 
-Prisma ja sovelluslogiikka varmistavat tietokannan eheyden, erityisesti poistotoiminnoissa.
+Prisma ja sovelluslogiikka varmistavat tietokannan eheyden. Koska monista relaatioista on poistettu eksplisiittiset `onDelete`-säännöt (kuten `Cascade` tai `SetNull`), Prisman oletuskäyttäytyminen tietokantatasolla estää yleensä tietueen poistamisen, jos siihen on vielä viittauksia muista tauluista (Referential Integrity).
 
 ### Tikettien Poisto
 
-Kun tiketti poistetaan (esim. admin-käyttäjän toimesta käyttöliittymän kautta), seuraavat toimet suoritetaan automaattisesti **yhden tietokantatransaktion sisällä**:
+Kun tiketti poistetaan sovelluslogiikassa (esim. `ticketService.deleteTicket`), on **sovelluksen vastuulla** huolehtia liittyvien tietojen siistimisestä oikeassa järjestyksessä ennen varsinaisen tiketin poistamista, jotta viite-eheysrajoitteet eivät estä poistoa. Tämä tyypillisesti sisältää:
 
-1.  **Liittyvien Kommenttien Poisto:** Kaikki tikettiin liittyvät `Comment`-tietueet poistetaan ensin (`onDelete: Cascade` Comment-mallin `ticket`-relaatiossa).
-2.  **Liittyvien Liitetiedostojen Poisto:** Kaikki suoraan tikettiin liittyvät `Attachment`-tietueet poistetaan (`onDelete: Cascade` Attachment-mallin `ticket`-relaatiossa). Myös kommentteihin liittyneet liitteet poistuvat kommenttien poiston yhteydessä.
-3.  **Liittyvien Ilmoitusten Poisto (tai päivitys):** Tikettiin liittyvät `Notification`-tietueet saatetaan poistaa tai niiden `ticketId` asetetaan `NULL`iksi riippuen skeeman määrittelystä (nykyisessä skeemassa ei ole suoraa `onDelete`-sääntöä Notification -> Ticket, joten ne jäävät todennäköisesti orvoiksi ilman `ticketId`:tä, ellei sovelluslogiikka siivoa niitä erikseen).
-4.  **Linkitetyn AI-harjoitustiketin Irroitus:** Jos tiketti oli linkitetty `AITrainingTicket`-tietueeseen, tämä yhteys katkaistaan (`onDelete: SetNull` Ticket-mallin `aiTrainingTicket`-relaatiossa).
-5.  **Varsinaisen Tiketin Poisto:** Lopuksi itse `Ticket`-tietue poistetaan.
+1.  **Liittyvien Kommenttien Poisto:** Kaikki tikettiin liittyvät `Comment`-tietueet poistetaan.
+2.  **Liittyvien Liitetiedostojen Poisto:** Kaikki tikettiin liittyvät `Attachment`-tietueet poistetaan. Fyysisten tiedostojen poisto palvelimelta tulee myös hoitaa.
+3.  **Liittyvien Ilmoitusten Poisto (tai päivitys):** Tikettiin liittyvät `Notification`-tietueet tulee joko poistaa tai niiden `ticketId`-kenttä tulee asettaa `null`iksi.
+4.  **Liittyvien AI-interaktioiden Päivitys:** Tikettiin liittyvien `AIAssistantInteraction`-tietueiden `ticketId` tulee asettaa `null`iksi.
+5.  **Varsinaisen Tiketin Poisto:** Lopuksi itse `Ticket`-tietue voidaan poistaa.
 
-**Transaktionaalisuus** varmistaa, että joko kaikki nämä vaiheet onnistuvat kokonaisuudessaan, tai jos yksikin vaihe epäonnistuu, koko operaatio perutaan, eikä tietokantaan jää epäkonsistenttia dataa (kuten orpoja kommentteja tai liitteitä ilman tikettiä).
+On suositeltavaa kääriä nämä operaatiot **Prisman transaktioon** (`prisma.$transaction([...])`) sovelluslogiikassa, jotta varmistetaan, että kaikki vaiheet onnistuvat tai yksikään niistä ei toteudu, pitäen tietokannan konsistenttina.
 
 Lisäksi tiedostojen poisto palvelimelta (fyysiset tiedostot `uploads`-kansiosta) on tärkeä osa poistoprosessia, joka tulee hoitaa sovelluslogiikassa (`ticketService.deleteTicket`) ennen tietokantatietueiden poistoa tai sen jälkeen osana samaa logiikkakokonaisuutta. 

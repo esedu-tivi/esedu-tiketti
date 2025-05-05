@@ -166,7 +166,8 @@ src/
 │   ├── notificationRoutes.ts
 │   ├── notificationSettingsRoutes.ts
 │   ├── categoryRoutes.ts
-│   └── aiRoutes.ts
+│   ├── aiRoutes.ts
+│   └── aiAnalyticsRoutes.ts   # AI-analytiikan API-reitit
 ├── services/        # Sovelluksen ydinlogiikka ja tietokantainteraktiot.
 
 │   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka.
@@ -201,8 +202,45 @@ Backend tarjoaa RESTful API:n, jota frontend-sovellus käyttää datan hallintaa
 *   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka (todennäköisesti `ticketController`issa tai `ticketService`ssä) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
 *   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia (`socket.on('new_notification', ...)`).
 
-## Tekoälyominaisuudet
+## AI Analytics
 
-*   **Agentit:** `ai/agents`-kansio sisältää LangChainilla toteutetut agentit (`TicketGeneratorAgent`, `ChatAgent`, `SummarizerAgent`), jotka kapseloivat tietyn AI-tehtävän logiikan.
-*   **Promptit:** `ai/prompts` sisältää prompt-mallipohjat, joita agentit käyttävät kommunikoidessaan OpenAI:n kanssa. Prompteihin syötetään dynaamisesti tietoa (esim. tiketin kuvaus, keskusteluhistoria).
-*   **Palvelut/Controllerit:** Erilliset AI-palvelut ja -controllerit (`aiService`, `aiController`) voivat tarjota rajapinnan näiden agenttien kutsumiseen API-endpointtien kautta (esim. `/api/ai/generate-ticket`, `/api/ai/summarize/:ticketId`). 
+AI Analytics on erillinen osa sovelluksen API:a, joka keskittyy tekoälyavustajan käytön ja tehokkuuden mittaamiseen ja analysointiin.
+
+### Mallit ja tietokantataulut
+
+AI-analytiikkatiedot tallennetaan seuraaviin tietokantatauluihin:
+
+* `AIAssistantInteraction` - Tallentaa yksittäiset tekoälyavustajan käyttökerrat sisältäen käyttäjän kyselyn, AI:n vastauksen, vastausajan ja mahdollisen palautteen.
+* `AIAssistantUsageStat` - Kokoaa päivittäiset yhteenvetotilastot (interaktioiden määrä, keskimääräinen vastausaika, keskimääräinen arvosana).
+* `AIAssistantCategoryStat` - Tallentaa kategoriakohtaiset käyttötilastot.
+
+### Reitit ja toiminnallisuus
+
+Kaikki AI Analytics -reitit löytyvät `/api/ai-analytics` polun alta, ja niihin vaaditaan ADMIN- tai SUPPORT-rooli. Tärkeimmät reitit ovat:
+
+* `GET /dashboard` - Hakee kootusti kaikki analytiikkatiedot yhdellä API-kutsulla.
+* `GET /usage` - Hakee käyttötilastot ja -trendit.
+* `GET /categories` - Hakee kategoriakohtaiset käyttötilastot.
+* `GET /agents` - Hakee tukihenkilöiden käyttötilastot.
+* `GET /agents/:agentId/details` - Hakee yksittäisen tukihenkilön yksityiskohtaiset tilastot.
+* `GET /response-times` - Hakee vastausaikojen tilastot.
+* `GET /resolution-times` - Hakee tikettien ratkaisuaikojen vertailutilastot.
+* `POST /interactions` - Tallentaa uuden tekoälyinteraktion.
+* `POST /interactions/:interactionId/feedback` - Tallentaa palautteen tekoälyinteraktiosta.
+
+Tarkempi kuvaus näistä rajapinnoista löytyy dokumentista [`api-endpoints.md`](api-endpoints.md).
+
+### Controller (aiAnalyticsController.ts)
+
+`aiAnalyticsController.ts` sisältää useita metodeja eri analytiikkanäkymien tietojen hakemiseen ja käsittelyyn:
+
+* `trackInteraction` - Tallentaa uuden interaktion ja päivittää tarvittavat tilastotaulut.
+* `submitFeedback` - Tallentaa palautteen interaktiosta.
+* `getUsageStats` - Hakee käyttötilastot.
+* `getCategoryStats` - Hakee kategoriaja.
+* `getAgentUsageStats` - Hakee tilastot tukihenkilöiden käytöstä.
+* `getAgentDetails` - Hakee yksittäisen tukihenkilön yksityiskohtaiset käyttötilastot.
+* `getResponseTimeStats` - Hakee vastausaikojen tilastot.
+* `getResolutionTimeComparison` - Vertaa ratkaisuaikoja AI:n kanssa ja ilman.
+* `getOverallStats` - Hakee yleiset käyttötilastot.
+* `getDashboardData` - Hakee kaikki tilastot kerralla dashboard-näkymää varten. 

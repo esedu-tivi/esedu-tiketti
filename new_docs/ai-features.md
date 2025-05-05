@@ -9,7 +9,8 @@ Tekoälyä hyödynnetään pääasiassa seuraavissa tarkoituksissa:
 1.  **Harjoitustikettien generointi:** Luodaan realistisia tukipyyntöskenaarioita harjoittelua varten.
 2.  **Keskustelun simulointi:** Simuloidaan käyttäjän vuorovaikutusta generoiduissa harjoitustiketeissä.
 3.  **Keskustelujen yhteenveto:** Tiivistetään pitkiä tikettikeskusteluja nopeaa ymmärrystä varten.
-4.  **AI-tikettien analysointi:** Tarjotaan työkaluja admin-käyttäjille AI-generoitujen tikettien ja keskustelujen tarkasteluun.
+4.  **Tukihenkilöiden avustaminen:** Tarjotaan tukihenkilöille AI-avustaja ratkaisujen löytämiseen.
+5.  **AI-tikettien analysointi:** Tarjotaan työkaluja admin-käyttäjille AI-generoitujen tikettien ja keskustelujen tarkasteluun.
 
 Nämä ominaisuudet toteutetaan käyttämällä [LangChain.js](https://js.langchain.com/) -frameworkia ja kommunikoimalla [OpenAI](https://openai.com/):n suurten kielimallien (LLM) kanssa. Backend-sovelluksessa (`backend/src/ai/`) AI-logiikka on organisoitu agentteihin (`agents/`) ja prompt-mallipohjiin (`prompts/`).
 
@@ -52,7 +53,19 @@ Järjestelmä sisältää seuraavat erikoistuneet AI-agentit ja työkalut:
 *   **Hyöty:** Auttaa nopeasti ymmärtämään pitkien tai monimutkaisten tikettien historian, esimerkiksi kun tiketti siirtyy toiselle tukihenkilölle tai kun tarvitaan nopeaa tilannekatsausta.
 *   **Lisätietoja:** Tarkempi kuvaus agentista löytyy dokumentista: [`docs/ai-agents/summarizerAgent.md`](../docs/ai-agents/summarizerAgent.md) (Huom: Tarkista tiedostonimi, jos se on eri).
 
-### 4. Tikettien Analyysi (Admin-työkalu)
+### 4. Tukihenkilön Avustaja (`SupportAssistantAgent`)
+
+*   **Tarkoitus:** Auttaa tukihenkilöitä ratkaisemaan tikettejä tehokkaammin tarjoamalla kontekstisidonnaista ohjeistusta, ratkaisuehdotuksia ja teknistä tietoa.
+*   **Toiminta:**
+    *   **Aktivointi:** Tukihenkilö voi kysyä AI-avustajalta neuvoa tikettinäkymässä esittämällä kysymyksen tai pyytämällä apua tietyn ongelman kanssa.
+    *   **Konteksti:** Agentti analysoi **tiketin tiedot**, **keskusteluhistorian**, **mahdolliset tietämyskanta-artikkelit** ja **aikaisemmat ratkaisut samankaltaisiin ongelmiin**.
+    *   **Generointi:** Käyttäen kielimallia ja kontekstia, agentti tuottaa hyödyllisen vastauksen, joka voi sisältää vianmääritysohjeita, ratkaisuehdotuksia tai lisäkysymyksiä.
+    *   **API-päätepiste:** Agenttia kutsutaan endpointin `/api/ai/tickets/:ticketId/support-assistant` kautta.
+*   **Hyöty:** Tehostaa tukihenkilöiden työtä tarjoamalla välitöntä apua, jakamalla tietämystä ja nopeuttamalla ongelmanratkaisua.
+*   **Käyttöliittymä:** Avustaja on saatavilla tukihenkilöille tikettinäkymässä "Avaa tukiavustaja" -painikkeen kautta, kun tiketti on otettu käsittelyyn. 
+*   **Lisätietoja:** Tarkempi kuvaus agentista löytyy dokumentista: [`new_docs/ai-agents/supportAssistantAgent.md`](ai-agents/supportAssistantAgent.md).
+
+### 5. Tikettien Analyysi (Admin-työkalu)
 
 *   **Tarkoitus:** Tarjoaa ADMIN-käyttäjille näkymän ja työkalut AI-generoitujen tikettien ja keskustelujen analysointiin.
 *   **Sijainti:** AI Tools -sivun "Tikettien analyysi" -välilehti.
@@ -105,3 +118,80 @@ Yleisiä ongelmia ja ratkaisuehdotuksia AI-ominaisuuksiin liittyen:
 *   **Kieliongelmat (generointi väärällä kielellä):** Varmista, että prompteissa ohjeistetaan selkeästi käyttämään suomen kieltä.
 *   **ChatAgentin Edistymisarviointi Epäonnistuu:** Voi johtua promptin epäselvyydestä tai LLM:n vaikeudesta arvioida monimutkaista keskustelua. Promptin säätäminen voi auttaa.
 *   **API-kutsut Epäonnistuvat (Frontend):** Tarkista selaimen kehitystyökalujen verkkopyynnöt (Network tab) ja konsoli virheiden varalta. Varmista, että frontend lähettää pyynnöt oikeisiin endpointteihin ja oikeassa muodossa.
+
+## AI Analytics
+
+Järjestelmä sisältää kattavan analytiikkakomponentin, joka tarjoaa tietoa AI-avustajan käytöstä, tehokkuudesta ja vaikutuksesta tikettien käsittelyyn.
+
+### 1. AI Assistant Analytics -näkymä
+
+* **Tarkoitus:** Tarjota visuaalisia ja dataperusteisia näkymiä AI-avustajan käytöstä ja tehokkuudesta tukihenkilöiden ja järjestelmän hallinnoijien käyttöön.
+* **Käyttöliittymä:** Komponentti löytyy AI Tools -sivulta erillisellä "Analytiikka"-välilehdellä.
+* **Saatavuus:** Vain ADMIN- ja SUPPORT-rooleille.
+
+### 2. Tärkeimmät ominaisuudet
+
+* **Käyttötilastot:**
+  * Interaktioiden määrä ja trendi valitulla aikavälillä
+  * Mahdollisuus vaihtaa näkymää interaktioiden määrän ja vastausaikojen välillä
+  * Interaktiivinen kaavio keskiarvon visualisoinnilla ja hover-tiloilla
+  * Aikafiltterit (7pv, 14pv, 30pv, 90pv)
+
+* **Tukihenkilöiden käyttö:**
+  * Listaus tukihenkilöistä, jotka käyttävät AI-avustajaa
+  * Käyttömäärät ja keskimääräiset arvosanat per tukihenkilö
+  * Yksityiskohtainen näkymä per tukihenkilö, joka sisältää:
+    * Interaktiot päivittäin
+    * Vastausaikojen keskiarvo
+    * Arvosanajakauma
+    * Yleisimmät kyselyt
+
+* **Kategoriajakauma:**
+  * Visualisointi AI-avustajan käytöstä eri tikettikategorioissa
+  * Piirakkakuvaajat kategorioiden osuuksista
+
+* **Ratkaisuaikojen vertailu:**
+  * Tikettikohtaiset ratkaisuajat AI-avustajan kanssa vs. ilman
+  * Prosentuaalinen parannus ratkaisuajoissa
+  * Tuki ajan esittämiselle sekä tunteina että minuutteina pienille arvoille
+
+* **Vastausajat:**
+  * Persentiilianalyysi vastausajoista (50%, 75%, 90%, 95%, 99%)
+  * Keskimääräinen ja nopein vastausaika
+
+### 3. Tekninen toteutus
+
+* **Frontend:** 
+  * Reaktiiviset visualisointikomponentit (kaaviot, piirakkakuvaajat, taulukot)
+  * Rechart.js-visualisointikirjasto kaavioihin
+  * Tiedon suodatus ja ryhmittely
+
+* **Backend:**
+  * Datamallien tallennus:
+    * `AIAssistantInteraction` - tallentaa yksittäiset AI-interaktiot
+    * `AIAssistantUsageStat` - päivittäiset käyttötilastot
+    * `AIAssistantCategoryStat` - kategoriakohtaiset tilastot
+  * API-päätepisteet:
+    * `/api/ai-analytics/dashboard` - kokonaiskuvan data
+    * `/api/ai-analytics/usage` - käyttötilastot 
+    * `/api/ai-analytics/categories` - kategoriadata
+    * `/api/ai-analytics/agents` - tukihenkilöiden käyttödata
+    * `/api/ai-analytics/agents/:agentId/details` - yksittäisen tukihenkilön tarkemmat tiedot
+    * `/api/ai-analytics/response-times` - vastausaikatilastot
+    * `/api/ai-analytics/resolution-times` - ratkaisuaikojen vertailu
+
+### 4. Hyödyt
+
+* **Tietopohjaiset päätökset:** Mahdollistaa AI-avustajan tehokkuuden ja vaikutuksen mittaamisen
+* **Tehokkuuden optimointi:** Tunnistaa kehitysalueet ja seuraa parannuksia
+* **Käyttäjäkohtainen analyysi:** Tunnistaa tukihenkilöt, jotka hyödyntävät AI-avustajaa tehokkaimmin
+* **Käyttötrendien seuranta:** Mahdollistaa käytön määrän ja laadun kehityksen seurannan ajan myötä
+* **Ratkaisuaikojen kehitys:** Mittaa todellista vaikutusta tikettien käsittelyn tehokkuuteen
+
+### 5. Tulevat kehityskohteet
+
+* **Heatmap-visualisoinnit:** Aktiivisimmat ajat ja käyttäjät
+* **Hakutrendien analyysi:** Yleisimmät hakutermit ja niiden tuloksellisuus
+* **Laajempi kategoria-analyysi:** Tarkempi näkymä kategorioiden sisältöön
+* **Automatisoidut raportit:** Säännölliset sähköpostiyhteenvedot käytöstä ja tehokkuudesta
+* **Käyttäjäsegmentointi:** Erilaisten käyttäjäprofiilien tunnistaminen käyttötapojen perusteella

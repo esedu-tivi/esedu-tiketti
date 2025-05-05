@@ -53,7 +53,7 @@ Vaikka tämä projekti käyttää Viteä, jos käytössä olisi Create React App
   "homepage": "/tiketti", // <-- Aseta tähän alihakemiston polku (yleensä ilman lopun vinoviivaa 
   // ... muut kentät
 }
-
+```
 ## Keskeiset UI-Toteutukset ja Toiminnallisuudet
 
 ### Autentikointi (MSAL React)
@@ -74,7 +74,6 @@ Vaikka tämä projekti käyttää Viteä, jos käytössä olisi Create React App
 *   **Yhteyden Tila:** Hook voi myös palauttaa yhteyden tilan (connected/disconnected), jota UI voi hyödyntää.
 
 ### Kommenttien @-maininta
-*   **Toteutus:** Todennäköisesti käytetään kirjastoa kuten `react-mentions` tai vastaavaa tekstieditorikomponentissa (`CommentForm`).
 *   **Käyttäjälista:** Kirjoitettaessa `@` haetaan käyttäjälista backendistä (esim. `/api/users?search=...`) ehdotuksia varten.
 *   **Tallennus:** Kommentin sisältö tallennetaan backendille, joka tunnistaa maininnat ja lähettää tarvittavat ilmoitukset.
 *   **Näyttäminen:** Maininnat korostetaan CSS:llä (`.mention`-luokka).
@@ -181,4 +180,107 @@ Sovelluksen keskeiset näkymät (sivut) ja niitä vastaavat URL-polut:
 *   **Responsiivisuus:** Tailwind CSS mahdollistaa responsiivisen suunnittelun.
 *   **Ilmoitukset:** `react-hot-toast` -kirjastoa käytetään toast-ilmoitusten näyttämiseen.
 *   **Ikonit:** `lucide-react` -kirjastoa käytetään ikoneihin.
-*   **Datan Haku/Tila:** Käytetään todennäköisesti `axios`-kirjastoa API-kutsuihin ja `@tanstack/react-query` -kirjastoa palvelimen tilan hallintaan, välimuistitukseen ja taustapäivityksiin. 
+*   **Datan Haku/Tila:** Käytetään todennäköisesti `axios`-kirjastoa API-kutsuihin ja `@tanstack/react-query` -kirjastoa palvelimen tilan hallintaan, välimuistitukseen ja taustapäivityksiin.
+
+## AI Assistant Analytics
+
+AI Assistant Analytics -komponentti tarjoaa interaktiivisen käyttöliittymän, jolla voidaan tarkastella ja analysoida AI-avustajan käyttöä, sen vaikutusta tikettien ratkaisuaikoihin ja tukihenkilöiden toimintaa.
+
+### Sijainti Sovelluksessa
+
+Komponentti sijaitsee AI Tools -sivun "Analytiikka"-välilehdellä (`/ai-tools` URL-polku, välilehti "Analytiikka"). Se on saatavilla vain ADMIN- ja SUPPORT-rooleille.
+
+### Käyttöliittymän Osat
+
+1. **Yhteenvetokortit**
+   * Neljä numeerista KPI-mittaria yläosassa, jotka näyttävät:
+     * Kokonaisinteraktioiden määrä
+     * Tukihenkilöiden määrä, jotka käyttävät AI-avustajaa
+     * Tikettien määrä, joissa AI-avustajaa on käytetty
+     * Keskimääräinen tyytyväisyysaste
+   * Kullakin KPI:llä on selkeä otsikko, arvo ja graafinen elementti
+
+2. **Käyttötrendi**
+   * Interaktiivinen pylväskaavio, joka näyttää:
+     * AI-avustajan käyttömäärän ajan myötä tai vaihtoehtoisesti vastausajat
+     * Vaihtopainike interaktioiden määrän ja vastausaikojen välillä
+     * Keskiarvon havainnollistus vaakaviivalla
+     * Hover-tilat, jotka näyttävät tarkat arvot
+   * Aikajaksosuodatin (7/14/30/90 päivää)
+
+3. **Tukihenkilöiden AI-avustajan Käyttö**
+   * Taulukko tukihenkilöistä, joka näyttää:
+     * Tukihenkilön nimi
+     * Käyttömäärä
+     * Keskimääräinen AI-vastausten arviointi
+     * "Näytä tiedot" -painike kullekin tukihenkilölle
+   * Painikkeesta avautuu modaali, jossa näkyy:
+     * Interaktiot päivittäin (kaavio)
+     * Vastausaikojen keskiarvo
+     * Arvosanajakauma (palkkikaavio 1-5)
+     * Yleisimmät AI-avustajalle esitetyt kysymykset
+
+4. **Kategoria-analyysi**
+   * Piirakkakaavio, joka näyttää AI-avustajan käytön jakautumisen eri tikettikategorioihin
+   * Selkeät selitteet ja prosenttiosuudet
+
+5. **Ratkaisuaikojen Vertailu**
+   * Korttimuotoinen vertailu, joka näyttää:
+     * Keskimääräinen ratkaisuaika AI-avustajan kanssa
+     * Keskimääräinen ratkaisuaika ilman AI-avustajaa
+     * Prosentuaalinen parannus
+   * Visualisointi, joka käyttää sopivaa mittayksikköä (tunteja tai minuutteja)
+   * Tuki myös negatiivisten parannusprosenttien visualisointiin
+
+6. **Vastausaikatilastot**
+   * Taulukko ja/tai visualisointi, joka näyttää AI-avustajan vastausaikojen persentiilitilastot (50%, 75%, 90%, 95%, 99%)
+   * Keskimääräinen ja nopein vastausaika
+
+### Tekniset yksityiskohdat
+
+* **Datakyselyt:** Komponentti käyttää `AIAnalyticsService`-palvelua, joka tekee kutsut backend-API:n `/api/ai-analytics/*` päätepisteisiin.
+* **Kaaviot:** Visualisoinnit toteutetaan [Recharts](https://recharts.org/)-kirjastolla.
+* **Modaali:** Tukihenkilön yksityiskohtainen näkymä avataan `Dialog`-komponentilla (Shadcn/UI).
+* **Aikasuodatus:** Aikavälisuodatus (7d/14d/30d/90d) toteutetaan `RadioGroup`-komponentilla, joka päivittää dataa muutoksen yhteydessä.
+* **Virheiden Käsittely:** Komponentti näyttää selkeitä virheilmoituksia, jos API-kutsut epäonnistuvat.
+* **Latausilmaisimet:** Datahakujen aikana näytetään `Skeleton`-latausilmaisimet.
+
+### Koodirakenne
+
+```plaintext
+├── components/
+│   ├── Admin/
+│   │   ├── AIAssistantAnalytics.jsx     # Pääkomponentti
+│   │   ├── analytics/
+│   │   │   ├── AnalyticsSummaryCards.jsx  # KPI-kortit
+│   │   │   ├── UsageTrendChart.jsx     # Käyttötrendi-kaavio
+│   │   │   ├── AgentUsageTable.jsx     # Tukihenkilöiden käyttötaulukko
+│   │   │   ├── AgentDetailsModal.jsx   # Tukihenkilön yksityiskohdat
+│   │   │   ├── CategoryDistribution.jsx # Kategoria-analyysi
+│   │   │   ├── ResolutionComparison.jsx # Ratkaisuaikojen vertailu
+│   │   │   └── ResponseTimeStats.jsx   # Vastausaikatilastot
+```
+
+### Toiminnallisuus
+
+1. **Datalataus:**
+   * Komponentti hakee datan `useEffect`-hookissa.
+   * Käyttää `react-query`-kirjastoa hallitsemaan data-lukujen tilaa (loading, error, data).
+   * Datan päivitys aika-asetuksen muuttuessa.
+
+2. **Interaktiivisuus:**
+   * Aikajakson valinta muuttaa kaikkien kaavioiden dataa.
+   * Tukihenkilön lisätietojen näyttäminen modaalissa "Näytä tiedot" -painikkeesta.
+   * Käyttötrendin vaihto interaktioiden ja vastausaikojen välillä.
+   * Hover-tilat lisätietojen näyttämiseen kaavioissa.
+
+3. **Toimiva "Näytä tiedot" -painike:**
+   * Hakee agentID:n oikeasta kohdasta käyttäjätietoja ja välittää sen modaalille.
+   * Modaali tekee oman API-kutsunsa `/api/ai-analytics/agents/:agentId/details` päätepisteeseen.
+   * Näyttää yksityiskohtaista dataa agentin AI-käytöstä.
+
+4. **Ratkaisuaikojen näyttäminen:**
+   * Näyttää sopivan yksikön (tunnit tai minuutit) ratkaisuajoille.
+   * Käsittelee myös tapaukset, joissa AI-avustajan käyttö ei paranna ratkaisuaikaa.
+
+// ... existing code ... 

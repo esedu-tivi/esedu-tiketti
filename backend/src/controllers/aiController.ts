@@ -7,6 +7,7 @@ import { CreateTicketDTO } from '../types/index.js';
 import { Prisma } from '@prisma/client';
 import { summarizerAgent } from '../ai/agents/summarizerAgent.js';
 import { getSocketService } from '../services/socketService.js';
+import { supportAssistantAgent } from '../ai/agents/supportAssistantAgent.js';
 
 const prisma = new PrismaClient();
 
@@ -726,4 +727,108 @@ export const aiController = {
   },
   
   // --- End New Analysis Functions ---
+
+  /**
+   * Get support assistant response to a specific query about a ticket
+   */
+  getSupportAssistantResponse: async (req: Request, res: Response) => {
+    const ticketId = req.params.ticketId;
+    const { supportQuestion, supportUserId } = req.body;
+    
+    try {
+      console.log(`Received request for support assistant on ticket ${ticketId}`);
+      
+      // Validate parameters
+      if (!ticketId || !supportQuestion || !supportUserId) {
+        return res.status(400).json({
+          error: 'Missing required parameters',
+          details: 'ticketId, supportQuestion and supportUserId are required'
+        });
+      }
+      
+      // Fetch the ticket with its comments
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          comments: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      if (!ticket) {
+        return res.status(404).json({
+          error: 'Ticket not found',
+          details: `No ticket found with ID ${ticketId}`
+        });
+      }
+      
+      // Format comments for the agent
+      const comments = ticket.comments.map(comment => ({
+        id: comment.id,
+        text: comment.content,
+        userId: comment.authorId,
+        ticketId: comment.ticketId,
+        createdAt: comment.createdAt,
+        author: comment.author
+      }));
+      
+      // Generate response using the support assistant agent
+      const result = await supportAssistantAgent.generateAssistantResponse({
+        ticket: {
+          id: ticket.id,
+          title: ticket.title,
+          description: ticket.description,
+          device: ticket.device || '',
+          priority: ticket.priority,
+          categoryId: ticket.categoryId,
+          additionalInfo: ticket.additionalInfo || ''
+        },
+        comments,
+        supportQuestion,
+        supportUserId
+      });
+      
+      // Log activity
+      console.log(`Support assistant generated response for ticket ${ticketId}, requested by user ${supportUserId}`);
+      console.log(`Response time: ${result.responseTime.toFixed(2)} seconds`);
+      
+      // Log activity details for monitoring usage
+      console.log('Support assistant usage details:', JSON.stringify({
+        ticketId,
+        supportUserId,
+        timestamp: new Date().toISOString(),
+        question: supportQuestion.substring(0, 100) + (supportQuestion.length > 100 ? '...' : ''), // Truncate for logging
+        responseLength: result.response.length,
+        responseTime: result.responseTime,
+        interactionId: result.interaction?.id || 'not tracked'
+      }));
+      
+      // Return result with the interactionId for frontend analytics tracking 
+      // If the agent has already tracked the interaction, it will be included in result.interaction
+      res.status(200).json({
+        success: true,
+        response: result.response,
+        interactionId: result.interaction?.id || null,
+        responseTime: result.responseTime
+      });
+      
+    } catch (error: any) {
+      console.error('Error generating support assistant response:', error);
+      res.status(500).json({
+        error: 'Failed to generate support assistant response',
+        details: error.message || 'Unknown error'
+      });
+    }
+  },
 }; 

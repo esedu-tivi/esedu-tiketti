@@ -575,7 +575,256 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
           ]
         }
         ```
+*   **POST /ai/tickets/:ticketId/support-assistant**
+    *   **Kuvaus:** Pyytää tukihenkilöassistentilta apua tikettiin liittyvään ongelmaan.
+    *   **Polkuparametri (`:ticketId`):** Tiketin UUID, johon apua pyydetään.
+    *   **Rooli:** SUPPORT, ADMIN (vain tiketit, joihin käyttäjällä on pääsy).
+    *   **Runko (Tyyppi):** `{ supportQuestion: string, supportUserId: string }`
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "supportQuestion": "Miten voisin ratkaista tämän verkko-ongelman?",
+          "supportUserId": "uuid-käyttäjälle"
+        }
+        ```
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "response": "Verkko-ongelman ratkaisemiseksi kannattaa ensin tarkistaa seuraavat asiat: 1. Onko verkkokaapeli kytketty kunnolla, 2. Ovatko reitittimen valot päällä..."
+        }
+        ```
 
 ### Liitetiedostot
 
 *   Liitetiedostojen lataus tapahtuu osana tikettien (`POST /tickets`) ja kommenttien (`POST /tickets/:id/comments/media`) luontia käyttäen `multipart/form-data` -enkoodausta. Palvelin tallentaa tiedoston ja liittää sen URL/viite luotuun tikettiin/kommenttiin. 
+
+## AI Analytics API (`/ai-analytics`)
+
+*   **GET /ai-analytics/dashboard**
+    *   **Kuvaus:** Hakee kaikki AI-analytiikan tiedot yhdellä API-kutsulla (käyttötiedot, kategoriat, tukihenkilöiden käyttö, vastausajat, ratkaisuajat).
+    *   **Rooli:** ADMIN, SUPPORT (`requireRole([UserRole.ADMIN, UserRole.SUPPORT])`).
+    *   **Query-parametrit:** `range` - Aikaväli datan hakemiseen (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "usageData": [
+            { "date": "01.05", "count": 23, "avgResponseTime": 2.1, "avgRating": 4.2, "ticketsAssisted": 12 },
+            // ... other days (type: Array<{ date: string, count: number, avgResponseTime: number, avgRating: number | null, ticketsAssisted: number }>)
+          ],
+          "summary": {
+            "totalInteractions": 320, // type: number
+            "totalTicketsAssisted": 156, // type: number
+            "avgResponseTime": 2.3, // type: number (seconds)
+            "avgRating": 4.1 // type: number
+          },
+          "categoryData": [
+            { "name": "Verkko-ongelmat", "value": 45 },
+            // ... other categories (type: Array<{ name: string, value: number }>)
+          ],
+          "agentUsageData": [
+            { "name": "Tuki Henkilö", "count": 78, "rating": 4.5 },
+            // ... other support agents (type: Array<{ name: string, count: number, rating: number }>)
+          ],
+          "responseTimeData": {
+            "averageResponseTime": "2.3s", // type: string
+            "fastestResponseTime": "0.5s", // type: string
+            "percentileData": [
+              { "percentile": "50%", "time": "1.8s" },
+              // ... other percentiles (type: Array<{ percentile: string, time: string }>)
+            ]
+          },
+          "resolutionData": {
+            "withAssistant": "4.2", // type: string (hours)
+            "withoutAssistant": "6.8", // type: string (hours)
+            "improvement": "38.2" // type: string (percentage)
+          },
+          "overallStats": {
+            "totalInteractions": 3240, // type: number
+            "totalSupportAgents": 8, // type: number
+            "totalTicketsAssisted": 1285, // type: number
+            "averageSatisfactionRating": "4.3", // type: string
+            "ticketsResolvedFaster": "62%", // type: string (Note: Currently static value)
+            "knowledgeArticlesUsed": 85 // type: number (Note: Currently static value)
+          }
+        }
+        ```
+
+*   **GET /ai-analytics/usage**
+    *   **Kuvaus:** Hakee AI-avustajan käyttötilastot valitulta aikaväliltä.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "usageData": [
+            { "date": "01.05", "count": 23, "avgResponseTime": 2.1, "avgRating": 4.2, "ticketsAssisted": 12 },
+            // ... other days (type: Array<{ date: string, count: number, avgResponseTime: number, avgRating: number | null, ticketsAssisted: number }>)
+          ],
+          "summary": {
+            "totalInteractions": 320, // type: number
+            "totalTicketsAssisted": 156, // type: number
+            "avgResponseTime": 2.3, // type: number (seconds)
+            "avgRating": 4.1 // type: number
+          }
+        }
+        ```
+
+*   **GET /ai-analytics/categories**
+    *   **Kuvaus:** Hakee AI-avustajan käytön kategoriapohjaisen jakauman.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          { "name": "Verkko-ongelmat", "value": 45 },
+          // ... other categories (type: Array<{ name: string, value: number }>)
+        ]
+        ```
+
+*   **GET /ai-analytics/agents**
+    *   **Kuvaus:** Hakee tukihenkilökohtaiset AI-avustajan käyttötilastot.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          { "name": "Tuki Henkilö", "count": 78, "rating": 4.5 },
+          // ... other support agents (type: Array<{ name: string, count: number, rating: number }>)
+        ]
+        ```
+
+*   **GET /ai-analytics/agents/:agentId/details**
+    *   **Kuvaus:** Hakee yksittäisen tukihenkilön tarkat käyttötilastot.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Polkuparametri:** `agentId` - Tukihenkilön käyttäjä-ID (UUID) tai nimi (string).
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "totalInteractions": 78, // type: number
+          "averageResponseTime": "2.1s", // type: string
+          "responseRatings": [ // type: Array<{ rating: number, count: number }>
+            { "rating": 5, "count": 32 },
+            { "rating": 4, "count": 18 },
+            { "rating": 3, "count": 5 },
+            { "rating": 2, "count": 0 },
+            { "rating": 1, "count": 0 }
+          ],
+          "interactionsByDay": [ // type: Array<{ date: string (dd.MM), count: number }>
+            { "date": "01.05", "count": 5 },
+            { "date": "02.05", "count": 4 },
+            // ... other days
+          ],
+          "commonQueries": [ // type: Array<string>
+            "Miten ratkaisen tulostusongelman?",
+            "Tarvitsen tietoa verkko-ongelman ratkaisemiseen",
+            // ... other queries
+          ]
+        }
+        ```
+
+*   **GET /ai-analytics/response-times**
+    *   **Kuvaus:** Hakee AI-avustajan vastausaikojen tilastot.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "averageResponseTime": "2.3s", // type: string
+          "fastestResponseTime": "0.5s", // type: string
+          "percentileData": [ // type: Array<{ percentile: string, time: string }>
+            { "percentile": "50%", "time": "1.8s" },
+            { "percentile": "75%", "time": "2.5s" },
+            { "percentile": "90%", "time": "3.2s" },
+            { "percentile": "95%", "time": "4.0s" },
+            { "percentile": "99%", "time": "5.2s" }
+          ]
+        }
+        ```
+
+*   **GET /ai-analytics/resolution-times**
+    *   **Kuvaus:** Hakee tikettien ratkaisuaikojen vertailun AI-avustajan kanssa ja ilman.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d). Oletus: 14d.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "withAssistant": "4.2", // type: string (average hours)
+          "withoutAssistant": "6.8", // type: string (average hours)
+          "improvement": "38.2" // type: string (percentage)
+        }
+        ```
+
+*   **GET /ai-analytics/overall**
+    *   **Kuvaus:** Hakee yleiset AI-avustajan käyttötilastot.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Query-parametrit:** `range` - Aikaväli (7d, 14d, 30d, 90d, all). Oletus: all.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "totalInteractions": 3240, // type: number
+          "totalSupportAgents": 8, // type: number
+          "totalTicketsAssisted": 1285, // type: number
+          "averageSatisfactionRating": "4.3", // type: string
+          "ticketsResolvedFaster": "62%", // type: string (Note: Currently static value)
+          "knowledgeArticlesUsed": 85 // type: number (Note: Currently static value)
+        }
+        ```
+
+*   **POST /ai-analytics/interactions**
+    *   **Kuvaus:** Tallentaa uuden AI-avustajan interaktion tilastointia varten.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Runko (Tyyppi):** `{ ticketId?: string (UUID), query: string, response: string, responseTime: number (seconds), userId: string (UUID) }`
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "ticketId": "123e4567-e89b-12d3-a456-426614174000",
+          "query": "Miten ratkaisen tulostusongelman?",
+          "response": "Voit ratkaista tulostusongelman seuraavilla vaiheilla: 1...",
+          "responseTime": 2.3,
+          "userId": "456e7890-e12b-34d5-a678-426614174999"
+        }
+        ```
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "id": "789e0123-e45b-67d8-a901-426614174111", // type: string (UUID)
+          "ticketId": "123e4567-e89b-12d3-a456-426614174000", // type: string (UUID) or null
+          "query": "Miten ratkaisen tulostusongelman?", // type: string
+          "response": "Voit ratkaista tulostusongelman seuraavilla vaiheilla: 1...", // type: string
+          "responseTime": 2.3, // type: number (seconds)
+          "userId": "456e7890-e12b-34d5-a678-426614174999", // type: string (UUID)
+          "rating": null, // type: number | null
+          "feedback": null, // type: string | null
+          "createdAt": "2024-05-01T10:30:00.000Z" // type: string (ISO DateTime)
+        }
+        ```
+
+*   **POST /ai-analytics/interactions/:interactionId/feedback**
+    *   **Kuvaus:** Tallentaa palautteen ja arvosanan AI-avustajan interaktiolle.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Polkuparametri:** `interactionId` - Interaktion ID (UUID).
+    *   **Runko (Tyyppi):** `{ rating: number (1-5), feedback?: string }`
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "rating": 5,
+          "feedback": "Erittäin hyödyllinen vastaus, kiitos!"
+        }
+        ```
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "id": "789e0123-e45b-67d8-a901-426614174111",
+          "ticketId": "123e4567-e89b-12d3-a456-426614174000",
+          "query": "Miten ratkaisen tulostusongelman?",
+          "response": "Voit ratkaista tulostusongelman seuraavilla vaiheilla: 1...",
+          "responseTime": 2.3,
+          "userId": "456e7890-e12b-34d5-a678-426614174999",
+          "rating": 5,
+          "feedback": "Erittäin hyödyllinen vastaus, kiitos!",
+          "createdAt": "2024-05-01T10:30:00.000Z",
+          "updatedAt": "2024-05-01T10:35:00.000Z"
+        }
+        ``` 

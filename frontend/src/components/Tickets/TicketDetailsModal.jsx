@@ -35,9 +35,12 @@ import {
   Settings,
   X,
   ExternalLink,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 
 import CommentSection from '../Tickets/CommentSection';
+import SupportAssistantChat from '../AI/SupportAssistantChat';
 
 // Add keyframe animations
 import { keyframes, css } from '@emotion/react';
@@ -142,6 +145,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const { userRole, user } = useAuth();
   const { subscribe } = useSocket();
   const [activeTab, setActiveTab] = useState('details');
+  const [showAssistantChat, setShowAssistantChat] = useState(false);
 
   const {
     data: ticket,
@@ -550,18 +554,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const timeLeft = calculateTimeLeft(ticketData.estimatedCompletionTime);
   const category = ticketData?.category?.name || 'Ei määritelty';
 
-  // Debug tulostukset
-  //console.log('Tiketin tiedot:', ticketData);
-  //console.log('User role:', userRole);
-  //console.log('User id:', user?.id);
-  //console.log('Ticket status:', ticketData?.status);
-  //console.log('Ticket assignedToId:', ticketData?.assignedToId);
-  //console.log('Should show take button:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'OPEN' && !ticketData?.assignedToId);
-  //console.log('Should show control buttons:', (userRole === 'SUPPORT' || userRole === 'ADMIN') && ticketData?.status === 'IN_PROGRESS' && (ticketData?.assignedToId === user?.id || userRole === 'ADMIN'));
-
   const isSupportOrAdmin = userRole === 'SUPPORT' || userRole === 'ADMIN';
   const isAssignedToUser = ticketData?.assignedToId === user?.id;
   const canModifyTicket = isSupportOrAdmin && (isAssignedToUser || userRole === 'ADMIN');
+  const canUseAssistant = isSupportOrAdmin && isAssignedToUser && ticketData?.status === 'IN_PROGRESS';
 
   const createdBy =
     ticketData?.createdBy?.name ||
@@ -587,8 +583,10 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     : 'Ei määritelty';
 
   const handleClose = (e) => {
-    if (e.target.id === 'modal-background') {
+    if (e.target.id === 'modal-background' || e.target.id === 'modal-content-area') {
+      if (!showAssistantChat) {
       onClose();
+      }
     }
   };
 
@@ -854,6 +852,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
       onClick={handleClose}
     >
       <div
+        id="modal-content-area"
         className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto relative shadow-2xl transform transition-all duration-300 ease-in-out animate-slideUp"
         onClick={(e) => e.stopPropagation()}
       >
@@ -1046,6 +1045,25 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                   >
                     <ArrowRight className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                     Avaa tiketti uudelleen
+                  </Button>
+                )}
+
+                {/* Show Assistant Button */} 
+                {canUseAssistant && (
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAssistantChat(!showAssistantChat)}
+                    className={`transition-all duration-200 flex items-center gap-1.5 shadow-sm border ${ 
+                      showAssistantChat 
+                      ? 'bg-purple-100 text-purple-800 border-purple-300 ring-2 ring-purple-200' 
+                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200'
+                    }`}
+                    aria-label={showAssistantChat ? 'Sulje tukiavustaja' : 'Avaa tukiavustaja'}
+                    title={showAssistantChat ? 'Sulje tukiavustaja' : 'Avaa tukiavustaja'}
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${showAssistantChat ? 'text-purple-600' : 'text-purple-500'}`} />
+                    <span className="hidden sm:inline">{showAssistantChat ? 'Piilota avustaja' : 'Tukiavustaja'}</span>
                   </Button>
                 )}
               </div>
@@ -1384,6 +1402,16 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
           </CardFooter>
         </Card>
       </div>
+      
+      {/* Render Support Assistant Chat conditionally */} 
+      {showAssistantChat && canUseAssistant && (
+        <SupportAssistantChat 
+          ticket={ticketData} 
+          user={user} 
+          onClose={() => setShowAssistantChat(false)}
+        />
+      )}
+
       <TransferDialog />
     </div>
   );

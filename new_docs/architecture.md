@@ -179,6 +179,7 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Build-työkalu:** [Vite](https://vitejs.dev/)
 *   **Ikonit:** [Lucide React](https://lucide.dev/)
 *   **Ilmoitukset (UI):** [React Hot Toast](https://react-hot-toast.com/)
+*   **Visualisointi:** [Recharts](https://recharts.org/) - Käytetään AI Analytics -komponentissa luomaan interaktiivisia kaavioita ja visualisointeja.
 
 ### Backend (Palvelinpuoli)
 
@@ -194,6 +195,7 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Autentikointi (Server):**
     *   Vastaanotettujen JWT-tokenien (Azure AD ID-tokeneita frontendistä) dekoodaus käyttäen [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) -kirjastoa omassa `authMiddleware`-toteutuksessa käyttäjätietojen poimimiseksi.
 *   **Tiedostojen Lataus:** [Multer](https://github.com/expressjs/multer)
+*   **AI Analytics:** Sisältää tekoälyavustajan käytön tilastointiin ja analysointiin tarkoitetut palvelut, reitit ja kontrollerit (`aiAnalyticsController.ts`, `aiAnalyticsRoutes.ts`).
 
 ## Hakemistorakenne
 

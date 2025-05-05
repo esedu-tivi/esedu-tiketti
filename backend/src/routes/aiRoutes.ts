@@ -30,6 +30,9 @@ router.get('/tickets/:ticketId/solution', aiController.getTicketSolution);
 // Summarize a ticket conversation
 router.post('/tickets/:ticketId/summarize', aiController.summarizeConversation);
 
+// Get support assistant response for a specific question about a ticket
+router.post('/tickets/:ticketId/support-assistant', aiController.getSupportAssistantResponse);
+
 // --- New Analysis Routes ---
 router.get(
   '/analysis/tickets',

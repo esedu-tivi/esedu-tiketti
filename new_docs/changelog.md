@@ -2,6 +2,72 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 05.05.2025 - feat: Lisätty interaktiivinen demo tukihenkilöassistentille
+
+- **AI-avustaja-välilehden parannukset:**
+  - Toteutettu enterprise-tason interaktiivinen demo tukihenkilöassistentille
+  - Lisätty demo-komponentti `AIAssistantDemo.jsx` tukihenkilöassistentin simuloimiseksi
+  - Mahdollisuus testata avustajaa kolmella erilaisella tikettiskenaariolla
+  - Toteutettu ammattimainen kaksiosainen käyttöliittymä, jossa tiketin tiedot ja keskusteluhistoria
+  - Lisätty tuki tietopankin artikkelien selaamiselle 
+  - Simuloitu AI-avustajan chat-käyttöliittymä, joka reagoi käyttäjän kysymyksiin
+  - Lisätty kirjoitusindikaattori, esimerkkikysymykset ja keskusteluhistoria
+  - Käytetty edistyksellisiä UI-komponentteja: animaatiot, konfiguroidontipaneeli, responsiivinen asettelu
+  - Toteutettu toimiva markdown-muotoilu AI-vastauksissa (lihavointi, kursivointi, listat)
+
+# 05.05.2025 - feat: Aktivoitu tukihenkilöassistentin AITools-välilehti
+
+- **AITools-käyttöliittymän parannus:**
+  - Aktivoitu "AI-avustaja"-välilehti AITools-sivulla (`AITools.jsx`)
+  - Integroitu AIAssistantInfo-komponentti tukihenkilöassistentti-välilehdelle
+  - Poistettu "Tulossa"-merkintä välilehdestä
+  - Korvattu placeholder-sisältö informatiivisella AIAssistantInfo-komponentilla
+  - Päivitetty välilehden tila aktiiviseksi (`disabled: false`)
+
+# 05.05.2025 - feat: Uudistettu tukihenkilöassistentin käyttöliittymä ammattimaisemmaksi
+
+- **SupportAssistantChat-käyttöliittymän uudistus:**
+  - Uudistettu käyttöliittymän visuaalinen ilme modernimmaksi ja ammatimaisemmaksi
+  - Lisätty hienovaraisia gradientteja ja varjostuksia luomaan syvyysvaikutelmaa
+  - Parannettu elementtien välistystä, marginaaleja ja pyöristyksiä
+  - Lisätty visuaalisia tehosteita (taustakuviot, animaatiot, hover-tyylit)
+  - Paranneltu painikkeiden ja vuorovaikutuselementtien tyylejä
+  - Optimoitu käyttöliittymän responsiivisuutta ja selkeyttä
+  - Tehostettu tekstin luettavuutta ja hienovaraisuutta
+  - Lisätty hienostuneempia animaatioita ja siirtymiä
+  - Parannettu tiketin tietojen näkyvyyttä otsikossa
+
+# 05.05.2025 - fix: Korjattu tukihenkilöassistentin tekstialueen automaattinen koon muutos
+
+- **SupportAssistantChat-tekstialue korjaus:**
+  - Korjattu ongelma, jossa pitkän tekstin syöttäminen ei kasvattanut tekstialueen korkeutta automaattisesti
+  - Toteutettu automaattinen tekstialueen koon muutos, joka huomioi sekä rivinvaihdot että pitkät rivit
+  - Käytetty scrollHeight-arvoa tekstialueen korkeuden dynaamiseen säätämiseen
+  - Parannettu käyttöliittymän reagointia reaaliajassa kirjoitettaessa
+  - Korjattu vierityspalkkien näkyvyys: vierityspalkit ilmestyvät automaattisesti, kun teksti ylittää maksimikoon
+  - Lisätty dynaaminen overflow-tyylin hallinta tekstisisällön pituuden perusteella
+
+# 05.05.2025 - fix: Paranneltu tukihenkilöassistentin käyttöliittymää
+
+- **SupportAssistantChat-parannukset:**
+  - Vaihdettu yhden rivin tekstikenttä moniriviseksi tekstialueeksi (textarea)
+  - Tekstialue kasvaa automaattisesti tekstin määrän mukaan (max 4 riviä)
+  - Lisätty tuki Enter-näppäimen käyttöön viestin lähettämiseen (Shift+Enter lisää rivinvaihdon)
+  - Muutettu aikaleimoja käyttämään suomalaista aika- ja päivämäärämuotoa (24h kello)
+  - Muokattu tekstialueen ulkoasua helpommin käytettäväksi (pyöristetty reunat)
+  - Päivitetty ohjeteksti osoittamaan uusia näppäinkomentoja
+
+# 05.05.2025 - fix: Paranneltu tukihenkilöassistentin tietämysartikkelien hakua
+
+- **SupportAssistantAgent-parannukset:**
+  - Muutettu assistentin tapa hakea tietämysartikkeleita
+  - Poistettu kategoriaperusteinen haku, joka palautti yleiset artikkelit
+  - Muokattu haku käyttämään vain tiketin ID:tä `relatedTicketIds`-kentässä
+  - Tämä varmistaa, että assistentti antaa ainoastaan suoraan tikettiin liittyvää täsmällistä tietoa
+  - Päivitetty dokumentaatio muutosten mukaisesti (`supportAssistantAgent.md`)
+
+# 04.05.2025 - feat: Tukihenkilön AI assistentti
+
 # 30.04.2025 - fix: Korjattu AI-chatin toimintaa ja lisätty kirjoitusindikaattori
 - **AI Chat Agent -korjaukset (`TicketDetailsModal`, `CommentSection`):
   - Korjattu ongelma, jossa AI-agentin vastaukset saattoivat näkyä väärässä järjestyksessä (ennen käyttäjän viestiä).

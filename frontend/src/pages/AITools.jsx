@@ -4,6 +4,9 @@ import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
 import SolutionWindow from '../components/Admin/SolutionWindow';
 import TicketDetailsModal from '../components/Tickets/TicketDetailsModal';
+import AIAssistantInfo from '../components/Admin/AIAssistantInfo';
+import AIAssistantDemo from '../components/Admin/AIAssistantDemo';
+import AIAssistantAnalytics from '../components/Admin/AIAssistantAnalytics';
 import { 
   Sparkles, 
   CogIcon, 
@@ -14,7 +17,11 @@ import {
   RefreshCw,
   FileText,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  PlayCircle,
+  PieChart,
+  ThumbsUp,
+  BookOpen
 } from 'lucide-react';
 
 /**
@@ -24,6 +31,8 @@ import {
 const AITools = () => {
   // State for active tab
   const [activeTab, setActiveTab] = useState('ticket-generator');
+  // State for active AI Assistant subtab
+  const [activeAssistantSubtab, setActiveAssistantSubtab] = useState('demo');
 
   // State for conversation modal
   const [selectedConvTicketId, setSelectedConvTicketId] = useState(null);
@@ -101,7 +110,7 @@ const AITools = () => {
       label: 'AI-avustaja', 
       icon: <MessageSquare size={16} className="text-green-500" />,
       description: 'Tekoälyavustaja tukihenkilöille tikettien ratkaisuun',
-      disabled: true
+      disabled: false
     },
     { 
       id: 'config', 
@@ -109,6 +118,36 @@ const AITools = () => {
       icon: <CogIcon size={16} className="text-gray-500" />,
       description: 'Määritä tekoälyominaisuuksien asetukset ja mallit',
       disabled: true
+    }
+  ];
+
+  // AI Assistant subtabs
+  const assistantSubtabs = [
+    {
+      id: 'demo',
+      label: 'Demo',
+      icon: <PlayCircle size={16} className="text-green-500" />,
+      description: 'Kokeile AI-avustajaa interaktiivisesti simuloiduilla tiketeillä'
+    },
+    {
+      id: 'analytics',
+      label: 'Analytiikka',
+      icon: <PieChart size={16} className="text-blue-500" />,
+      description: 'Tarkastele AI-avustajan käytön tilastoja ja tehokkuutta',
+      disabled: false
+    },
+    {
+      id: 'feedback',
+      label: 'Palaute',
+      icon: <ThumbsUp size={16} className="text-purple-500" />,
+      description: 'Tukihenkilöiden palaute ja avustajan kehitysideat',
+      disabled: true
+    },
+    {
+      id: 'info',
+      label: 'Ohjeet',
+      icon: <BookOpen size={16} className="text-gray-500" />,
+      description: 'Ohjeet AI-avustajan käyttöön ja toimintatapa'
     }
   ];
 
@@ -200,14 +239,57 @@ const AITools = () => {
               />
             )}
             {activeTab === 'assistant' && (
-              <div className="text-center py-20 text-gray-500">
-                <MessageSquare size={48} className="mx-auto mb-4 opacity-30" />
-                <h3 className="text-lg font-medium mb-2">AI-avustaja</h3>
-                <p className="max-w-md mx-auto">
-                  Tämä ominaisuus on kehityksen alla. Se tarjoaa tekoälyavusteisen
-                  apuvälineen tukihenkilöille tikettien ratkaisuun.
-                </p>
-              </div>
+              <>
+                {/* AI Assistant subtab navigation */}
+                <div className="mb-6 border-b border-gray-200">
+                  <div className="flex flex-wrap -mb-px">
+                    {assistantSubtabs.map((subtab) => (
+                      <button
+                        key={subtab.id}
+                        onClick={() => !subtab.disabled && setActiveAssistantSubtab(subtab.id)}
+                        disabled={subtab.disabled}
+                        className={`
+                          px-4 py-2 text-sm font-medium border-b-2 flex items-center mr-4
+                          ${activeAssistantSubtab === subtab.id 
+                            ? 'border-green-500 text-green-600' 
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                          ${subtab.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                        `}
+                      >
+                        {subtab.icon}
+                        <span className="ml-2">{subtab.label}</span>
+                        {subtab.disabled && (
+                          <span className="ml-2 text-xs bg-gray-100 text-gray-500 py-0.5 px-2 rounded-full">
+                            Tulossa
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Description bar for subtab */}
+                <div className="mb-6 bg-gray-50 px-4 py-2 rounded-md border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    {assistantSubtabs.find(subtab => subtab.id === activeAssistantSubtab)?.description}
+                  </p>
+                </div>
+                
+                {/* AI Assistant subtab content */}
+                {activeAssistantSubtab === 'demo' && <AIAssistantDemo />}
+                {activeAssistantSubtab === 'info' && <AIAssistantInfo />}
+                {activeAssistantSubtab === 'analytics' && <AIAssistantAnalytics />}
+                {activeAssistantSubtab === 'feedback' && (
+                  <div className="text-center py-20 text-gray-500">
+                    <ThumbsUp size={48} className="mx-auto mb-4 opacity-30" />
+                    <h3 className="text-lg font-medium mb-2">AI-avustajan Palaute</h3>
+                    <p className="max-w-md mx-auto">
+                      Tämä toiminto on kehityksen alla. Se mahdollistaa palautteenannon AI-avustajan toiminnasta
+                      ja ehdotusten tekemisen sen parantamiseksi.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
             {activeTab === 'config' && (
               <div className="text-center py-20 text-gray-500">

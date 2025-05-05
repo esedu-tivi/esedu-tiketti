@@ -40,6 +40,12 @@ Erityisenä piirteenä järjestelmä hyödyntää **tekoälyä (AI)** rikastutta
 *   **Tekoälypohjainen Analysointi ja Yhteenvedot:**
     *   **Analyysi:** Admin-näkymä AI-generoitujen tikettien ja keskustelujen tarkasteluun ja suodatukseen.
     *   **Yhteenveto:** Mahdollisuus generoida AI-pohjainen yhteenveto tiketin keskustelusta (`SummarizerAgent`).
+*   **AI Analytics -työkalu:**
+    *   **Käyttötilastot:** Tekoälyavustajan käytön visualisointi ja analysointi (interaktiot, vastausajat, arvosanat).
+    *   **Tukihenkilökohtaiset tilastot:** Yksityiskohtaiset tiedot tukihenkilöiden AI-avustajan käytöstä.
+    *   **Kategoria-analyysi:** Visualisointi eri tikettikategorioiden AI-avustajan käytöstä.
+    *   **Ratkaisuaikavertailu:** AI-avustajan vaikutuksen mittaaminen tikettien ratkaisuaikoihin.
+    *   **Vastausajat:** Tilastot AI-avustajan vastausajoista persentiileittäin.
 *   **Autentikointi:**
     *   Integraatio Microsoft-tileihin (MSAL) Azure AD:n kautta.
     *   JWT (JSON Web Tokens) käytössä sessioiden hallintaan.
