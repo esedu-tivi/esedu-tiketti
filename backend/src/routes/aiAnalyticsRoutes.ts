@@ -42,4 +42,7 @@ router.get('/overall', aiAnalyticsController.getOverallStats);
 // Get all dashboard data in a single request
 router.get('/dashboard', aiAnalyticsController.getDashboardData);
 
+// Get feedback history for a ticket
+router.get('/interactions/feedback/ticket/:ticketId', aiAnalyticsController.getFeedbackByTicket);
+
 export default router; 

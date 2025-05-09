@@ -19,6 +19,13 @@ export const supportAssistantService = {
     return response.data;
   },
 
+  // Get feedback history for messages in a ticket
+  async getFeedbackHistory(ticketId) {
+    const api = await createAuthenticatedInstance();
+    const response = await api.get(`${import.meta.env.VITE_API_URL}/ai-analytics/interactions/feedback/ticket/${ticketId}`);
+    return response.data;
+  },
+
   // Clear conversation history between student and support assistant
   async clearConversationHistory(ticketId, supportUserId) {
     const api = await createAuthenticatedInstance();

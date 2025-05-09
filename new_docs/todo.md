@@ -37,6 +37,7 @@ Tähän tiedostoon listataan projektin tulevat tehtävät ja niiden tila.
     *   `✅` Lisää SupportAssistantAgentille muisti oman keskustelunsa osalta opiskelijan kanssa:
         *   `✅` Agentti ja prompti päivitetty vastaanottamaan `studentAssistantConversationHistory`.
         *   `✅` Toteuta backend-logiikka keskusteluhistorian tallentamiseen, hakemiseen ja tyhjentämiseen. Toteutettu uudella `SupportAssistantConversation`-mallilla tietokannassa.
+        *   `✅` Paranna AI-assistentin palautteenkäsittelyä latauksen jälkeen (interactionId:n ja annettujen palautteiden tallennus/haku).
 *   `✅` Paranna tukihenkilöassistentin tietämysartikkelien hakua käyttämään vain tikettiin liittyviä artikkeleita
 *   `✅` Toteuta AI-avustajan analytiikkanäkymä ja backend-palvelut tilastointia varten
 *   `❌` Toteuta lisää tilastoja AI-analytiikkaan:

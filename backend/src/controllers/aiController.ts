@@ -820,8 +820,13 @@ export const aiController = {
       
       // Add this exchange to the conversation history
       const timestamp = new Date().toLocaleString('fi-FI');
+      
+      // Include interaction ID in the assistant's response for later reference
+      const interactionId = result.interaction?.id || null;
+      const interactionTag = interactionId ? ` [interaction:${interactionId}]` : '';
+      
       // Use a more distinct separator between entries to prevent parsing issues 
-      const newExchange = `[${timestamp}] Student: ${supportQuestion}\n\n[${timestamp}] Assistant: ${result.response}\n\n`;
+      const newExchange = `[${timestamp}] Student: ${supportQuestion}\n\n[${timestamp}] Assistant: ${result.response}${interactionTag}\n\n`;
       
       // Update or create the conversation record
       const updatedConversationHistory = conversationHistory + newExchange;

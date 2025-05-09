@@ -223,7 +223,10 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
   const [messageFeedback, setMessageFeedback] = useState({});
   
   // New state to keep track of the current interaction
-  const [currentInteraction, setCurrentInteraction] = useState(null);
+  const [currentInteractionId, setCurrentInteractionId] = useState(null);
+  
+  // Add a new state to track message to interaction ID mapping
+  const [messageToInteractionMap, setMessageToInteractionMap] = useState({});
   
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -302,6 +305,30 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
         // Fetch conversation history from server
         const response = await supportAssistantService.getConversationHistory(ticket.id, user.id);
         
+        // Also fetch feedback history for this ticket
+        try {
+          const feedbackResponse = await supportAssistantService.getFeedbackHistory(ticket.id);
+          if (feedbackResponse.success && feedbackResponse.feedback) {
+            // Create a mapping of interaction IDs to feedback
+            const feedbackMap = {};
+            feedbackResponse.feedback.forEach(item => {
+              feedbackMap[item.interactionId] = {
+                type: item.rating >= 4 ? 'positive' : 'negative',
+                timestamp: item.updatedAt
+              };
+            });
+            
+            // Store this in state to prevent duplicate feedback
+            setMessageFeedback(prev => ({
+              ...prev,
+              ...feedbackMap
+            }));
+          }
+        } catch (feedbackError) {
+          console.error('Error loading feedback history:', feedbackError);
+          // Continue with conversation load even if feedback fetch fails
+        }
+        
         if (response.success && response.hasHistory && response.history) {
           // Parse the conversation history into individual messages
           const messages = parseConversationHistory(response.history);
@@ -338,13 +365,40 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
     // The \s*\n\n\[.*\] part correctly identifies the delimiter plus the start of the next timestamp.
     const messageBlockPattern = /\[(.*?)\] (Student:|Assistant:)\s*([\s\S]*?)(?=\s*\n\n\[.*\] (?:Student:|Assistant:)|$)/g;
 
+    // Track potential interaction IDs - this pattern looks for any UUID-like string in the history
+    const interactionIdPattern = /\[interaction:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/gi;
+    const foundInteractions = {};
+    let interactionMatch;
+    while ((interactionMatch = interactionIdPattern.exec(history)) !== null) {
+      foundInteractions[interactionMatch[1]] = true;
+    }
+    
+    // If we found any interaction IDs, use the last one as our current interaction ID
+    const foundInteractionIds = Object.keys(foundInteractions);
+    if (foundInteractionIds.length > 0) {
+      setCurrentInteractionId(foundInteractionIds[foundInteractionIds.length - 1]);
+    }
+
     let match;
+    let messageCount = 0;
+    const newMessageMapping = {};
+    
     while ((match = messageBlockPattern.exec(history)) !== null) {
       const timestampStr = match[1].trim();
       const senderTypePrefix = match[2]; // "Student:" or "Assistant:"
       let text = match[3].trim();       // The actual message content
 
       const timestamp = getTimeFromTimestamp(timestampStr);
+      
+      // Extract interaction ID if it exists in the message
+      const interactionIdMatch = text.match(/\[interaction:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/i);
+      let interactionId = null;
+      
+      if (interactionIdMatch) {
+        interactionId = interactionIdMatch[1];
+        // Remove the interaction ID tag from the visible message
+        text = text.replace(/\[interaction:[0-9a-f-]+\]/gi, '').trim();
+      }
 
       if (senderTypePrefix === 'Student:') {
         messages.push({
@@ -359,15 +413,27 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
           },
         });
       } else if (senderTypePrefix === 'Assistant:') {
-        messages.push({
+        const aiMessage = {
           sender: 'ai',
           text: text,
           timestamp: timestamp,
-        });
+        };
+        
+        messages.push(aiMessage);
+        
+        // Store a mapping from message to interaction ID if we have one
+        if (interactionId) {
+          const messageKey = `${timestamp}-${text.substring(0, 20)}`;
+          newMessageMapping[messageKey] = interactionId;
+        }
       }
     }
 
-    // console.log("SupportAssistantChat: Parsed messages (" + messages.length + "):", JSON.stringify(messages, null, 2));
+    // Update the message to interaction mapping
+    if (Object.keys(newMessageMapping).length > 0) {
+      setMessageToInteractionMap(newMessageMapping);
+    }
+
     return messages;
   };
   
@@ -501,32 +567,40 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
    * Handle message feedback collection
    */
   const handleFeedback = async (message, feedbackType) => {
-    // Only process feedback for AI messages and if we have a current interaction ID
-    if (message.sender !== 'ai') {
-      return;
-    }
+    if (!message) return;
     
     try {
-      if (!currentInteractionId) {
+      const messageKey = `${message.timestamp}-${message.text.substring(0, 20)}`;
+      
+      // Get the interaction ID for this message from our mapping
+      let interactionIdForMessage = messageToInteractionMap[messageKey] || currentInteractionId;
+      
+      if (!interactionIdForMessage) {
         toast.error('Palautteen antaminen ei onnistu tällä hetkellä', { duration: 3000 });
         return;
       }
       
+      // Check if we've already given feedback for this interaction ID
+      if (messageFeedback[interactionIdForMessage]) {
+        toast.error('Olet jo antanut palautetta tälle viestille', { duration: 2000 });
+        return;
+      }
+      
       // Store feedback state to prevent multiple submissions for the same message
-      const messageKey = `${message.timestamp}-${message.text.substring(0, 20)}`;
       if (messageFeedback[messageKey]) {
         toast.error('Olet jo antanut palautetta tälle viestille', { duration: 2000 });
         return;
       }
       
-      // Update local messageFeedback state
+      // Update local messageFeedback state - store by both message key and interaction ID
       setMessageFeedback(prev => ({
         ...prev,
-        [messageKey]: { type: feedbackType, timestamp: new Date().toISOString() }
+        [messageKey]: { type: feedbackType, timestamp: new Date().toISOString() },
+        [interactionIdForMessage]: { type: feedbackType, timestamp: new Date().toISOString() }
       }));
       
       // Submit feedback to analytics service
-      await aiAnalyticsService.submitFeedback(currentInteractionId, {
+      await aiAnalyticsService.submitFeedback(interactionIdForMessage, {
         rating: feedbackType === 'positive' ? 5 : 2,
         feedback: feedbackType === 'positive' 
           ? 'Käyttäjä arvioi vastauksen hyväksi' 
@@ -605,7 +679,6 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
   };
 
   // Add state for tracking the current interaction and rating
-  const [currentInteractionId, setCurrentInteractionId] = useState(null);
   const [rating, setRating] = useState(null);
 
   return (

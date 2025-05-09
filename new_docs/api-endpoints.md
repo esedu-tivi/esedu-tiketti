@@ -867,4 +867,29 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
           "createdAt": "2024-05-01T10:30:00.000Z",
           "updatedAt": "2024-05-01T10:35:00.000Z"
         }
+        ```
+
+*   **GET /ai-analytics/interactions/feedback/ticket/:ticketId**
+    *   **Kuvaus:** Hakee kaikki annetut palautteet tietylle tiketille.
+    *   **Rooli:** ADMIN, SUPPORT.
+    *   **Polkuparametri:** `ticketId` - Tiketin ID (UUID), jonka palautteet haetaan.
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "feedback": [
+            {
+              "interactionId": "interaction-uuid-1",
+              "rating": 5,
+              "feedback": "Hyvä vastaus!",
+              "timestamp": "2024-05-02T12:00:00.000Z"
+            },
+            {
+              "interactionId": "interaction-uuid-2",
+              "rating": 2,
+              "feedback": "Ei auttanut.",
+              "timestamp": "2024-05-02T12:05:00.000Z"
+            }
+          ]
+        }
         ``` 

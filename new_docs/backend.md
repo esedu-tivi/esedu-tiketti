@@ -243,4 +243,8 @@ Tarkempi kuvaus näistä rajapinnoista löytyy dokumentista [`api-endpoints.md`]
 * `getResponseTimeStats` - Hakee vastausaikojen tilastot.
 * `getResolutionTimeComparison` - Vertaa ratkaisuaikoja AI:n kanssa ja ilman.
 * `getOverallStats` - Hakee yleiset käyttötilastot.
-* `getDashboardData` - Hakee kaikki tilastot kerralla dashboard-näkymää varten. 
+* `getDashboardData` - Hakee kaikki tilastot kerralla dashboard-näkymää varten.
+* `getFeedbackByTicket` - Hakee kaikki tiettyyn tikettiin liittyvät vuorovaikutukset, joille on annettu palaute.
+
+### AI-Avustajan Keskusteluhistorian Parannukset (`aiController.ts`)
+*   **InteractionID:n Tallennus:** Kun AI-avustaja (`SupportAssistantAgent`) vastaa käyttäjälle, sen tuottaman vastauksen yhteydessä oleva yksilöllinen `interactionId` tallennetaan nyt osaksi keskusteluhistoriaa (`SupportAssistantConversation`-taulu). Tämä mahdollistaa myöhemmin yksittäisten viestien ja niihin liittyvän palautteen tarkemman seurannan ja kohdistamisen. 

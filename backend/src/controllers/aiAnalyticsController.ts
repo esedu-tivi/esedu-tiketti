@@ -793,5 +793,48 @@ export const aiAnalyticsController = {
       console.error('Error getting agent details:', error);
       return res.status(500).json({ error: 'Failed to get agent details' });
     }
-  }
+  },
+  
+  // Get feedback by ticket ID
+  async getFeedbackByTicket(req: Request, res: Response) {
+    try {
+      const { ticketId } = req.params;
+      
+      if (!ticketId) {
+        return res.status(400).json({ error: 'Missing required parameter: ticketId' });
+      }
+      
+      // Get all interactions for this ticket that have feedback (rating is not null)
+      const interactions = await prisma.aIAssistantInteraction.findMany({
+        where: {
+          ticketId: ticketId,
+          rating: { not: null }
+        },
+        select: {
+          id: true,
+          rating: true,
+          feedback: true,
+          createdAt: true
+        }
+      });
+      
+      return res.status(200).json({
+        success: true,
+        feedback: interactions.map((interaction: { 
+          id: string; 
+          rating: number | null; 
+          feedback: string | null; 
+          createdAt: Date;
+        }) => ({
+          interactionId: interaction.id,
+          rating: interaction.rating,
+          feedback: interaction.feedback,
+          timestamp: interaction.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error('Error getting feedback by ticket ID:', error);
+      return res.status(500).json({ error: 'Failed to get feedback by ticket ID' });
+    }
+  },
 }; 

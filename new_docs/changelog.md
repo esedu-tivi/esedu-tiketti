@@ -2,6 +2,30 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 09.05.2025 - fix: Parannettu AI-assistentin palautteenkäsittelyä latauksen jälkeen
+
+- **Ongelma:** Käyttäjä pystyi antamaan palautetta samaan viestiin useita kertoja, jos chat-ikkuna suljettiin ja avattiin uudelleen välissä. Myös alun perin ladatuille viesteille palautteenanto ei toiminut, koska `interactionId` puuttui.
+- **Korjaukset (Frontend - `SupportAssistantChat.jsx`):
+  - Lisätty `messageToInteractionMap`-tila seuraamaan viestien ja niiden `interactionId`:iden välistä yhteyttä.
+  - Muokattu `parseConversationHistory`-funktiota erottelemaan `interactionId` viestihistoriasta (jos tallennettu muodossa `[interaction:uuid]`).
+  - `handleFeedback`-funktio käyttää nyt ensisijaisesti viestikohtaista `interactionId`:tä `messageToInteractionMap`:sta tai toissijaisesti `currentInteractionId`:tä.
+  - Laajennettu `loadConversationHistory`-funktiota hakemaan myös tiketin aiemmin annetut palautteet (`supportAssistantService.getFeedbackHistory`).
+  - `messageFeedback`-tila päivitetään nyt myös haetulla palautetiedolla, estäen jo palautetun viestin uudelleenarvioinnin.
+  - Palautteen lähetys estetään nyt, jos `messageFeedback`-tilasta löytyy jo merkintä kyseiselle `interactionId`:lle.
+- **Korjaukset (Frontend - `supportAssistantService.js`):
+  - Lisätty uusi funktio `getFeedbackHistory(ticketId)` hakemaan palvelimelta kaikki tikettiin liittyvät annetut palautteet.
+- **Korjaukset (Backend - `aiController.ts`):
+  - `getSupportAssistantResponse`-metodia muokattu siten, että se tallentaa nyt `interactionId`:n osaksi keskusteluhistoriaa käyttäen merkintää `[interaction:uuid] Assistantin vastauksen perässä.
+  - Korjattu `getFeedbackByTicket`-funktiossa virhe, jossa yritettiin hakea `updatedAt`-kenttää, jota ei ole olemassa `AIAssistantInteraction`-mallissa. Kenttä vaihdettu `createdAt`-kenttään ja palautetaan frontendille `timestamp`-nimellä.
+  - Korjattu `getFeedbackByTicket`-funktion `prisma.AIAssistantInteraction`-mallinimen kirjainkoko vastaamaan Prisma-skeemaa (`aIAssistantInteraction`).
+- **Korjaukset (Backend - `aiAnalyticsController.ts`):
+  - Lisätty uusi kontrollerifunktio `getFeedbackByTicket` hakemaan kaikki tiettyyn tikettiin liittyvät vuorovaikutukset, joille on annettu palaute.
+  - Korjattu `AIAssistantInteraction`-mallinimen kirjainkoko vastaamaan Prisma-skeemaa (`aIAssistantInteraction`) `getFeedbackByTicket`-funktiossa.
+- **Korjaukset (Backend - `aiAnalyticsRoutes.ts`):
+  - Lisätty uusi reitti `GET /interactions/feedback/ticket/:ticketId` kutsumaan `aiAnalyticsController.getFeedbackByTicket`.
+- **Dokumentaation päivitys:**
+  - Lisätty uusi päätepiste `GET /ai-analytics/interactions/feedback/ticket/:ticketId` tiedostoon `new_docs/api-endpoints.md`.
+
 # 09.05.2025 - feat: Lisätty tukihenkilöassistenttiin keskusteluhistorian tallennus ja palautus
 
 - **SupportAssistantAgent - Toiminnallisuuden laajennus:**
