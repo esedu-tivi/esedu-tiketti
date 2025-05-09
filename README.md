@@ -1,6 +1,10 @@
 # <p align='center'>Esedu-tiketti</p>
 
-🎓 Moderni helpdesk-järjestelmä Etelä-Savon ammattiopiston IT-tuen opiskelijoille. Mahdollistaa opiskelijoiden IT-tukipyyntöjen tehokkaan käsittelyn ja tukihenkilöiden koulutuksen tekoälypohjaisten simulaatioiden avulla.
+## 🎓 Yleiskatsaus
+
+Esedu Tikettijärjestelmä on moderni helpdesk-sovellus, joka on suunniteltu ensisijaisesti **opetuskäyttöön** Etelä-Savon ammattiopiston IT-tuen opiskelijoille. Järjestelmä mahdollistaa opiskelijoiden IT-tukipyyntöjen tehokkaan käsittelyn ja tukihenkilöiden koulutuksen aidon tuntuisissa asiakaspalvelutilanteissa, hyödyntäen tekoälypohjaisia simulaatioita.
+
+Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, jotka helpottavat tukipyyntöjen käsittelyä ja mahdollistavat interaktiiviset harjoitusskenaariot ilman oikeiden käyttäjien tarvetta.
 
 ## 🚀 Ominaisuudet
 
@@ -31,22 +35,47 @@
 
 ### Tekoälyominaisuudet
 - Realististen harjoitustikettien generointi tekoälyn avulla
+  - Parametrisoitu tikettien luonti (vaikeustaso, kategoria, käyttäjäprofiili)
+  - Esikatselumahdollisuus ennen tallennusta
+  - Tuottaa erilaisia tikettityyppejä ja ongelmaskenaarioita koulutuskäyttöön
+  - Mahdollisuus generoida useita tikettejä kerralla (bulk-generointi)
+  - Mukautettu käyttäjäprofiilin mukainen kielenkäyttö ja tekninen tarkkuus
+
 - ChatAgent: tekoälyagentti, joka simuloi käyttäjän vastauksia tikettikeskusteluissa
   - Automaattinen aktivointi kun tukihenkilö vastaa AI-generoituun tikettiin
   - Edistymisen arviointi: agentti tunnistaa, kuinka lähellä tukihenkilö on oikeaa ratkaisua
   - Realistinen vuorovaikutus eri teknisen osaamisen tasoilla (vähäinen, keskitasoinen, hyvä)
   - Emotionaalinen ilmaisu (turhautuminen, kiinnostus, helpotus) tilanteen mukaan
-  - Joustava keskusteluliikenteen tunnistaminen (esim. "toimiiko?" -kysymyksen käsittely)
-- TicketGenerator: tekoälyagentti, joka generoi koulutustiketit
-  - Parametrisoitu tikettien luonti (vaikeustaso, kategoria, käyttäjäprofiili)
-  - Tuottaa erilaisia tikettityyppejä ja ongelmaskenaarioita koulutuskäyttöön
-  - Mukautettu käyttäjäprofiilin mukainen kielenkäyttö ja tekninen tarkkuus
-- SolutionGenerator: tekoälyagentti, joka luo ratkaisuohjeita tiketteihin
-  - Tuottaa rakenteellisia ja vaiheistettuja ratkaisuja IT-ongelmiin
-  - Konkreettiset vaiheet ongelman ratkaisemiseksi
+  - Joustava keskusteluliikenteen tunnistaminen
+  - Kirjoitusindikaattori, joka näyttää milloin AI generoi vastausta
+
+- SummarizerAgent: tekoälyagentti, joka luo yhteenvetoja tikettikeskusteluista
+  - Tiivistää pitkän tikettikeskustelun keskeisimmät kohdat
+  - Käytettävissä sekä tavallisiin että AI-generoituihin tiketteihin
+  - Tallennetut yhteenvedot näkyvät tiketin tiedoissa
+
+- SupportAssistantAgent: tukihenkilöiden tekoälyavustaja
+  - Tarjoaa kontekstisidonnaista apua tikettien ratkaisuun
+  - Hyödyntää tiketin tietoja ja keskusteluhistoriaa
+  - Hakee relevantteja tietämysartikkeleita tiketin kontekstista
+  - Interaktiivinen chat-käyttöliittymä
+  - Tarjoaa ratkaisuehdotuksia ja vianmääritysohjeita
+
+- Tikettien analyysi ja analytiikka
+  - Admin-näkymä AI-generoitujen tikettien tarkasteluun
+  - Keskustelujen edistymisen visualisointi (EARLY, PROGRESSING, CLOSE, SOLVED)
+  - AI-ratkaisujen tarkastelu erillisessä ikkunassa
+  - Suodatus-, lajittelu- ja sivutusominaisuudet
+  - Yhteenvetotilastoja tikettien käsittelystä
+  - AI-avustajan käytön ja tehokkuuden analysointi
+  - Kategoria- ja käyttäjäkohtaiset tilastot
+  - Ratkaisuaikojen vertailu
+
 - AI Tools -käyttöliittymä tekoälyominaisuuksien hallintaan
   - Tikettien generointi halutuilla parametreilla
+  - Interaktiivinen demo tukihenkilöassistentista
   - Edistyneet debug-työkalut tekoälyn toiminnan seuraamiseen
+  - AI-avustajan analytiikkanäkymä
 
 
 ### Liitetiedostot ja median käsittely
