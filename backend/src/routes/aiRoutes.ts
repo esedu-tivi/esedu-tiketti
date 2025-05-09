@@ -33,6 +33,12 @@ router.post('/tickets/:ticketId/summarize', aiController.summarizeConversation);
 // Get support assistant response for a specific question about a ticket
 router.post('/tickets/:ticketId/support-assistant', aiController.getSupportAssistantResponse);
 
+// Get conversation history between a student and the support assistant for a specific ticket
+router.get('/tickets/:ticketId/support-assistant/history/:supportUserId', aiController.getSupportAssistantConversationHistory);
+
+// Clear conversation history between a student and the support assistant for a specific ticket
+router.delete('/tickets/:ticketId/support-assistant/history/:supportUserId', aiController.clearSupportAssistantConversationHistory);
+
 // --- New Analysis Routes ---
 router.get(
   '/analysis/tickets',

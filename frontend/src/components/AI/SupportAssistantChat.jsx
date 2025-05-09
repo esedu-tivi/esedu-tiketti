@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { authService } from '../../services/authService';
 import { aiAnalyticsService } from '../../services/aiAnalyticsService';
+import { supportAssistantService } from '../../services/supportAssistantService';
 import { 
   Sparkles, Send, Loader2, Bot, X, MessageSquare, 
   Copy, Check, ThumbsUp, ThumbsDown, MoreHorizontal, 
@@ -210,6 +211,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
   const [error, setError] = useState(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [typingIndicator, setTypingIndicator] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [suggestedQuestions, setSuggestedQuestions] = useState([
     "Miten tämä ongelma voidaan ratkaista?",
     "Tarvitsenko lisätietoja asiakkaalta?",
@@ -289,6 +291,113 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
     }
   }, [isLoading]);
   
+  // Add useEffect to load conversation history on component mount
+  useEffect(() => {
+    const loadConversationHistory = async () => {
+      if (!ticket || !user) return;
+      
+      try {
+        setIsInitialLoading(true);
+        
+        // Fetch conversation history from server
+        const response = await supportAssistantService.getConversationHistory(ticket.id, user.id);
+        
+        if (response.success && response.hasHistory && response.history) {
+          // Parse the conversation history into individual messages
+          const messages = parseConversationHistory(response.history);
+          setConversation(messages);
+        }
+      } catch (error) {
+        console.error('Error loading conversation history:', error);
+        // Don't show error to user, just start with an empty conversation
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+    
+    loadConversationHistory();
+    
+    // The dependency array only includes user.id and ticket.id to prevent reloading
+    // when other properties of the ticket change (like comments being added)
+  }, [user?.id, ticket?.id]);
+  
+  // Helper function to parse conversation history into message objects
+  const parseConversationHistory = (history) => {
+    const messages = [];
+    if (!history || history.trim() === '') {
+      return messages;
+    }
+
+    // console.log("SupportAssistantChat: Raw conversation history from database:", JSON.stringify(history));
+
+    // Regex to find each message block.
+    // A message block starts with: [timestamp] (Student:|Assistant:) actual_message_text
+    // The message text can be multi-line.
+    // The positive lookahead (?= ... |$) ensures that the message text capture ([\s\S]*?)
+    // stops correctly before the next message block or the end of the string.
+    // The \s*\n\n\[.*\] part correctly identifies the delimiter plus the start of the next timestamp.
+    const messageBlockPattern = /\[(.*?)\] (Student:|Assistant:)\s*([\s\S]*?)(?=\s*\n\n\[.*\] (?:Student:|Assistant:)|$)/g;
+
+    let match;
+    while ((match = messageBlockPattern.exec(history)) !== null) {
+      const timestampStr = match[1].trim();
+      const senderTypePrefix = match[2]; // "Student:" or "Assistant:"
+      let text = match[3].trim();       // The actual message content
+
+      const timestamp = getTimeFromTimestamp(timestampStr);
+
+      if (senderTypePrefix === 'Student:') {
+        messages.push({
+          sender: 'user',
+          text: text,
+          timestamp: timestamp,
+          user: {
+            ...user, // user is from component props
+            id: user.id,
+            email: user.email || user.username,
+            name: user.name || user.displayName || user.email || user.username,
+          },
+        });
+      } else if (senderTypePrefix === 'Assistant:') {
+        messages.push({
+          sender: 'ai',
+          text: text,
+          timestamp: timestamp,
+        });
+      }
+    }
+
+    // console.log("SupportAssistantChat: Parsed messages (" + messages.length + "):", JSON.stringify(messages, null, 2));
+    return messages;
+  };
+  
+  // Helper function to extract time from timestamp
+  const getTimeFromTimestamp = (timestampString) => {
+    const dateObj = new Date(timestampString);
+  
+    // Check if the date object is valid and was successfully parsed
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      // new Date() failed to parse it into a valid date object.
+      // Try to extract time like HH:mm or H:mm using a regular expression.
+      // This regex looks for patterns like "H:MM" or "HH:MM" or "H.MM" or "HH.MM",
+      // possibly followed by seconds, common in fi-FI locale strings.
+      const timeMatch = timestampString.match(/(\d{1,2})[:.](\d{2})(?:[:.]\d{2})?/);
+      
+      if (timeMatch && timeMatch[1] && timeMatch[2]) {
+        const hour = timeMatch[1].padStart(2, '0');
+        const minute = timeMatch[2]; // The regex \d{2} ensures minute is two digits
+        return `${hour}:${minute}`;
+      } else {
+        // If regex extraction also fails, return an empty string.
+        // This will cause the ChatMessage component to use its own fallback (current time),
+        // which is preferable to displaying "Invalid Date".
+        return ''; 
+      }
+    }
+  };
+  
   /**
    * Send user message and get AI response with enhanced error handling.
    */
@@ -308,9 +417,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
       timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'})
     };
     
-    // Console log for debugging
-    console.log('Sending message with user data:', userMessage.user);
-    
+    // Add the user message to the conversation immediately
     setConversation(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -320,17 +427,11 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
     const requestStartTime = performance.now();
 
     try {
-      // Simulate network delay for better UX (optional in production)
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
-      const token = await authService.acquireToken();
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/ai/tickets/${ticket.id}/support-assistant`,
-        { 
-          supportQuestion: messageText,
-          supportUserId: user.id 
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
+      // Use the service instead of direct axios call
+      const response = await supportAssistantService.sendMessage(
+        ticket.id,
+        messageText,
+        user.id
       );
       
       // Calculate response time in seconds
@@ -338,16 +439,17 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
       
       const aiMessage = { 
         sender: 'ai', 
-        text: response.data.response,
+        text: response.response,
         timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'})
       };
       
+      // Add the AI message to the conversation
       setConversation(prev => [...prev, aiMessage]);
       
       // Check if backend already tracked the interaction (via interactionId)
-      if (response.data.interactionId) {
-        console.log('Interaction tracked by backend, ID:', response.data.interactionId);
-        setCurrentInteractionId(response.data.interactionId);
+      if (response.interactionId) {
+        console.log('Interaction tracked by backend, ID:', response.interactionId);
+        setCurrentInteractionId(response.interactionId);
       } else {
         // Backend didn't track it, so track manually with the frontend service
         try {
@@ -355,7 +457,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
             ticketId: ticket.id,
             userId: user.id,
             query: messageText,
-            response: response.data.response,
+            response: response.response,
             responseTime: responseTime
           };
           
@@ -377,12 +479,14 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
                        err.response?.data?.error || 
                        'Avustajan vastausta ei voitu hakea. Yritä uudestaan.';
       
-      setError(errorText);
-      setConversation(prev => [...prev, { 
+      const errorMessage = { 
         sender: 'system_error', 
         text: errorText,
         timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'})
-      }]);
+      };
+      
+      setError(errorText);
+      setConversation(prev => [...prev, errorMessage]);
       
       toast.error('Avustajan vastauksen hakeminen epäonnistui', {
         duration: 4000
@@ -471,17 +575,33 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
   };
   
   /**
-   * Reset the conversation
+   * Reset the conversation - now also clears conversation history on server
    */
-  const handleReset = () => {
+  const handleReset = async () => {
     if (conversation.length === 0) return;
     
-    setConversation([]);
-    setError(null);
-    toast('Keskustelu tyhjennetty', {
-      icon: '🔄',
-      duration: 2000
-    });
+    setIsLoading(true);
+    
+    try {
+      // Call the server to clear the conversation history
+      await supportAssistantService.clearConversationHistory(ticket.id, user.id);
+      
+      // Clear local conversation history
+      setConversation([]);
+      setError(null);
+      
+      toast('Keskustelu tyhjennetty', {
+        icon: '🔄',
+        duration: 2000
+      });
+    } catch (err) {
+      console.error('Error clearing conversation history:', err);
+      toast.error('Keskustelun tyhjentäminen epäonnistui', {
+        duration: 3000
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Add state for tracking the current interaction and rating
@@ -592,8 +712,16 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
 
             {/* Chat messages container */}
             <div className="flex-grow p-4 overflow-y-auto space-y-1.5 bg-[#f8fafc]/80 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+              {/* Loading state */}
+              {isInitialLoading && (
+                <div className="text-center flex flex-col items-center justify-center h-full px-6">
+                  <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mb-4" />
+                  <p className="text-sm text-gray-600">Ladataan keskustelua...</p>
+                </div>
+              )}
+              
               {/* Empty state */}
-              {conversation.length === 0 && !isLoading && (
+              {conversation.length === 0 && !isLoading && !isInitialLoading && (
                 <div className="text-center flex flex-col items-center justify-center h-full px-6">
                   <div className="bg-gradient-to-br from-indigo-50 to-purple-50 w-18 h-18 rounded-full flex items-center justify-center mb-4 p-1.5 shadow-sm">
                     <div className="bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full w-full h-full flex items-center justify-center">
@@ -628,7 +756,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
               {conversation.map((msg, index) => (
                 msg.sender === 'system_error' ? (
                   <motion.div 
-                    key={index}
+                    key={`error-${index}-${msg.timestamp}`}
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center text-red-600 text-xs my-3 px-4 py-2.5 bg-red-50 border border-red-100 rounded-lg flex items-center justify-center gap-2 shadow-sm"
@@ -648,7 +776,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
                   </motion.div>
                 ) : (
                   <ChatMessage 
-                    key={index} 
+                    key={`message-${index}-${msg.timestamp}`}
                     message={msg} 
                     onCopy={handleCopy}
                     onFeedback={handleFeedback}

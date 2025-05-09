@@ -591,7 +591,47 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         ```json
         {
           "success": true,
-          "response": "Verkko-ongelman ratkaisemiseksi kannattaa ensin tarkistaa seuraavat asiat: 1. Onko verkkokaapeli kytketty kunnolla, 2. Ovatko reitittimen valot päällä..."
+          "response": "Verkko-ongelman ratkaisemiseksi kannattaa ensin tarkistaa seuraavat asiat: 1. Onko verkkokaapeli kytketty kunnolla, 2. Ovatko reitittimen valot päällä...",
+          "interactionId": "interaction-id",
+          "responseTime": 2.4,
+          "hasConversationHistory": true
+        }
+        ```
+
+*   **GET /ai/tickets/:ticketId/support-assistant/history/:supportUserId**
+    *   **Kuvaus:** Hakee tukihenkilön ja tukiassistentin välisen keskusteluhistorian tietylle tiketille.
+    *   **Polkuparametrit:**
+        *   `:ticketId` - Tiketin UUID, jonka keskusteluhistoria haetaan.
+        *   `:supportUserId` - Tukihenkilön UUID, jonka keskusteluhistoria haetaan.
+    *   **Rooli:** SUPPORT, ADMIN (vain tiketit, joihin käyttäjällä on pääsy).
+    *   **Vastaus (Esimerkki, kun keskusteluhistoria löytyy):**
+        ```json
+        {
+          "success": true,
+          "hasHistory": true,
+          "history": "[2023-05-09T12:30:45] Student: Miten voisin ratkaista tämän verkko-ongelman?\n\n[2023-05-09T12:31:15] Assistant: Verkko-ongelman ratkaisemiseksi kannattaa ensin tarkistaa seuraavat asiat: 1. Onko verkkokaapeli kytketty kunnolla..."
+        }
+        ```
+    *   **Vastaus (Esimerkki, kun keskusteluhistoriaa ei löydy):**
+        ```json
+        {
+          "success": true,
+          "hasHistory": false,
+          "history": null
+        }
+        ```
+
+*   **DELETE /ai/tickets/:ticketId/support-assistant/history/:supportUserId**
+    *   **Kuvaus:** Tyhjentää tukihenkilön ja tukiassistentin välisen keskusteluhistorian tietylle tiketille.
+    *   **Polkuparametrit:**
+        *   `:ticketId` - Tiketin UUID, jonka keskusteluhistoria tyhjennetään.
+        *   `:supportUserId` - Tukihenkilön UUID, jonka keskusteluhistoria tyhjennetään.
+    *   **Rooli:** SUPPORT, ADMIN (vain tiketit, joihin käyttäjällä on pääsy).
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "message": "Keskusteluhistoria tyhjennetty onnistuneesti"
         }
         ```
 

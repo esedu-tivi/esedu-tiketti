@@ -40,6 +40,7 @@ interface SupportAssistantParams {
   comments: CommentData[];
   supportQuestion: string;
   supportUserId: string;
+  studentAssistantConversationHistory?: string;
 }
 
 /**
@@ -77,11 +78,43 @@ export class SupportAssistantAgent {
         ticket, 
         comments, 
         supportQuestion, 
-        supportUserId
+        supportUserId,
+        studentAssistantConversationHistory
       } = params;
       
-      console.log(`SupportAssistantAgent: Generating response for ticket: ${ticket.id}, from support user: ${supportUserId}`);
-      console.log(`SupportAssistantAgent: Support question: "${supportQuestion}"`);
+      console.log(`\n=== SUPPORT ASSISTANT CONVERSATION ===`);
+      console.log(`Ticket: #${ticket.id} - ${ticket.title}`);
+      console.log(`Support User: ${supportUserId}`);
+      console.log(`Current Question: "${supportQuestion}"`);
+      
+      // Format customer-support conversation history
+      if (comments && comments.length > 0) {
+        console.log(`\n--- CUSTOMER-SUPPORT CONVERSATION ---`);
+        comments.forEach((comment, index) => {
+          const userName = comment.author?.name || 'Unknown User';
+          const role = comment.author?.role === 'SUPPORT' || comment.author?.role === 'ADMIN' ? 'Support' : 'Customer';
+          console.log(`[${comment.createdAt.toLocaleString('fi-FI')}] ${role} (${userName}): ${comment.text}`);
+        });
+        console.log(`--- END CUSTOMER-SUPPORT CONVERSATION ---\n`);
+      } else {
+        console.log(`\n--- NO CUSTOMER-SUPPORT CONVERSATION YET ---\n`);
+      }
+      
+      // Display student-assistant conversation history
+      if (studentAssistantConversationHistory) {
+        console.log(`\n--- STUDENT-ASSISTANT CONVERSATION HISTORY ---`);
+        // Split the conversation into exchanges for better readability
+        const exchanges = studentAssistantConversationHistory.split('\n\n').filter(exchange => exchange.trim());
+        if (exchanges.length > 0) {
+          exchanges.forEach((exchange, index) => {
+            console.log(`${exchange}`);
+            if (index < exchanges.length - 1) console.log('');  // Add empty line between exchanges
+          });
+        }
+        console.log(`--- END STUDENT-ASSISTANT CONVERSATION HISTORY ---\n`);
+      } else {
+        console.log(`\n--- NO PREVIOUS STUDENT-ASSISTANT CONVERSATION ---\n`);
+      }
       
       // Get category name
       const category = await prisma.category.findUnique({
@@ -141,10 +174,9 @@ export class SupportAssistantAgent {
       }
       
       // Combine knowledge articles if available
-      let additionalKnowledge = '';
+      let knowledgeForPrompt = '';
       if (knowledgeContext) {
-        additionalKnowledge = '\n\nRelevant knowledge and potential solutions:\n';
-        additionalKnowledge += `\n${knowledgeContext}`;
+        knowledgeForPrompt = knowledgeContext;
       }
       
       // Format the prompt with ticket information and conversation history
@@ -153,28 +185,44 @@ export class SupportAssistantAgent {
         ticketDescription: ticket.description,
         deviceInfo: ticket.device || 'Ei määritelty',
         category: category.name,
-        additionalInfo: (ticketAdditionalInfo || 'Ei lisätietoja') + additionalKnowledge,
-        conversationHistory: conversationHistory || 'Ei aiempaa keskusteluhistoriaa.',
+        additionalInfo: ticketAdditionalInfo || 'Ei lisätietoja',
+        knowledgeBaseContent: knowledgeForPrompt || 'Ei tietoa',
+        conversationHistory: conversationHistory || 'Ei aiempaa keskusteluhistoriaa asiakkaan kanssa.',
+        studentAssistantConversationHistory: studentAssistantConversationHistory || 'Tämä on tämän chat-istunnon ensimmäinen viesti sinulle.',
         supportQuestion: supportQuestion
       };
       
       console.log(`SupportAssistantAgent: Sending prompt to model...`);
+      console.log(`SupportAssistantAgent: Prompt includes ticket title: "${ticket.title}", category: "${category.name}"`);
+      console.log(`SupportAssistantAgent: Using ${comments.length} comments from the ticket's conversation history`);
+      console.log(`SupportAssistantAgent: Using ${studentAssistantConversationHistory ? 'existing' : 'first-time'} student-assistant conversation history`);
       
       // Format the messages using the template
       const formattedMessages = await SUPPORT_ASSISTANT_PROMPT.formatMessages(promptInput);
       
       // Log the prompt (for debugging)
-      console.log(`SupportAssistantAgent: Prompt created with ${formattedMessages.length} messages`);
+      console.log(`\n--- PROMPT FORMATTING ---`);
+      console.log(`Ticket: "${ticket.title}" in category: "${category.name}"`);
+      console.log(`Comments in conversation: ${comments.length}`);
+      console.log(`Knowledge base content length: ${knowledgeForPrompt ? knowledgeForPrompt.length : 0} characters`);
+      console.log(`--- END PROMPT FORMATTING ---\n`);
       
       // Get the response from the language model
+      console.log(`\n--- SENDING TO LANGUAGE MODEL ---`);
       const llmStartTime = performance.now();
       const response = await this.model.invoke(formattedMessages);
       const llmEndTime = performance.now();
       
-      console.log(`SupportAssistantAgent: Got response in ${((llmEndTime - llmStartTime) / 1000).toFixed(2)}s`);
+      console.log(`Response received in ${((llmEndTime - llmStartTime) / 1000).toFixed(2)}s`);
+      console.log(`--- END LANGUAGE MODEL CALL ---\n`);
       
       // Extract the assistant's response
       const assistantResponse = response.content.toString();
+      
+      // Log the response
+      console.log(`\n--- NEW SUPPORT ASSISTANT RESPONSE ---`);
+      console.log(assistantResponse);
+      console.log(`--- END SUPPORT ASSISTANT RESPONSE ---\n`);
       
       // Calculate total time
       const endTime = performance.now();

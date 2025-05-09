@@ -17,6 +17,7 @@ Tietomalli määrittelee järjestelmän keskeiset entiteetit, niiden attribuutit
 *   **AIAssistantInteraction:** Tekoälyavustajan käyttötapahtumat.
 *   **AIAssistantUsageStat:** Päivittäiset käyttöstatistiikat tekoälyavustajalle.
 *   **AIAssistantCategoryStat:** Kategoriakohtaiset käyttöstatistiikat tekoälyavustajalle.
+*   **SupportAssistantConversation:** Tukihenkilön ja tukihenkilöassistentin välinen keskusteluhistoria.
 
 ## Prisma Schema (`backend/prisma/schema.prisma`)
 
@@ -84,6 +85,7 @@ model User {
   notifications   Notification[]
   notificationSettings NotificationSettings?
   aiInteractions  AIAssistantInteraction[]
+  supportAssistantConversations SupportAssistantConversation[]
 
   // @@map removed
 }
@@ -115,6 +117,7 @@ model Ticket {
   isAiGenerated  Boolean         @default(false)
   createdBy      User            @relation("CreatedTickets", fields: [createdById], references: [id])
   aiInteractions AIAssistantInteraction[]
+  supportAssistantConversations SupportAssistantConversation[]
 
   // Removed resolvedAt, closedAt
   // Removed aiTrainingTicketId, aiTrainingTicket relation
@@ -253,12 +256,26 @@ model AIAssistantCategoryStat {
   categoryId      String
   date            DateTime @default(now()) @db.Date
   interactionCount Int
-
-  category        Category    @relation(fields: [categoryId], references: [id])
-
+  
+  category        Category @relation(fields: [categoryId], references: [id])
+  
   @@unique([categoryId, date])
   @@index([date])
-  // Removed timeRange
+  // @@map removed
+}
+
+model SupportAssistantConversation {
+  id                   String   @id @default(uuid())
+  ticketId             String
+  supportUserId        String
+  conversationHistory  String   @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  ticket               Ticket   @relation(fields: [ticketId], references: [id])
+  supportUser          User     @relation(fields: [supportUserId], references: [id])
+  
+  @@unique([ticketId, supportUserId])
   // @@map removed
 }
 

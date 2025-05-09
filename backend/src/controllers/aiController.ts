@@ -783,6 +783,24 @@ export const aiController = {
         author: comment.author
       }));
       
+      // Get existing conversation history or create a new one
+      let conversation = await prisma.supportAssistantConversation.findUnique({
+        where: {
+          ticketId_supportUserId: {
+            ticketId: ticketId,
+            supportUserId: supportUserId
+          }
+        }
+      });
+      
+      let conversationHistory = conversation?.conversationHistory || '';
+      
+      console.log(`SupportAssistant: ${conversation ? 'Found existing' : 'No existing'} conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      if (conversation) {
+        console.log(`SupportAssistant: Conversation history length: ${conversationHistory.length} characters`);
+        console.log(`SupportAssistant: Conversation history created at: ${conversation.createdAt}, last updated: ${conversation.updatedAt}`);
+      }
+      
       // Generate response using the support assistant agent
       const result = await supportAssistantAgent.generateAssistantResponse({
         ticket: {
@@ -796,8 +814,44 @@ export const aiController = {
         },
         comments,
         supportQuestion,
-        supportUserId
+        supportUserId,
+        studentAssistantConversationHistory: conversationHistory
       });
+      
+      // Add this exchange to the conversation history
+      const timestamp = new Date().toLocaleString('fi-FI');
+      // Use a more distinct separator between entries to prevent parsing issues 
+      const newExchange = `[${timestamp}] Student: ${supportQuestion}\n\n[${timestamp}] Assistant: ${result.response}\n\n`;
+      
+      // Update or create the conversation record
+      const updatedConversationHistory = conversationHistory + newExchange;
+      console.log(`SupportAssistant: Adding new exchange to conversation history. New content length: ${newExchange.length} characters`);
+      console.log(`SupportAssistant: First 50 chars of message: "${supportQuestion.substring(0, 50)}${supportQuestion.length > 50 ? '...' : ''}"`);
+      console.log(`SupportAssistant: First 50 chars of response: "${result.response.substring(0, 50)}${result.response.length > 50 ? '...' : ''}"`);
+      
+      if (conversation) {
+        // Update existing conversation
+        console.log(`SupportAssistant: Updating existing conversation (ID: ${conversation.id}) with new exchange`);
+        await prisma.supportAssistantConversation.update({
+          where: { id: conversation.id },
+          data: {
+            conversationHistory: updatedConversationHistory,
+            updatedAt: new Date()
+          }
+        });
+        console.log(`SupportAssistant: Conversation updated, total history length now: ${updatedConversationHistory.length} characters`);
+      } else {
+        // Create new conversation record
+        console.log(`SupportAssistant: Creating new conversation record for ticket ${ticketId} and user ${supportUserId}`);
+        const newConversation = await prisma.supportAssistantConversation.create({
+          data: {
+            ticketId: ticketId,
+            supportUserId: supportUserId,
+            conversationHistory: newExchange
+          }
+        });
+        console.log(`SupportAssistant: New conversation created with ID: ${newConversation.id}`);
+      }
       
       // Log activity
       console.log(`Support assistant generated response for ticket ${ticketId}, requested by user ${supportUserId}`);
@@ -820,13 +874,105 @@ export const aiController = {
         success: true,
         response: result.response,
         interactionId: result.interaction?.id || null,
-        responseTime: result.responseTime
+        responseTime: result.responseTime,
+        hasConversationHistory: true // Let frontend know there's history
       });
       
     } catch (error: any) {
       console.error('Error generating support assistant response:', error);
       res.status(500).json({
         error: 'Failed to generate support assistant response',
+        details: error.message || 'Unknown error'
+      });
+    }
+  },
+  
+  /**
+   * Retrieve conversation history between a student and the support assistant for a specific ticket
+   */
+  getSupportAssistantConversationHistory: async (req: Request, res: Response) => {
+    const ticketId = req.params.ticketId;
+    const supportUserId = req.params.supportUserId;
+    
+    try {
+      console.log(`Fetching support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      
+      // Validate parameters
+      if (!ticketId || !supportUserId) {
+        return res.status(400).json({
+          error: 'Missing required parameters',
+          details: 'ticketId and supportUserId are required'
+        });
+      }
+      
+      // Get conversation history
+      const conversation = await prisma.supportAssistantConversation.findUnique({
+        where: {
+          ticketId_supportUserId: {
+            ticketId: ticketId,
+            supportUserId: supportUserId
+          }
+        }
+      });
+      
+      if (!conversation) {
+        return res.status(200).json({
+          success: true,
+          history: '',
+          hasHistory: false
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        history: conversation.conversationHistory,
+        hasHistory: true
+      });
+      
+    } catch (error: any) {
+      console.error('Error fetching support assistant conversation history:', error);
+      res.status(500).json({
+        error: 'Failed to fetch conversation history',
+        details: error.message || 'Unknown error'
+      });
+    }
+  },
+  
+  /**
+   * Clear conversation history between a student and the support assistant for a specific ticket
+   */
+  clearSupportAssistantConversationHistory: async (req: Request, res: Response) => {
+    const ticketId = req.params.ticketId;
+    const supportUserId = req.params.supportUserId;
+    
+    try {
+      console.log(`Clearing support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      
+      // Validate parameters
+      if (!ticketId || !supportUserId) {
+        return res.status(400).json({
+          error: 'Missing required parameters',
+          details: 'ticketId and supportUserId are required'
+        });
+      }
+      
+      // Delete conversation history
+      await prisma.supportAssistantConversation.deleteMany({
+        where: {
+          ticketId: ticketId,
+          supportUserId: supportUserId
+        }
+      });
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Conversation history cleared successfully'
+      });
+      
+    } catch (error: any) {
+      console.error('Error clearing support assistant conversation history:', error);
+      res.status(500).json({
+        error: 'Failed to clear conversation history',
         details: error.message || 'Unknown error'
       });
     }

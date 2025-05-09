@@ -2,6 +2,72 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 09.05.2025 - feat: Lisätty tukihenkilöassistenttiin keskusteluhistorian tallennus ja palautus
+
+- **SupportAssistantAgent - Toiminnallisuuden laajennus:**
+  - Toteutettu tietokannan taulurakenne keskusteluhistorian tallentamiseen (`SupportAssistantConversation`).
+  - Implementoitu backend-logiikka keskusteluhistorian tallentamiseen, noutamiseen ja tyhjentämiseen.
+  - Keskusteluhistoria pysyy nyt tallessa tikettien välillä ja ratkaisun löytäminen on kumulatiivinen prosessi.
+  - Tukihenkilö voi nyt jatkaa keskustelua aiemmin aloitetusta kohdasta, vaikka välillä sulkisi sovelluksen.
+  - Keskustelun tyhjennys-toiminto tyhjentää keskustelun nyt myös tietokannasta.
+- **Backend-toteutus:**
+  - Luotu uusi tietokantataulun malli `SupportAssistantConversation` Prisma-skeemaan.
+  - Lisätty uudet API-päätepisteet keskusteluhistorian noutamista ja tyhjentämistä varten.
+  - Muokattu nykyistä tukihenkilöassistenttirajapintaa käyttämään ja päivittämään keskusteluhistoriaa.
+- **Frontend-toteutus:**
+  - Luotu uusi `supportAssistantService.js` API-kommunikointia varten.
+  - Päivitetty `SupportAssistantChat.jsx` hakemaan keskusteluhistoria automaattisesti avatessa.
+  - Toteutettu keskusteluhistorian parsiminen viestiobjekteiksi.
+  - Tiketin tyhjennys-painike tyhjentää nyt sekä paikallisen että palvelimella olevan keskusteluhistorian.
+  - Lisätty latausanimaatio keskusteluhistorian hakemisen ajaksi.
+- **Dokumentaation päivitys:**
+  - Päivitetty `new_docs/ai-agents/supportAssistantAgent.md` kuvaamaan uusia API-päätepisteitä.
+  - Lisätty kuvaus keskusteluhistorian tallennuksen ja tyhjentämisen toiminnallisuudesta.
+  - Merkitty aiemmin listattuna ollut "lisättävä ominaisuus" valmiiksi.
+
+# 09.05.2025 - feat: SupportAssistantAgentille lisätty keskustelumuisti oman dialoginsa osalta
+
+- **SupportAssistantAgent - Toiminnallisuuden laajennus:**
+  - Agentti ottaa nyt vastaan oman aiemman keskusteluhistoriansa opiskelijan kanssa (`studentAssistantConversationHistory`) osana promptin syötettä.
+  - Tämä mahdollistaa agentille paremman kontekstin ylläpidon, aiemmin annettuihin neuvoihin viittaamisen ja itsensä toistamisen välttämisen saman session aikana.
+  - Muutokset tehty `SupportAssistantAgent.ts` (parametrin lisäys) ja `supportAssistantPrompt.ts` (uusi kenttä ja ohjeistus).
+- **Dokumentaation päivitys:**
+  - Päivitetty `new_docs/ai-agents/supportAssistantAgent.md` kuvaamaan uutta keskustelumuistia ja sen vaikutusta toimintaan.
+  - Lisätty huomio tarvittavista backend-muutoksista tämän historian keräämiseksi ja välittämiseksi agentille.
+- **Huom:** Tämä on osittainen toteutus. Agentti on valmis vastaanottamaan historian, mutta backend-logiikka historian keräämiseksi `AIAssistantInteraction`-tietueista ja välittämiseksi agentille tulee vielä toteuttaa erikseen.
+
+# 09.05.2025- fix: SupportAssistantAgent huomioi nyt eksplisiittisemmin ChatAgent-keskustelun
+
+- **SupportAssistantAgent - Promptin tarkennus:**
+  - Lisätty ohjeistus (`backend/src/ai/prompts/supportAssistantPrompt.ts`) agentille mainitsemaan vastauksensa alussa, kun se huomioi uutta tietoa opiskelijan ja ChatAgentin (loppukäyttäjän simulaatio) välisestä keskusteluhistoriasta. Tämä parantaa dialogin luonnollisuutta.
+
+# 09.05.2025 - fix: Edelleen tarkennettu SupportAssistantAgent-promptia proaktiivisemmaksi
+
+- **SupportAssistantAgent - Promptin lisätarkennus:**
+  - Vahvistettu ohjeistusta (`backend/src/ai/prompts/supportAssistantPrompt.ts`) niin, että agentti tarjoaa selkeämmin konkreettisia ensiaskeleita, kun opiskelija on jumissa tai kysyy yleisluontoista apua. Vältetään tilanteita, joissa agentti vastaa vain avoimilla vastakysymyksillä.
+  - Muokattu promptin aloituskohtaa, ohjetta #1 ja lopun toimintakehotusta korostamaan tätä proaktiivista ensiaskelten ehdottamista.
+
+# 09.05.2025 - fix: Hienosäädetty SupportAssistantAgent-promptia yhteistyöhaluisemmaksi
+
+- **SupportAssistantAgent - Promptin tarkennus:**
+  - Päivitetty prompt (`backend/src/ai/prompts/supportAssistantPrompt.ts`) ohjeistamaan agenttia olemaan aktiivisempi ehdottamaan seuraavia vianetsintäaskeleita ja toimimaan enemmän yhteistyökumppanina opiskelijan kanssa.
+  - Tavoitteena on tasapainottaa ohjaavat kysymykset konkreettisilla neuvoilla, jotta opiskelija etenee ongelmanratkaisussa eikä koe agenttia pelkästään kyselijänä.
+- **Dokumentaation päivitys:**
+  - Päivitetty `new_docs/ai-agents/supportAssistantAgent.md` heijastamaan agentin proaktiivisempaa ja yhteistyökykyisempää roolia.
+
+# 09.05.2025 - feat: Muokattu SupportAssistantAgent opastavaksi IT-opiskelijoille
+
+- **SupportAssistantAgent - Toiminnallisuuden muutos:**
+  - Agentin rooli muutettu suorien ratkaisujen tarjoajasta pedagogiseksi oppaaksi IT-alan opiskelijoille.
+  - Sen sijaan, että antaisi vastauksia suoraan, agentti nyt ohjaa opiskelijaa kysymyksillä, vihjeillä ja vaiheittaisilla neuvoilla kohti ratkaisun itsenäistä löytämistä.
+  - Tietopankin artikkeleita käytetään hienovaraisesti taustatiedoksi ohjauksessa, ei suorien vastausten lähteenä.
+- **Promptin päivitys (`backend/src/ai/prompts/supportAssistantPrompt.ts`):
+  - Promptia muokattu merkittävästi ohjeistamaan AI:ta toimimaan mentorina ja opettajana.
+  - Lisätty selkeät ohjeet olla paljastamatta ratkaisuja suoraan ja keskittymään opiskelijan oman ajattelun tukemiseen.
+- **Dokumentaation päivitykset:**
+  - Päivitetty `new_docs/ai-agents/supportAssistantAgent.md` kuvaamaan uutta toimintalogiikkaa ja pedagogista lähestymistapaa.
+  - Päivitetty `new_docs/ai-agents/index.md` agentin kuvaus vastaamaan uutta roolia.
+
 # 05.05.2025 - feat: Näkymäasetusten tallentaminen selaimen muistiin
 
 - **Käyttöliittymän parannukset:**

@@ -22,6 +22,7 @@ model User {
   notifications   Notification[]
   notificationSettings NotificationSettings?
   aiInteractions  AIAssistantInteraction[]
+  supportAssistantConversations SupportAssistantConversation[]
 }
 
 model Ticket {
@@ -51,6 +52,7 @@ model Ticket {
   isAiGenerated  Boolean        @default(false)
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
   aiInteractions AIAssistantInteraction[]
+  supportAssistantConversations SupportAssistantConversation[]
 }
 
 model Attachment {
@@ -214,4 +216,20 @@ model AIAssistantCategoryStat {
   
   @@unique([categoryId, date])
   @@index([date])
+}
+
+model SupportAssistantConversation {
+  id              String   @id @default(uuid())
+  ticketId        String
+  supportUserId   String
+  conversationHistory String   @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  ticket          Ticket   @relation(fields: [ticketId], references: [id])
+  supportUser     User     @relation(fields: [supportUserId], references: [id])
+  
+  @@unique([ticketId, supportUserId])
+  @@index([ticketId])
+  @@index([supportUserId])
 }

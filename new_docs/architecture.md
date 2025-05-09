@@ -196,6 +196,7 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
     *   Vastaanotettujen JWT-tokenien (Azure AD ID-tokeneita frontendistä) dekoodaus käyttäen [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) -kirjastoa omassa `authMiddleware`-toteutuksessa käyttäjätietojen poimimiseksi.
 *   **Tiedostojen Lataus:** [Multer](https://github.com/expressjs/multer)
 *   **AI Analytics:** Sisältää tekoälyavustajan käytön tilastointiin ja analysointiin tarkoitetut palvelut, reitit ja kontrollerit (`aiAnalyticsController.ts`, `aiAnalyticsRoutes.ts`).
+*   **AI Keskusteluhistoria:** Tukihenkilöavustajan keskusteluhistorian tallentaminen ja hakeminen tietokannasta (`SupportAssistantConversation`-malli ja vastaavat päätepisteet).
 
 ## Hakemistorakenne
 

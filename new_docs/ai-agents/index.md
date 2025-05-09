@@ -9,7 +9,7 @@ Tässä dokumentissa listataan järjestelmässä käytettävät tekoälyagentit,
 | TicketGeneratorAgent | Luo realistisia harjoitustikettejä helpdesk-koulutusta varten | [ticketGenerator.md](ticketGenerator.md) |
 | ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa | [chatAgent.md](chatAgent.md) |
 | SummarizerAgent | Tuottaa tiivistelmän tiketin keskusteluhistoriasta | [summarizerAgent.md](summarizerAgent.md) |
-| SupportAssistantAgent | Auttaa tukihenkilöitä ratkaisemaan tikettejä tehokkaammin | [supportAssistantAgent.md](supportAssistantAgent.md) |
+| SupportAssistantAgent | Ohjaa IT-alan opiskelijoita ongelmanratkaisussa ja auttaa heitä oppimaan itsenäisesti. | [supportAssistantAgent.md](supportAssistantAgent.md) |
 
 ## Tulevat agentit
 

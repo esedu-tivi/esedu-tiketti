@@ -31,6 +31,12 @@ Tähän tiedostoon listataan projektin tulevat tehtävät ja niiden tila.
 ### Tekoäly (AI)
 
 *   `✅` Toteuta AI-avustaja tukihenkilöille tikettien ratkaisemiseen (SupportAssistantAgent)
+*   `✅` Muokkaa SupportAssistantAgent toimimaan pedagogisena oppaana IT-opiskelijoille, ohjaten ratkaisuun antamatta suoria vastauksia.
+    *   `✅` Hienosäädä promptia varmistamaan, että agentti ehdottaa aktiivisesti seuraavia askelia ja toimii yhteistyökumppanina (ei vain kysele).
+    *   `✅` Lisää agentille kyky huomioida opiskelijan ja ChatAgentin välinen keskusteluhistoria.
+    *   `✅` Lisää SupportAssistantAgentille muisti oman keskustelunsa osalta opiskelijan kanssa:
+        *   `✅` Agentti ja prompti päivitetty vastaanottamaan `studentAssistantConversationHistory`.
+        *   `✅` Toteuta backend-logiikka keskusteluhistorian tallentamiseen, hakemiseen ja tyhjentämiseen. Toteutettu uudella `SupportAssistantConversation`-mallilla tietokannassa.
 *   `✅` Paranna tukihenkilöassistentin tietämysartikkelien hakua käyttämään vain tikettiin liittyviä artikkeleita
 *   `✅` Toteuta AI-avustajan analytiikkanäkymä ja backend-palvelut tilastointia varten
 *   `❌` Toteuta lisää tilastoja AI-analytiikkaan:
