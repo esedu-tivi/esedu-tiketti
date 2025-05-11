@@ -170,7 +170,7 @@ src/
 │   └── aiAnalyticsRoutes.ts   # AI-analytiikan API-reitit
 ├── services/        # Sovelluksen ydinlogiikka ja tietokantainteraktiot.
 
-│   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka.
+│   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka. Vastaa myös kaikkien tikettiin liittyvien tietojen (liitteet, kommentit, ilmoitukset, AI-interaktiot, SupportAssistantConversation-tietueet) poistamisesta transaktiossa tiketöinnin poiston yhteydessä.
 │   ├── socketService.ts # Socket.IO-tapahtumien hallinta ja lähetys.
 │   └── ... (muut palvelut)
 └── types/           # Jaetut TypeScript-tyyppimäärittelyt (esim. API-pyyntöjen ja vastausten tyypit).

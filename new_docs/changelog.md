@@ -2,6 +2,10 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 11.05.2025 - fix: foreign key constraint violation
+
+- Fixed a foreign key constraint violation (P2003) when deleting tickets. Ensured that related `SupportAssistantConversation` records are deleted within the same transaction before deleting the ticket itself in `ticketService.ts`. 
+
 # 09.05.2025 - fix: Parannettu AI-assistentin palautteenkäsittelyä latauksen jälkeen
 
 - **Ongelma:** Käyttäjä pystyi antamaan palautetta samaan viestiin useita kertoja, jos chat-ikkuna suljettiin ja avattiin uudelleen välissä. Myös alun perin ladatuille viesteille palautteenanto ei toiminut, koska `interactionId` puuttui.

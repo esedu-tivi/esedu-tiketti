@@ -239,6 +239,17 @@ export const ticketService = {
          console.log(`Ticket ${id} is not AI-generated. Skipping KnowledgeArticle deletion.`);
       }
 
+      // NEW STEP: Poista tikettiin liittyvät SupportAssistantConversation-tietueet
+      // This step is added to address the foreign key constraint P2003
+      // when deleting tickets that have associated support assistant conversations.
+      console.log(`Attempting to delete SupportAssistantConversation records for ticket ${id}.`);
+      const deletedSupportConversations = await tx.supportAssistantConversation.deleteMany({
+        where: {
+          ticketId: id
+        }
+      });
+      console.log(`Deleted ${deletedSupportConversations.count} SupportAssistantConversation records related to ticket ${id}.`);
+
       // 6. Poista itse tiketti
       console.log(`Deleting ticket ${id} itself within transaction.`);
       const deletedTicket = await tx.ticket.delete({
