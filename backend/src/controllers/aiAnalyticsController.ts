@@ -79,7 +79,7 @@ export const aiAnalyticsController = {
         return res.status(400).json({ error: 'Missing required fields' });
       }
       
-      const interaction = await prisma.AIAssistantInteraction.create({
+      const interaction = await prisma.aIAssistantInteraction.create({
         data: {
           ticketId,
           query,
@@ -94,7 +94,7 @@ export const aiAnalyticsController = {
       const todayStart = startOfDay(today);
       
       // Find or create usage stats for today
-      let usageStat = await prisma.AIAssistantUsageStat.findUnique({
+      let usageStat = await prisma.aIAssistantUsageStat.findUnique({
         where: {
           date: todayStart
         }
@@ -102,7 +102,7 @@ export const aiAnalyticsController = {
       
       if (usageStat) {
         // Update existing stats
-        await prisma.AIAssistantUsageStat.update({
+        await prisma.aIAssistantUsageStat.update({
           where: { id: usageStat.id },
           data: {
             totalInteractions: usageStat.totalInteractions + 1,
@@ -112,7 +112,7 @@ export const aiAnalyticsController = {
         });
       } else {
         // Create new stats for today
-        await prisma.AIAssistantUsageStat.create({
+        await prisma.aIAssistantUsageStat.create({
           data: {
             totalInteractions: 1,
             avgResponseTime: responseTime,
@@ -130,7 +130,7 @@ export const aiAnalyticsController = {
         
         if (ticket) {
           // Find or create category stats for today
-          const categoryStat = await prisma.AIAssistantCategoryStat.findUnique({
+          const categoryStat = await prisma.aIAssistantCategoryStat.findUnique({
             where: {
               categoryId_date: {
                 categoryId: ticket.categoryId,
@@ -140,14 +140,14 @@ export const aiAnalyticsController = {
           });
           
           if (categoryStat) {
-            await prisma.AIAssistantCategoryStat.update({
+            await prisma.aIAssistantCategoryStat.update({
               where: { id: categoryStat.id },
               data: {
                 interactionCount: categoryStat.interactionCount + 1
               }
             });
           } else {
-            await prisma.AIAssistantCategoryStat.create({
+            await prisma.aIAssistantCategoryStat.create({
               data: {
                 categoryId: ticket.categoryId,
                 interactionCount: 1
@@ -175,7 +175,7 @@ export const aiAnalyticsController = {
       }
       
       // Update the interaction with feedback
-      const updatedInteraction = await prisma.AIAssistantInteraction.update({
+      const updatedInteraction = await prisma.aIAssistantInteraction.update({
         where: { id: interactionId },
         data: { rating, feedback }
       });
@@ -183,13 +183,13 @@ export const aiAnalyticsController = {
       // Update the average rating in the daily stats
       const interactionDate = startOfDay(updatedInteraction.createdAt);
       
-      const dailyStat = await prisma.AIAssistantUsageStat.findUnique({
+      const dailyStat = await prisma.aIAssistantUsageStat.findUnique({
         where: { date: interactionDate }
       });
       
       if (dailyStat) {
         // Get all ratings for today
-        const todayInteractions = await prisma.AIAssistantInteraction.findMany({
+        const todayInteractions = await prisma.aIAssistantInteraction.findMany({
           where: {
             createdAt: {
               gte: interactionDate,
@@ -204,7 +204,7 @@ export const aiAnalyticsController = {
           sum + (interaction.rating || 0), 0);
         const avgRating = totalRatings / todayInteractions.length;
         
-        await prisma.AIAssistantUsageStat.update({
+        await prisma.aIAssistantUsageStat.update({
           where: { id: dailyStat.id },
           data: { avgRating }
         });
@@ -224,7 +224,7 @@ export const aiAnalyticsController = {
       const { start, end } = getDateRange(range as string);
       
       // Get daily usage stats for the period
-      const usageStats = await prisma.AIAssistantUsageStat.findMany({
+      const usageStats = await prisma.aIAssistantUsageStat.findMany({
         where: {
           date: {
             gte: start,
@@ -291,7 +291,7 @@ export const aiAnalyticsController = {
       const { start, end } = getDateRange(range as string);
       
       // Get category stats for the period
-      const categoryStats = await prisma.AIAssistantCategoryStat.findMany({
+      const categoryStats = await prisma.aIAssistantCategoryStat.findMany({
         where: {
           date: {
             gte: start,
@@ -332,7 +332,7 @@ export const aiAnalyticsController = {
       const { start, end } = getDateRange(range as string);
       
       // Get interactions grouped by support agent
-      const agentStats = await prisma.AIAssistantInteraction.groupBy({
+      const agentStats = await prisma.aIAssistantInteraction.groupBy({
         by: ['userId'],
         where: {
           createdAt: {
@@ -346,11 +346,11 @@ export const aiAnalyticsController = {
         _avg: {
           rating: true
         }
-      }) as AgentStat[];
+      });
       
       // Get user details for each agent
       const agentDetails = await Promise.all(
-        agentStats.map(async (stat: AgentStat) => {
+        agentStats.map(async (stat) => {
           const user = await prisma.user.findUnique({
             where: { id: stat.userId },
             select: { name: true }
@@ -381,7 +381,7 @@ export const aiAnalyticsController = {
       const { start, end } = getDateRange(range as string);
       
       // Get all response times for the period
-      const interactions = await prisma.AIAssistantInteraction.findMany({
+      const interactions = await prisma.aIAssistantInteraction.findMany({
         where: {
           createdAt: {
             gte: start,
@@ -476,10 +476,16 @@ export const aiAnalyticsController = {
       });
       
       // Calculate average resolution times in hours
-      const calcAvgResolutionTime = (tickets: Array<{processingStartedAt: Date, processingEndedAt: Date}>) => {
+      const calcAvgResolutionTime = (tickets: Array<{processingStartedAt: Date | null, processingEndedAt: Date | null}>) => {
         if (tickets.length === 0) return 0;
         
-        const totalHours = tickets.reduce((sum, ticket) => {
+        const validTickets = tickets.filter(
+          ticket => ticket.processingStartedAt && ticket.processingEndedAt
+        ) as Array<{processingStartedAt: Date, processingEndedAt: Date}>;
+        
+        if (validTickets.length === 0) return 0;
+        
+        const totalHours = validTickets.reduce((sum, ticket) => {
           const start = new Date(ticket.processingStartedAt);
           const end = new Date(ticket.processingEndedAt);
           const diffMs = end.getTime() - start.getTime();
@@ -487,7 +493,7 @@ export const aiAnalyticsController = {
           return sum + diffHours;
         }, 0);
         
-        return totalHours / tickets.length;
+        return totalHours / validTickets.length;
       };
       
       const withAssistant = calcAvgResolutionTime(ticketsWithAI);
@@ -522,7 +528,7 @@ export const aiAnalyticsController = {
       }
       
       // Count total interactions
-      const totalInteractions = await prisma.AIAssistantInteraction.count({
+      const totalInteractions = await prisma.aIAssistantInteraction.count({
         where: dateFilter
       });
       
@@ -546,7 +552,7 @@ export const aiAnalyticsController = {
       });
       
       // Get average satisfaction rating
-      const ratingStats = await prisma.AIAssistantInteraction.aggregate({
+      const ratingStats = await prisma.aIAssistantInteraction.aggregate({
         where: {
           ...dateFilter,
           rating: { not: null }
@@ -684,7 +690,7 @@ export const aiAnalyticsController = {
       }
 
       // Get total interactions for this agent
-      const totalInteractions = await prisma.AIAssistantInteraction.count({
+      const totalInteractions = await prisma.aIAssistantInteraction.count({
         where: {
           userId: user.id,
           createdAt: {
@@ -695,7 +701,7 @@ export const aiAnalyticsController = {
       });
 
       // Get average response time
-      const avgResponseTime = await prisma.AIAssistantInteraction.aggregate({
+      const avgResponseTime = await prisma.aIAssistantInteraction.aggregate({
         where: {
           userId: user.id,
           createdAt: {
@@ -709,7 +715,7 @@ export const aiAnalyticsController = {
       });
 
       // Get rating distribution
-      const ratings = await prisma.AIAssistantInteraction.groupBy({
+      const ratings = await prisma.aIAssistantInteraction.groupBy({
         by: ['rating'],
         where: {
           userId: user.id,
@@ -734,7 +740,7 @@ export const aiAnalyticsController = {
       });
 
       // Get interactions by day
-      const dailyInteractions = await prisma.AIAssistantInteraction.groupBy({
+      const dailyInteractions = await prisma.aIAssistantInteraction.groupBy({
         by: ['createdAt'],
         where: {
           userId: user.id,
@@ -765,7 +771,7 @@ export const aiAnalyticsController = {
       }).reverse();
 
       // Get most common queries
-      const commonQueries = await prisma.AIAssistantInteraction.findMany({
+      const commonQueries = await prisma.aIAssistantInteraction.findMany({
         where: {
           userId: user.id,
           createdAt: {
