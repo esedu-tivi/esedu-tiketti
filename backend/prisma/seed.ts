@@ -5,8 +5,14 @@ const prisma = new PrismaClient();
 async function main() {
   try {
     // Luodaan testikäyttäjät
-    const adminUser = await prisma.user.create({
-      data: {
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@example.com' },
+      update: {
+        name: 'EseduTiketti AI',
+        role: UserRole.ADMIN,
+        profilePicture: '/uploads/default-avatar.png'
+      },
+      create: {
         email: 'admin@example.com',
         name: 'EseduTiketti AI',
         role: UserRole.ADMIN,
@@ -14,16 +20,26 @@ async function main() {
       },
     });
 
-    const normalUser = await prisma.user.create({
-      data: {
+    const normalUser = await prisma.user.upsert({
+      where: { email: 'user@example.com' },
+      update: {
+        name: 'Test User',
+        role: UserRole.USER,
+      },
+      create: {
         email: 'user@example.com',
         name: 'Test User',
         role: UserRole.USER,
       },
     });
 
-    const supportUser = await prisma.user.create({
-      data: {
+    const supportUser = await prisma.user.upsert({
+      where: { email: 'support@example.com' },
+      update: {
+        name: 'Support User',
+        role: UserRole.SUPPORT,
+      },
+      create: {
         email: 'support@example.com',
         name: 'Support User',
         role: UserRole.SUPPORT,

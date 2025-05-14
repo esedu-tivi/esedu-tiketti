@@ -835,3 +835,4 @@ Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedost
 
 ### Fixed
 - Resolved 404 errors for frontend assets when served from a subdirectory.
+
