@@ -47,15 +47,23 @@ async function main() {
     });
 
     // Luodaan testikategoriat
-    const generalCategory = await prisma.category.create({
-      data: {
+    const generalCategory = await prisma.category.upsert({
+      where: { name: 'Yleinen' },
+      update: {
+        description: 'Yleiset tiketit',
+      },
+      create: {
         name: 'Yleinen',
         description: 'Yleiset tiketit',
       },
     });
 
-    const technicalCategory = await prisma.category.create({
-      data: {
+    const technicalCategory = await prisma.category.upsert({
+      where: { name: 'Tekninen' },
+      update: {
+        description: 'Tekniset ongelmat',
+      },
+      create: {
         name: 'Tekninen',
         description: 'Tekniset ongelmat',
       },
