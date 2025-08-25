@@ -7,7 +7,8 @@ Tässä dokumentissa listataan järjestelmässä käytettävät tekoälyagentit,
 | Agentti | Kuvaus | Dokumentaatio |
 |---------|--------|---------------|
 | TicketGeneratorAgent | Luo realistisia harjoitustikettejä helpdesk-koulutusta varten | [ticketGenerator.md](ticketGenerator.md) |
-| ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa | [chatAgent.md](chatAgent.md) |
+| ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa (perinteinen toteutus) | [chatAgent.md](chatAgent.md) |
+| ModernChatAgent | Uuden sukupolven chat-agentti yhdellä LLM-kutsulla ja strukturoidulla outputilla | [modernChatAgent.md](modernChatAgent.md) |
 | SummarizerAgent | Tuottaa tiivistelmän tiketin keskusteluhistoriasta | [summarizerAgent.md](summarizerAgent.md) |
 | SupportAssistantAgent | Ohjaa IT-alan opiskelijoita ongelmanratkaisussa ja auttaa heitä oppimaan itsenäisesti. | [supportAssistantAgent.md](supportAssistantAgent.md) |
 
@@ -47,7 +48,7 @@ graph TD
     M --> N["<b>14. UI</b><br/>Näyttää onnistumisilmoituksen<br/>ja poistaa vahvistetun esikatselun."];
 ```
 
-### ChatAgent (Highly Detailed)
+### ChatAgent (Traditional - Two LLM Calls)
 
 ```mermaid
 graph TD
@@ -65,11 +66,119 @@ graph TD
     end
     F1 -- "Muotoiltu, tilanteeseen sopiva prompti" --> F2["<b>9b. LLM Call (OpenAI)</b><br/>Generoi simuloidun käyttäjän vastaus<br/>(generateResponse)"];
     F2 -- "LLM Vastaus (teksti)" --> G["<b>10. ChatAgent</b><br/>Jäsentää generoidun vastauksen"];
-    G -- "Vastaus (message),<br/>Arvio (evaluationResult)" --> H["<b>11. Database Write</b><br/>INSERT INTO AITrainingConversation<br/>(message, evaluationResult, senderType='AI'...)"];
+    G -- "Vastaus (message),<br/>Arvio (evaluationResult)" --> H["<b>11. Database Write</b><br/>INSERT INTO Comment<br/>(content, evaluationResult, isAiGenerated=true...)"];
     H -- "Tallennettu keskustelutieto" --> G;
     G --> I["<b>12. API Response</b><br/>Palauttaa generoidun vastauksen (JSON)<br/>(sisältäen ehkä evaluationResult?)"];
     I --> J["<b>13. UI</b><br/>Lisää AI:n vastauksen keskusteluun.<br/>Voi näyttää evaluationResult esim. tooltipissä."];
 ```
+
+### ModernChatAgent (Single LLM Call with Hint System)
+
+```mermaid
+graph TD
+    A["<b>1. SUPPORT/ADMIN</b><br/>Kirjoittaa kommentin AI-tikettiin UI:ssa"] --> B{"<b>2. UI Trigger</b><br/>Lähettää kommentin ja pyytää AI-vastausta"};
+    B --> C["<b>3. API Endpoint</b><br/>POST /api/ai/tickets/:id/generate-response"];
+    C --> D["<b>4. AISettings Check</b><br/>Hae AI-asetukset tietokannasta<br/>aiSettingsService.getSettings()"];
+    
+    D --> E{"<b>5. Version Selection</b><br/>chatAgentVersion?"};
+    
+    E -- "'modern'" --> F["<b>6a. Modern Path</b><br/>aiController käyttää ModernChatAgent"];
+    E -- "'legacy'" --> G["<b>6b. Legacy Path</b><br/>aiController käyttää ChatAgent<br/>(kaksi LLM-kutsua)"];
+    
+    F --> H["<b>7. Database Read</b><br/>Hae tiketin konteksti:<br/>- AITrainingTicket (skenaario + ratkaisu)<br/>- Keskusteluhistoria<br/>- Käyttäjätiedot ja kategoria"];
+    
+    H --> I["<b>8. ConversationStateMachine</b><br/>- Hae tai luo tilakone tikettille<br/>- Tarkista shouldProvideHint() AI-asetusten kanssa<br/>- Jos stuck >= earlyThreshold → forceHint = true<br/>- Huomioi cooldown ja maxHints rajoitukset"];
+    
+    I --> J["<b>9. Context Building</b><br/>Rakennetaan TicketContext:<br/>- title, description, device<br/>- category, additionalInfo<br/>- solution (tietämysartikkeli)<br/>- userProfile (nimi, rooli, tekninen taso)"];
+    
+    J --> K["<b>10. Single LLM Call</b><br/>modernChatAgent.respond()<br/>Yksi kutsu OpenAI:lle<br/>+ forceHint parametri"];
+    
+    subgraph "Strukturoitu Output (JSON Schema)"
+        direction LR
+        K --> L1["<b>evaluation</b><br/>EARLY/PROGRESSING/<br/>CLOSE/SOLVED"];
+        K --> L2["<b>reasoning</b><br/>Sisäinen päättely<br/>(tallennetaan DB:hen)"];
+        K --> L3["<b>response</b><br/>Käyttäjän vastaus<br/>suomeksi"];
+        K --> L4["<b>emotionalState</b><br/>frustrated/hopeful/<br/>excited/satisfied/confused"];
+        K --> L5["<b>shouldRevealHint</b><br/>true jos vihje annettu"];
+    end
+    
+    L1 & L2 & L3 & L4 & L5 --> M["<b>11. Zod Validation</b><br/>ChatResponseSchema.parse()<br/>Varmistaa tyypin oikeellisuuden"];
+    
+    M --> N["<b>12. State Update</b><br/>stateMachine.transition(evaluation)<br/>Päivittää stuck-laskuria"];
+    
+    N --> O["<b>13. Database Write</b><br/>INSERT INTO Comment<br/>- content (response text)<br/>- evaluationResult<br/>- emotionalState<br/>- reasoning<br/>- shouldRevealHint<br/>- isAiGenerated: true"];
+    
+    O --> P["<b>14. API Response</b><br/>Palauttaa:<br/>- responseText<br/>- evaluation<br/>- emotionalState<br/>- shouldRevealHint"];
+    
+    P --> Q{"<b>15. UI Update</b><br/>Näkymä riippuu käyttäjästä"};
+    
+    Q -- "Support/Student" --> R["<b>CommentSection.jsx</b><br/>- AI:n vastaus<br/>- 'Vihje annettu' badge<br/>- EI sisäisiä tietoja"];
+    
+    Q -- "Admin/Trainer" --> S["<b>ConversationModal.jsx</b><br/>- Kaikki tiedot<br/>- Evaluation badges<br/>- Emotional states<br/>- Reasoning dropdown"];
+    
+    G --> T["Legacy flow<br/>(katso ChatAgent-kaavio)"];
+```
+
+### ConversationStateMachine (Dialogue Flow Control with Hint System)
+
+**Status**: KÄYTÖSSÄ ModernChatAgentin kanssa vihjesysteemin hallintaan.
+
+```mermaid
+stateDiagram-v2
+    [*] --> initial: Start
+    
+    initial --> initial: EARLY (stuck++)
+    initial --> diagnosing: PROGRESSING (stuck=0)
+    
+    diagnosing --> diagnosing: EARLY (stuck++)
+    diagnosing --> diagnosing: PROGRESSING (stuck=0)
+    diagnosing --> attempting: CLOSE (stuck=0)
+    
+    attempting --> attempting: EARLY (stuck++)
+    attempting --> attempting: PROGRESSING/CLOSE (stuck=0)
+    attempting --> verifying: SOLVED (stuck=0)
+    
+    verifying --> verifying: CLOSE/PROGRESSING (stuck=0)
+    verifying --> resolved: SOLVED
+    
+    resolved --> [*]: End
+    
+    note right of initial
+        User describes problem
+        Support gathering info
+        stuck >= 3 = hint provided
+    end note
+    
+    note right of diagnosing
+        Support identifies area
+        Testing solutions
+        Hint if stuck >= 3
+    end note
+    
+    note right of attempting
+        Close to solution
+        Fine-tuning approach
+        Hint if stuck >= 3
+    end note
+    
+    note right of verifying
+        Solution works
+        User confirms fix
+        No stuck tracking
+    end note
+```
+
+**Vihjesysteemin toiminta (AISettings-pohjaiset):**
+- `stuckCounter` kasvaa aina kun evaluation = EARLY
+- `stuckCounter` nollautuu aina kun evaluation ≠ EARLY  
+- Vihje annetaan kun:
+  - `hintSystemEnabled = true` (AISettings)
+  - `stuckCounter >= hintOnEarlyThreshold` (oletuksena 3)
+  - Tai vastaavat kynnykset PROGRESSING/CLOSE-tiloissa
+  - Ottaen huomioon `hintCooldownTurns` (vihjeiden väli)
+  - Ja `hintMaxPerConversation` (maksimimäärä per keskustelu)
+- Vihjeet sisällytetään AI:n vastaukseen luonnollisesti
+- Asetukset haetaan tietokannasta AISettings-taulusta
 
 ### SummarizerAgent (Detailed)
 

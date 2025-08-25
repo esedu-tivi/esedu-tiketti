@@ -18,6 +18,7 @@ Tietomalli määrittelee järjestelmän keskeiset entiteetit, niiden attribuutit
 *   **AIAssistantUsageStat:** Päivittäiset käyttöstatistiikat tekoälyavustajalle.
 *   **AIAssistantCategoryStat:** Kategoriakohtaiset käyttöstatistiikat tekoälyavustajalle.
 *   **SupportAssistantConversation:** Tukihenkilön ja tukihenkilöassistentin välinen keskusteluhistoria.
+*   **AISettings:** Singleton-tietue AI-agenttien konfiguraatiota varten.
 
 ## Prisma Schema (`backend/prisma/schema.prisma`)
 
@@ -141,8 +142,8 @@ model Attachment {
 model Comment {
   id            String   @id @default(uuid())
   content       String
-  mediaUrl      String?
-  mediaType     String?
+  mediaUrl      String?  // URL to the media file (image or video)
+  mediaType     String?  // Type of media (image or video)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   ticketId      String
@@ -150,7 +151,10 @@ model Comment {
   author        User        @relation(fields: [authorId], references: [id])
   ticket        Ticket      @relation(fields: [ticketId], references: [id])
   isAiGenerated Boolean     @default(false)
-  evaluationResult String?
+  evaluationResult String?  // Stores the result from evaluateSolutionProgressWithLLM (EARLY, PROGRESSING, CLOSE, SOLVED)
+  emotionalState String?    // For ModernChatAgent: frustrated, hopeful, excited, satisfied, confused
+  reasoning     String?     // For ModernChatAgent: Internal reasoning about the evaluation (useful for analytics)
+  shouldRevealHint Boolean @default(false) // For ModernChatAgent: Whether AI decided to give a hint
 
   @@index([ticketId])
   @@index([authorId])
@@ -189,14 +193,12 @@ model Notification {
 model NotificationSettings {
   id                    String   @id @default(uuid())
   userId                String   @unique
-  emailNotifications    Boolean   @default(true)
   webNotifications      Boolean   @default(true)
   notifyOnAssigned      Boolean   @default(true)
   notifyOnStatusChange  Boolean   @default(true)
   notifyOnComment       Boolean   @default(true)
   notifyOnPriority      Boolean   @default(true)
   notifyOnMention       Boolean   @default(true)
-  notifyOnDeadline      Boolean   @default(true)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   user                  User      @relation(fields: [userId], references: [id])
@@ -279,6 +281,31 @@ model SupportAssistantConversation {
   // @@map removed
 }
 
+model AISettings {
+  id                      String   @id @default(uuid())
+  
+  // ChatAgent Settings
+  chatAgentVersion        String   @default("modern") // "modern" | "legacy"
+  
+  // Hint System Settings
+  hintSystemEnabled       Boolean  @default(true)
+  hintOnEarlyThreshold    Int      @default(3) // How many EARLY evaluations before hint
+  hintOnProgressThreshold Int?     // How many PROGRESSING evaluations before hint (null = disabled)
+  hintOnCloseThreshold    Int?     // How many CLOSE evaluations before hint (null = disabled)
+  
+  // Advanced Hint Settings
+  hintCooldownTurns       Int      @default(0) // Minimum turns between hints (0 = no cooldown)
+  hintMaxPerConversation  Int      @default(999) // Maximum hints per conversation (999 = effectively unlimited)
+  
+  // Metadata
+  updatedBy               String?  // User ID who last updated settings
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  // There should only be one AISettings record (singleton pattern)
+  @@index([id])
+}
+
 ## Suhteet ja Kardinaalisuudet
 
 *   **User <-> Ticket:**
@@ -335,6 +362,28 @@ model SupportAssistantConversation {
 *   `@db.Text`: Määrittelee kentän tietokantatyypiksi TEXT, joka soveltuu pitkille merkkijonoille.
 *   `@db.Date`: Määrittelee kentän tietokantatyypiksi DATE (vain päivämäärä ilman aikaa).
 *   `@@index([...])`: Luo tietokantaindeksin määritellyille kentille, mikä nopeuttaa kyselyjä.
+
+## Suorituskykyindeksit
+
+Tietokantaan on lisätty strategisia composite-indeksejä suorituskyvyn optimointiin (migration 20250821170053):
+
+### Ticket-taulun indeksit
+- **`Ticket_status_priority_idx`** (`status`, `priority`): Tehostaa tikettien suodatusta statuksen ja prioriteetin mukaan
+- **`Ticket_assignedToId_status_idx`** (`assignedToId`, `status`): Nopeuttaa käsittelijäkohtaisia kyselyitä statuksen kanssa
+- **`Ticket_categoryId_status_idx`** (`categoryId`, `status`): Tehostaa kategoriakohtaista tikettien suodatusta
+- **`Ticket_createdAt_idx`** (`createdAt`): Nopeuttaa päivämääräperusteisia hakuja ja järjestämistä
+
+### Notification-taulun indeksit
+- **`Notification_userId_read_createdAt_idx`** (`userId`, `read`, `createdAt`): Tehostaa käyttäjäkohtaisten ilmoitusten hakua
+
+### AIAssistantInteraction-taulun indeksit
+- **`AIAssistantInteraction_createdAt_userId_idx`** (`createdAt`, `userId`): Nopeuttaa aikavälikyselyitä käyttäjäsuodatuksella
+
+Nämä indeksit parantavat merkittävästi yleisimpien kyselyiden suorituskykyä, erityisesti:
+- MyWorkView-näkymän tikettilistat
+- Tikettien suodatus ja järjestäminen
+- Ilmoitusten haku
+- AI-analytiikan raportit
 
 ## Tietokannan Eheys ja Poistotoiminnot
 

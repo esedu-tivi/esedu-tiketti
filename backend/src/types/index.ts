@@ -13,6 +13,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: MSALUser;
+      requestId?: string;
     }
   }
 }
@@ -100,4 +101,36 @@ export interface Notification {
   userId: string;
   ticketId?: string;
   metadata?: Record<string, any>;
+}
+
+// Pagination metadata interface
+export interface PaginationMeta {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  limit: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+// Standard API response types for consistent API responses
+export interface ApiSuccessResponse<T> {
+  success: true;
+  message: string;
+  data: T;
+  timestamp: string;
+  meta?: PaginationMeta;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: {
+    message: string;
+    code?: string;
+    statusCode: number;
+    timestamp: string;
+    path?: string;
+    method?: string;
+    details?: any;
+  };
 } 

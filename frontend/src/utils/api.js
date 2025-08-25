@@ -23,6 +23,33 @@ api.interceptors.request.use(async (config) => {
   }
 });
 
+// Handle 401 responses globally - user not authorized by backend
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      console.error('Backend rejected authentication - user not authorized');
+      
+      // Only show alert once per session
+      const alertShown = sessionStorage.getItem('authAlertShown');
+      if (!alertShown) {
+        sessionStorage.setItem('authAlertShown', 'true');
+        alert('Access denied: Your account is not authorized to access this system. Please contact an administrator.');
+      }
+      
+      // Force logout
+      try {
+        await authService.logout();
+      } catch (logoutError) {
+        console.error('Logout failed:', logoutError);
+        // Force redirect to login page even if logout fails
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Prioriteetin muunnos numerosta enum-arvoksi
 const mapPriorityToEnum = (priority) => {
   switch (priority) {
@@ -62,7 +89,8 @@ export const fetchTickets = async (filters = {}) => {
 export const fetchCategories = async () => {
   try {
     const { data } = await api.get('/categories')
-    return data
+    // Handle both array response and object with data property
+    return Array.isArray(data) ? data : (data.data || data.categories || [])
   } catch (error) {
     throw new Error('Kategorioiden haku epäonnistui')
   }

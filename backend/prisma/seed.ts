@@ -131,6 +131,24 @@ async function main() {
       },
     });
 
+    // Create notification settings for all users
+    const users = [adminUser, normalUser, supportUser];
+    for (const user of users) {
+      await prisma.notificationSettings.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: {
+          userId: user.id,
+          webNotifications: true,
+          notifyOnAssigned: true,
+          notifyOnStatusChange: true,
+          notifyOnComment: true,
+          notifyOnPriority: true,
+          notifyOnMention: true
+        }
+      });
+    }
+
     console.log('Seed data created successfully!');
   } catch (error) {
     console.error('Error seeding database:', error);

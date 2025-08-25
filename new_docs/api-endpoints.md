@@ -5,11 +5,32 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 ## Yleistä
 
 *   **Perus-URL:** Kaikki API-polut alkavat oletusarvoisesti `/api` (tarkista `backend/src/app.ts` tai `routes/index.ts` tarkan version varalta, esim. `/api/v1`).
-*   **Autentikointi:** Useimmat päätepisteet vaativat autentikoinnin (`authMiddleware`). Pyynnön tulee sisältää `Authorization`-header, jonka arvo on `Bearer <JWT-token>`.
+*   **Autentikointi:** Useimmat päätepisteet vaativat autentikoinnin (`authMiddleware`). Pyynnön tulee sisältää `Authorization`-header, jonka arvo on `Bearer <JWT-token>`. Backend tukee sekä Azure AD (RS256) että local JWT (HS256) tokeneita.
 *   **Roolit:** Pääsy tiettyihin päätepisteisiin ja toimintoihin on rajoitettu käyttäjän roolin perusteella (USER, SUPPORT, ADMIN) käyttäen `requireRole`-middlewarea.
-*   **Vastausmuoto:** Onnistuneet vastaukset palautetaan yleensä JSON-muodossa. Virhetilanteissa palautetaan JSON-objekti, joka sisältää `error`-kentän (esim. `{ "error": "Virheilmoitus..." }`).
+*   **Vastausmuoto:** Kaikki vastaukset käyttävät standardoitua muotoa:
+    - Onnistuneet: `{ "success": true, "message": "...", "data": {...}, "timestamp": "...", "meta": {...} }`
+    - Virheet: `{ "success": false, "error": { "message": "...", "code": "...", "statusCode": 400, "requestId": "..." } }`
+*   **Request ID:** Jokainen pyyntö saa uniikin ID:n seurantaa varten (X-Request-ID header).
 *   **ID-Formaatti:** Useimmat ID:t (kuten `:id`, `:userId`, `:ticketId`) ovat UUID-merkkijonoja (esim. `123e4567-e89b-12d3-a456-426614174000`).
-*   **Validointi:** Backend suorittaa syötteille validoinnin (pituudet, tyypit, pakollisuus). Virheelliset syötteet palauttavat tyypillisesti `400 Bad Request` -vastauksen, jossa on `error`-kenttä.
+*   **Validointi:** Backend suorittaa syötteille validoinnin Zod-kirjastolla (pituudet, tyypit, pakollisuus). Virheelliset syötteet palauttavat tyypillisesti `400 Bad Request` -vastauksen standardoidussa virhemuodossa.
+*   **Rate Limiting:** API käyttää rate limitingiä: 200 pyyntöä/min yleinen, 5 pyyntöä/15min autentikointi.
+
+## Health Check Päätepisteet
+
+*   **GET /health**
+    *   **Kuvaus:** Täysi järjestelmän terveystarkistus
+    *   **Rooli:** Julkinen (ei vaadi autentikointia)
+    *   **Vastaus:** `{ "status": "healthy", "timestamp": "...", "uptime": 123, "database": "connected", "memory": {...}, "environment": "..." }`
+
+*   **GET /health/live**
+    *   **Kuvaus:** Kubernetes liveness probe
+    *   **Rooli:** Julkinen
+    *   **Vastaus:** `{ "status": "ok" }`
+
+*   **GET /health/ready**
+    *   **Kuvaus:** Readiness probe tietokantayhteyden tarkistuksella
+    *   **Rooli:** Julkinen
+    *   **Vastaus:** 200 jos valmis, 503 jos ei valmis
 
 ## Päätepisteet Resursseittain
 
@@ -65,7 +86,7 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         ```
 *   **GET /users**
     *   **Kuvaus:** Hakee kaikki käyttäjät.
-    *   **Rooli:** ADMIN (`requireRole(UserRole.ADMIN)`).
+    *   **Rooli:** ADMIN ja SUPPORT (`requireRole([UserRole.ADMIN, UserRole.SUPPORT])`).
     *   **Query-parametrit (Esimerkki):** `?page=1&limit=20` (Sivutus).
     *   **Vastaus (Esimerkki):**
         ```json
@@ -186,6 +207,13 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 *   **GET /tickets/my-tickets**
     *   **Kuvaus:** Hakee nimenomaisesti sisäänkirjautuneen käyttäjän luomat tiketit. Tukee samoja query-parametreja kuin `GET /tickets` (pl. `userId`).
     *   **Rooli:** Kaikki autentikoidut.
+*   **GET /tickets/my-work**
+    *   **Kuvaus:** Optimoitu endpoint MyWorkView-näkymää varten. Hakee kaikki tukihenkilön työhön liittyvät tiketit yhdellä kutsulla.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Vastaus:** Palauttaa kolme tikettilistaa:
+        - `assignedToMe`: Käyttäjälle osoitetut tiketit
+        - `availableTickets`: Vapaat OPEN-statuksen tiketit
+        - `allInProgress`: Kaikki IN_PROGRESS tiketit
 *   **POST /tickets**
     *   **Kuvaus:** Luo uuden tiketin. Käyttää `multipart/form-data` jos liitteitä.
     *   **Rooli:** Kaikki autentikoidut.
@@ -457,19 +485,17 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         {
           "id": "uuid-settings",
           "userId": "uuid-käyttäjälle",
-          "emailNotifications": true,
           "webNotifications": true,
           "notifyOnAssigned": true,
           "notifyOnStatusChange": true,
           "notifyOnComment": true,
           "notifyOnPriority": false,
-          "notifyOnMention": true,
-          "notifyOnDeadline": true
+          "notifyOnMention": true
         }
         ```
 *   **PUT /notification-settings**
     *   **Kuvaus:** Päivittää käyttäjän ilmoitusasetukset.
-    *   **Runko (Tyyppi):** `{ emailNotifications?: boolean, webNotifications?: boolean, notifyOnAssigned?: boolean, notifyOnStatusChange?: boolean, notifyOnComment?: boolean, notifyOnPriority?: boolean, notifyOnMention?: boolean, notifyOnDeadline?: boolean }`
+    *   **Runko (Tyyppi):** `{ webNotifications?: boolean, notifyOnAssigned?: boolean, notifyOnStatusChange?: boolean, notifyOnComment?: boolean, notifyOnPriority?: boolean, notifyOnMention?: boolean }`
     *   **Runko (Esimerkki):**
         ```json
         {
@@ -634,6 +660,64 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
           "message": "Keskusteluhistoria tyhjennetty onnistuneesti"
         }
         ```
+
+### AI Settings (`/ai/settings`)
+
+*   **GET /ai/settings**
+    *   **Kuvaus:** Hakee nykyiset AI-asetukset. Jos asetuksia ei ole, luo oletusasetukset automaattisesti.
+    *   **Rooli:** ADMIN
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "id": "uuid",
+            "chatAgentVersion": "modern",
+            "hintSystemEnabled": true,
+            "hintOnEarlyThreshold": 3,
+            "hintOnProgressThreshold": null,
+            "hintOnCloseThreshold": null,
+            "hintCooldownTurns": 0,
+            "hintMaxPerConversation": 999,
+            "updatedBy": "user-uuid",
+            "createdAt": "2025-08-21T10:00:00Z",
+            "updatedAt": "2025-08-21T10:00:00Z"
+          }
+        }
+        ```
+
+*   **PUT /ai/settings**
+    *   **Kuvaus:** Päivittää AI-asetukset. Kaikki kentät ovat valinnaisia.
+    *   **Rooli:** ADMIN
+    *   **Runko (Tyyppi):** 
+        ```typescript
+        {
+          chatAgentVersion?: "modern" | "legacy",
+          hintSystemEnabled?: boolean,
+          hintOnEarlyThreshold?: number (1-10),
+          hintOnProgressThreshold?: number | null (1-10),
+          hintOnCloseThreshold?: number | null (1-10),
+          hintCooldownTurns?: number (0-999),
+          hintMaxPerConversation?: number (1-999)
+        }
+        ```
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "chatAgentVersion": "modern",
+          "hintSystemEnabled": true,
+          "hintOnEarlyThreshold": 3,
+          "hintOnProgressThreshold": 5,
+          "hintCooldownTurns": 2
+        }
+        ```
+    *   **Vastaus:** Samanlainen kuin GET-vastaus, sisältää päivitetyt asetukset
+
+*   **POST /ai/settings/reset**
+    *   **Kuvaus:** Palauttaa AI-asetukset oletusarvoihin.
+    *   **Rooli:** ADMIN
+    *   **Runko:** Tyhjä tai `{}`
+    *   **Vastaus:** Samanlainen kuin GET-vastaus, sisältää oletusasetukset
 
 ### Liitetiedostot
 

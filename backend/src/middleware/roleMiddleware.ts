@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, UserRole } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { UserRole } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
+import logger from '../utils/logger.js';
 
 // Middleware roolien tarkistamiseen
 export const requireRole = (requiredRoles: UserRole | UserRole[]) => {
@@ -34,7 +34,11 @@ export const requireRole = (requiredRoles: UserRole | UserRole[]) => {
 
       next();
     } catch (error) {
-      console.error('Role middleware error:', error);
+      logger.error('Role middleware error', { 
+        error: error instanceof Error ? error.message : error,
+        requestId: (req as any).requestId,
+        userEmail: req.user?.email
+      });
       res.status(500).json({ error: 'Internal server error' });
     }
   };
@@ -82,7 +86,12 @@ export const requireOwnership = async (
 
     next();
   } catch (error) {
-    console.error('Ownership middleware error:', error);
+    logger.error('Ownership middleware error', { 
+      error: error instanceof Error ? error.message : error,
+      requestId: (req as any).requestId,
+      resourceId: req.params.id,
+      userEmail: req.user?.email
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 

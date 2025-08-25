@@ -30,22 +30,62 @@ export function AuthProvider({ children }) {
     try {
       console.log('Fetching user role for email:', email);
       const token = await authService.acquireToken();
+      
+      // Check if we already have cached data from React Query
+      const queryClient = window.__REACT_QUERY_CLIENT__;
+      const cachedData = queryClient?.getQueryData(['user', 'me']);
+      
+      if (cachedData) {
+        console.log('Using cached user data from React Query');
+        setUserRole(cachedData.role);
+        setUser(prevUser => ({
+          ...prevUser,
+          id: cachedData.id,
+          email: cachedData.email,
+          name: cachedData.name
+        }));
+        return cachedData.role;
+      }
+      
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/users/me`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      console.log('Received user data:', response.data);
-      setUserRole(response.data.role);
+      const userData = response.data.data || response.data;
+      console.log('Received user data:', userData);
+      
+      // Cache the data in React Query
+      if (queryClient) {
+        queryClient.setQueryData(['user', 'me'], userData);
+      }
+      
+      setUserRole(userData.role);
       setUser(prevUser => ({
         ...prevUser,
-        id: response.data.id,
-        email: response.data.email,
-        name: response.data.name
+        id: userData.id,
+        email: userData.email,
+        name: userData.name
       }));
-      return response.data.role;
+      return userData.role;
     } catch (error) {
       console.error('Failed to fetch user role:', error);
+      
+      // If backend rejects the user (401), log them out immediately
+      if (error.response?.status === 401) {
+        console.error('User not authorized by backend, logging out');
+        alert('Access denied: Your account is not authorized to access this system. Please contact an administrator.');
+        // Force logout
+        try {
+          await msalInstance.logoutRedirect();
+        } catch (logoutError) {
+          console.error('Logout failed:', logoutError);
+          // Force redirect to login page even if logout fails
+          window.location.href = '/login';
+        }
+        return null;
+      }
+      
       return null;
     }
   };
@@ -59,10 +99,23 @@ export function AuthProvider({ children }) {
       userService.currentUserEmail = account.username;
       
       try {
-        await authService.handleAuthenticationSuccess(account);
-        // Haetaan käyttäjän rooli kun käyttäjä on autentikoitu
-        const role = await fetchUserRole(account.username);
-        console.log('User role set to:', role);
+        const userData = await authService.handleAuthenticationSuccess(account);
+        // If handleAuthenticationSuccess returns user data, use it directly
+        if (userData?.data || userData?.user) {
+          const user = userData.data || userData.user || userData;
+          setUserRole(user.role);
+          setUser(prevUser => ({
+            ...prevUser,
+            id: user.id,
+            email: user.email,
+            name: user.name
+          }));
+          console.log('User role set from login response:', user.role);
+        } else {
+          // Fallback to fetching user role if login didn't return complete data
+          const role = await fetchUserRole(account.username);
+          console.log('User role set from /me endpoint:', role);
+        }
 
         // Check if we should refresh the profile picture from Microsoft
         const lastRefresh = localStorage.getItem('lastProfilePictureRefresh');

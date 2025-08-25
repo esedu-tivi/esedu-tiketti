@@ -184,11 +184,13 @@ export default function Header() {
         </div>
       </div>
 
-      {/* User Management Dialog */}
-      <UserManagementDialog
-        isOpen={isUserManagementOpen}
-        onClose={() => setIsUserManagementOpen(false)}
-      />
+      {/* User Management Dialog - Only render for admins */}
+      {userRole === 'ADMIN' && (
+        <UserManagementDialog
+          isOpen={isUserManagementOpen}
+          onClose={() => setIsUserManagementOpen(false)}
+        />
+      )}
 
       {/* New Ticket Dialog */}
       {isNewTicketOpen && (

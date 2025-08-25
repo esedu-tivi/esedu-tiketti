@@ -25,7 +25,10 @@ Järjestelmän PostgreSQL-tietokanta ajetaan tyypillisesti Docker-kontissa (`ese
     *   Käynnistää *vain* tietokantakontin (`esedu-tiketti-db`), jos se ei ole jo käynnissä (Docker Compose -logiikka `dev`-skriptissä).
     *   Ajaa migraatiot ja seedin.
     *   Käynnistää backend-palvelimen **host-koneella** nodemonilla (hot-reloading).
+    *   Käynnistää Prisma Studion rinnakkain.
     *   Backend yhdistää tietokantaan osoitteessa `localhost:5434` (portti mapattu `docker-compose.yml`:ssä).
+*   **`npm run dev:server`:** Käynnistää vain kehityspalvelimen ilman muita palveluita.
+*   **`npm run dev:studio`:** Käynnistää vain Prisma Studion.
 *   **`docker-compose up -d` (Backend ja DB Dockerissa):**
     *   Käynnistää *molemmat* kontit: `esedu-tiketti-db` ja `esedu-tiketti-backend`.
     *   Ajaa automaattisesti tietokannan migraatiot (`prisma migrate deploy`) backend-kontissa.
@@ -36,8 +39,11 @@ Järjestelmän PostgreSQL-tietokanta ajetaan tyypillisesti Docker-kontissa (`ese
 
 ### Huomioitavaa Docker-käytössä
 *   **Ympäristömuuttujat (`backend/.env`):**
+    *   Kopioi `.env.example` tiedosto `.env`:ksi ja muokkaa tarvittavat arvot.
     *   Kun ajat backendin **hostissa** (`npm run dev`), `DATABASE_URL` käyttää `localhost:5434`.
     *   Kun ajat backendin **kontissa** (`docker-compose up -d`), `DATABASE_URL` käyttää Docker-verkon sisäistä palvelunimeä, esim. `postgresql://admin:admin123@postgres:5432/esedu_tiketti_db?schema=public`.
+    *   **JWT_SECRET** pitää olla vähintään 32 merkkiä pitkä.
+    *   **OPENAI_API_KEY** on pakollinen AI-toimintojen käyttöön.
 *   **Tiedostojen Pysyvyys:** Tietokanta tallennetaan Docker volumeen (`postgres_data`). Ladatut tiedostot (`uploads`-kansio) tulisi myös tallentaa pysyvästi (volume tai bind mount, tarkista `docker-compose.yml`).
 
 ## Tietokannan Hallinta (Prisma)
@@ -47,6 +53,12 @@ Prisma hoitaa tietokantaskeeman hallinnan ja migraatiot.
 ### Migraatiot (`backend/prisma/migrations`)
 *   **Uuden migraation luonti (kehitys):** `npx prisma migrate dev --name muutoksen_nimi`
 *   **Migraatioiden ajo (tuotanto/docker):** `npx prisma migrate deploy` (ajetaan automaattisesti Docker-käynnistyksessä ja `npm start` -skriptissä)
+*   **Suorituskykyindeksit:** Uusimmat migraatiot sisältävät strategisia composite-indeksejä suorituskyvyn optimointiin:
+    - Tikettien suodatus statuksen ja prioriteetin mukaan
+    - Käsittelijäkohtaiset kyselyt
+    - Kategoriasuodatukset
+    - Päivämääräperusteiset haut ja järjestäminen
+    - Ilmoitusten ja AI-analytiikan optimointi
 
 ### Prisma Studio (Kehitys)
 Tarkastele ja muokkaa tietokantaa selaimessa:
@@ -106,6 +118,7 @@ Virheelliset syötteet hylätään, ja API palauttaa yleensä 400 Bad Request -v
     *   `Database connection error`: Tarkista `DATABASE_URL` `.env`-tiedostossa ja tietokannan tila.
     *   `Migration errors`: Tarkista migraatiohistoria ja tietokannan tila. Kokeile `npx prisma migrate resolve --applied [migration_id]` tai kehityksessä `npm run db:reset`.
     *   `Prisma Client is not generated`: Aja `npx prisma generate`.
+    *   **Huom:** Backend käyttää nyt keskitettyä Prisma client singletonia (`src/lib/prisma.ts`) hot-reload-ongelmien välttämiseksi.
 *   **TypeScript-virheet:** Tarkista `tsconfig.json`, varmista että `npm install` on ajettu ja kokeile buildata: `npm run build`.
 *   **Autentikointivirheet:** Varmista `JWT_SECRET` ja Azure AD -asetukset (`AZURE_AD_CLIENT_ID`, `AZURE_AD_TENANT_ID`) `.env`-tiedostossa. Tarkista `authMiddleware.ts`:n tokenin validointilogiikka.
 *   **API-kutsut epäonnistuvat:** Tarkista backendin lokit (`npm run dev` tai `docker-compose logs -f backend`) tarkempien virheilmoitusten varalta.
@@ -121,6 +134,7 @@ Backend on rakennettu Node.js-ympäristöön käyttäen seuraavia teknologioita 
 *   **Tietokanta:** [PostgreSQL](https://www.postgresql.org/) - Tehokas ja avoimen lähdekoodin relaatiotietokanta.
 *   **Autentikointi & Auktorisointi:**
     *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) - Kirjasto JSON Web Token (JWT) -tokenien (Azure AD ID-token frontendistä) dekoodaukseen `authMiddleware`:ssa käyttäjätietojen saamiseksi.
+    *   `requireRole` middleware - Tukee sekä yksittäistä roolia että roolien taulukkoa parametrina: `requireRole(UserRole.ADMIN)` tai `requireRole([UserRole.ADMIN, UserRole.SUPPORT])`
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/) - Mahdollistaa reaaliaikaisen, kaksisuuntaisen ja tapahtumapohjaisen kommunikaation selaimen ja palvelimen välillä (esim. ilmoitukset).
 *   **Tekoälyintegraatio:**
     *   [LangChain.js](https://js.langchain.com/) - Framework tekoälymalleihin perustuvien sovellusten kehittämiseen, käytetään AI-agenttien ja promptien hallintaan.
@@ -201,6 +215,42 @@ Backend tarjoaa RESTful API:n, jota frontend-sovellus käyttää datan hallintaa
 *   **Yhteyden Hallinta:** `socketService.ts` hoitaa uusien client-yhteyksien vastaanottamisen, käyttäjien autentikoinnin ja käyttäjäkohtaisten socket-yhteyksien tallentamisen.
 *   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka (todennäköisesti `ticketController`issa tai `ticketService`ssä) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
 *   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia (`socket.on('new_notification', ...)`).
+
+## AI Settings
+
+AI Settings on keskitetty järjestelmä tekoälyagenttien käyttäytymisen hallintaan. Se korvaa ympäristömuuttujapohjaisen konfiguroinnin tietokantapohjaisella ratkaisulla.
+
+### Tietokantamalli
+
+`AISettings` - Singleton-patternia noudattava taulu, jossa on vain yksi rivi:
+* `chatAgentVersion` - Käytettävä agenttiversio ("modern" tai "legacy")
+* `hintSystemEnabled` - Vihjesysteemin tila (päällä/pois)
+* `hintOnEarlyThreshold` - EARLY-tilojen määrä ennen vihjettä (oletus: 3)
+* `hintOnProgressThreshold` - PROGRESSING-tilojen määrä ennen vihjettä (null = pois käytöstä)
+* `hintOnCloseThreshold` - CLOSE-tilojen määrä ennen vihjettä (null = pois käytöstä)
+* `hintCooldownTurns` - Vuorojen määrä vihjeiden välillä (oletus: 0 = ei cooldownia)
+* `hintMaxPerConversation` - Maksimi vihjeiden määrä per keskustelu (oletus: 999 = rajaton)
+
+### Service (aiSettingsService.ts)
+
+`aiSettingsService.ts` tarjoaa välimuistitetun pääsyn AI-asetuksiin:
+* 1 minuutin välimuisti suorituskyvyn optimoimiseksi
+* Automaattinen oletusasetusten luonti jos asetuksia ei ole
+* Helper-metodit: `useModernChatAgent()`, `isHintSystemEnabled()`
+
+### Controller (aiSettingsController.ts)
+
+`aiSettingsController.ts` tarjoaa REST API:n asetusten hallintaan:
+* `getSettings` - Hakee nykyiset asetukset
+* `updateSettings` - Päivittää asetukset (Zod-validointi)
+* `resetSettings` - Palauttaa oletusasetukset
+
+### API-reitit
+
+Kaikki AI Settings -reitit löytyvät `/api/ai/settings` polun alta ja vaativat ADMIN-roolin:
+* `GET /api/ai/settings` - Hakee nykyiset asetukset
+* `PUT /api/ai/settings` - Päivittää asetukset
+* `POST /api/ai/settings/reset` - Palauttaa oletusasetukset
 
 ## AI Analytics
 

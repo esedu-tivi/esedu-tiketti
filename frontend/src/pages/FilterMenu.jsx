@@ -5,7 +5,7 @@ import { Button } from "../components/ui/Button";
 import { Label } from "../components/ui/Label";
 import { Checkbox } from "../components/ui/Checkbox";
 import { ChevronDown } from "lucide-react";
-import { fetchCategories } from "../utils/api";
+import { useCategories } from "../hooks/useCategories";
 import '../index.css';
 
 const defaultFilters = {
@@ -21,21 +21,12 @@ const defaultFilters = {
 
 function FilterMenu({ onFilterChange, isOpen, setIsOpen, isMyTickets }) {
   const [filters, setFilters] = useState(defaultFilters);
-  const [categories, setCategories] = useState([]);
   const [searchInput, setSearchInput] = useState("");
   const [dateError, setDateError] = useState("");
 
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const response = await fetchCategories();
-        setCategories(response.categories || []);
-      } catch (error) {
-        console.error('Error loading categories:', error);
-      }
-    };
-    loadCategories();
-  }, []);
+  // Use centralized categories hook
+  const { data: categoriesData } = useCategories();
+  const categories = categoriesData?.data || categoriesData?.categories || [];
 
   const handleCheckboxChange = (key, value, checked) => {
     console.log(`Checkbox changed - Key: ${key}, Value: ${value}, Checked: ${checked}`);

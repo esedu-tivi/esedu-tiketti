@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchSupportUsers } from '../utils/api';
+import { useUsers } from '../hooks/useUsers';
 
 const MentionInput = ({ value, onChange, placeholder, onSubmit, disabled }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -59,12 +58,12 @@ const MentionInput = ({ value, onChange, placeholder, onSubmit, disabled }) => {
   };
 
   // Fetch users for suggestions
-  const { data: users = [] } = useQuery({
-    queryKey: ['support-users'],
-    queryFn: fetchSupportUsers,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    refetchOnWindowFocus: false
-  });
+  const { data: allUsers } = useUsers();
+  const users = React.useMemo(() => {
+    if (!allUsers) return [];
+    // Only show support and admin users for mentions
+    return allUsers.filter(u => u.role === 'SUPPORT' || u.role === 'ADMIN');
+  }, [allUsers]);
 
   // Convert structured content to plain text (for form submission)
   useEffect(() => {

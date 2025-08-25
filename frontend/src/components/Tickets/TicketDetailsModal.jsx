@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../../utils/api';
+import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket } from '../../utils/api';
 import { useAuth } from '../../providers/AuthProvider';
 import { useSocket } from '../../hooks/useSocket';
+import { useUsers } from '../../hooks/useUsers';
 import axios from 'axios';
 import {
   Card,
@@ -194,15 +195,22 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     };
   }, [ticketId, subscribe, queryClient]);
 
-  const { data: supportUsers } = useQuery({
-    queryKey: ['support-users'],
-    queryFn: async () => {
-      const data = await fetchSupportUsers();
-      // Näytetään kaikki tukihenkilöt paitsi tiketin nykyinen käsittelijä
-      return data.filter(u => u.id !== ticketData?.assignedToId);
-    },
-    enabled: showTransferDialog,
-  });
+  // Only fetch users if the current user has permission (SUPPORT or ADMIN)
+  // This prevents 403 errors for regular users
+  const isSupportOrAdminUser = userRole === 'SUPPORT' || userRole === 'ADMIN';
+  const { data: allUsers } = useUsers(); // This hook internally checks permissions
+  
+  // Calculate support users - must be before any conditional returns
+  const ticketDataForUsers = ticket?.data || ticket?.ticket;
+  const supportUsers = React.useMemo(() => {
+    // Only calculate if user has permission to see users list
+    if (!isSupportOrAdminUser || !allUsers || !ticketDataForUsers) return [];
+    // Näytetään kaikki tukihenkilöt paitsi tiketin nykyinen käsittelijä
+    return allUsers.filter(u => 
+      (u.role === 'SUPPORT' || u.role === 'ADMIN') && 
+      u.id !== ticketDataForUsers?.assignedToId
+    );
+  }, [isSupportOrAdminUser, allUsers, ticketDataForUsers]);
 
   const addCommentMutation = useMutation({
     mutationFn: async (commentData) => {
@@ -241,12 +249,12 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', ticketId]);
     },
   });
 
@@ -257,12 +265,12 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', ticketId]);
     },
   });
 
@@ -273,12 +281,12 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', ticketId]);
     },
   });
 
@@ -289,12 +297,12 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', ticketId]);
       setShowTransferDialog(false);
     },
   });
@@ -536,7 +544,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     );
   }
 
-  if (!ticket || !ticket.ticket) {
+  if (!ticket || (!ticket.data && !ticket.ticket)) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg w-full max-w-2xl p-6">
@@ -549,7 +557,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
     );
   }
 
-  const ticketData = ticket.ticket;
+  const ticketData = ticket.data || ticket.ticket;
   const priorityInfo = getPriorityInfo(ticketData?.priority || 'MEDIUM');
   const statusInfo = getStatusInfo(ticketData?.status || 'OPEN');
   const PriorityIcon = priorityInfo.icon;

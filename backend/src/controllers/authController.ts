@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { TypedRequest } from '../types/index.js';
+import { prisma } from '../lib/prisma.js';
+import { asyncHandler, ValidationError } from '../middleware/errorHandler.js';
+import logger from '../utils/logger.js';
 
 interface LoginRequestBody {
   email: string;
@@ -8,49 +10,64 @@ interface LoginRequestBody {
   jobTitle?: string;
 }
 
-const prisma = new PrismaClient();
-
 export const authController = {
-  handleLogin: async (req: TypedRequest<LoginRequestBody>, res: Response) => {
-    try {
+  handleLogin: asyncHandler(async (req: TypedRequest<LoginRequestBody>, res: Response) => {
       const { email, name, jobTitle } = req.body;
 
+      logger.info('Login attempt:', { email, name, jobTitle });
+
       if (!email || !name) {
-        return res.status(400).json({ error: 'Email and name are required' });
+        logger.warn('Login failed: Missing email or name', { email, name });
+        throw new ValidationError('Email and name are required');
       }
 
-      // Etsi käyttäjä sähköpostiosoitteen perusteella
-      let user = await prisma.user.findUnique({
-        where: { email }
+      // Use atomic upsert to avoid race conditions
+      logger.info('Upserting user:', { email, name });
+      
+      const user = await prisma.user.upsert({
+        where: { email },
+        update: {
+          // Always update name and jobTitle in case they changed
+          name,
+          jobTitle
+        },
+        create: {
+          email,
+          name,
+          jobTitle,
+          role: 'USER' // Oletuksena normaali käyttäjä
+        }
+      });
+      
+      logger.info('User upserted successfully:', { userId: user.id, email: user.email });
+
+      // Create notification settings if they don't exist
+      // This prevents the need for multiple API calls from the frontend
+      await prisma.notificationSettings.upsert({
+        where: { userId: user.id },
+        update: {}, // Don't update if exists
+        create: {
+          userId: user.id,
+          webNotifications: true,
+          notifyOnAssigned: true,
+          notifyOnStatusChange: true,
+          notifyOnComment: true,
+          notifyOnPriority: true,
+          notifyOnMention: true,
+        },
       });
 
-      if (!user) {
-        // Jos käyttäjää ei löydy, luodaan uusi
-        user = await prisma.user.create({
-          data: {
-            email,
-            name,
-            jobTitle,
-            role: 'USER', // Oletuksena normaali käyttäjä
-          }
-        });
-      } else {
-        // Päivitä käyttäjän tiedot, jos ne ovat muuttuneet
-        if (user.name !== name || user.jobTitle !== jobTitle) {
-          user = await prisma.user.update({
-            where: { email },
-            data: {
-              name,
-              jobTitle,
-            }
-          });
-        }
-      }
+      // Fetch complete user data with notification settings
+      const userWithSettings = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          notificationSettings: true,
+        },
+      });
 
-      res.json({ user });
-    } catch (error) {
-      console.error('Login error:', error);
-      res.status(500).json({ error: 'Internal server error during login' });
-    }
-  }
+      res.json({ 
+        user: userWithSettings,
+        message: 'Authentication successful'
+      });
+  })
 }; 

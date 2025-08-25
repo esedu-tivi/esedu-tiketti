@@ -2,6 +2,348 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 25.08.2025 - Comprehensive Hook Refactoring & Authorization Fixes
+
+## Frontend - Major Hook Architecture Overhaul
+- **feat:** Created comprehensive set of centralized React Query hooks
+  - `useUsers` - User list with role-based access (ADMIN/SUPPORT only)
+  - `useAIAnalytics` - AI dashboard analytics (ADMIN only)
+  - `useRoleChange` - Role management for development and admin
+  - `useAITicketGenerator` - AI ticket generation with preview/confirm
+  - `useConversation` - Ticket conversations and summaries
+  - `useSupportAssistant` - Support assistant with streaming responses
+- **fix:** Resolved 403 Forbidden errors for non-admin users
+  - Problem: useUsers hook was making API calls even for unauthorized users
+  - Solution: Modified hook to bypass React Query entirely for USER role
+  - Added `useCanAccessUsers` helper hook for permission checks
+- **fix:** Fixed React hooks order violations in multiple components
+  - TicketDetailsModal: Moved useMemo before conditional returns
+  - TicketPage: Defined ticketData before using in useMemo
+- **fix:** Corrected import names in useTickets hook
+  - Changed getMyTickets → fetchMyTickets to match actual exports
+
+## Backend - Authorization Updates
+- **fix:** Updated /users endpoint to allow SUPPORT role access
+  - Changed from `requireRole(UserRole.ADMIN)` to `requireRole([UserRole.ADMIN, UserRole.SUPPORT])`
+  - Fixed incorrect requireRole syntax (was passing multiple args instead of array)
+  - Support staff can now see user lists for ticket assignment
+
+## Bug Fixes
+- **fix:** UserManagementDialog missing `saving` state variable
+  - Added useState for saving state management
+  - Updated handleSave to properly set loading state
+- **fix:** AITicketGenerator category dropdown stuck on "Ladataan..."
+  - Component wasn't using the useCategories hook properly
+  - Fixed to use categories from hook instead of local state
+- **fix:** fetchCategories handling both array and object responses
+  - Added logic to handle different API response formats
+
+## Performance Improvements
+- **perf:** Optimized unnecessary API calls
+  - Hooks now check permissions before making requests
+  - Reduced 403 errors in browser console
+  - Better cache management with role-based query keys
+
+## Code Quality
+- **refactor:** Consistent error handling across all hooks
+  - Silent 403 handling for unauthorized access
+  - Proper retry logic (disabled for 403s)
+  - Toast notifications for user feedback
+
+# 24.08.2025 - API Request Optimization
+
+## Performance Fixes
+- **fix:** Eliminated multiple concurrent API requests causing race conditions
+  - **Problem:** 20+ concurrent requests on profile page load, database unique constraint violations
+  - **Root Causes:** 
+    - React.StrictMode double mounting (development only)
+    - Multiple components fetching same data independently
+    - No request deduplication or caching strategy
+  - **Solution:** Centralized data management with React Query hooks
+  - **Results:** Reduced API calls from 20+ to 3-5 maximum
+
+## Frontend
+- **feat:** Created centralized React Query hooks for shared data
+  - `useUserData` - Prevents duplicate /users/me calls
+  - `useNotificationSettings` - Shared notification settings across components
+  - `useAISettings` - Centralized AI settings management
+  - `useTickets` - Unified ticket data fetching
+  - `useCategories` - Cached category data
+  - `useNotifications` - Consolidated notification queries
+- **fix:** Conditional React.StrictMode (development only)
+  - Production builds no longer have double-mounting issues
+- **feat:** Global QueryClient for cross-component cache sharing
+- **refactor:** Updated ProfileView and NotificationSettings to use centralized hooks
+
+## Backend  
+- **fix:** Notification settings now created during login
+  - Prevents race conditions from multiple components trying to create settings
+  - Single atomic operation during authentication
+- **refactor:** Auth controller returns complete user data with settings
+  - Reduces follow-up API calls after login
+
+## Database
+- **fix:** Removed unused fields from schema
+  - Deleted `emailNotifications` and `notifyOnDeadline` fields
+  - Migration: `20250821170053_add_performance_indexes`
+
+# 21.08.2025 - AI Settings Configuration System & Advanced Hint Logic
+
+## New Features
+- **feat:** Implemented comprehensive AI Settings configuration system
+  - Admins can now configure AI behavior through UI instead of environment variables
+  - Switch between ModernChatAgent and legacy ChatAgent
+  - Full control over hint system behavior
+  - Settings stored in database with singleton pattern
+
+## Database
+- **database:** Added new AISettings model
+  - `chatAgentVersion` - Choose between "modern" or "legacy" agent
+  - `hintSystemEnabled` - Enable/disable hint system entirely
+  - `hintOnEarlyThreshold` - Consecutive EARLY evaluations before hint (default: 3)
+  - `hintOnProgressThreshold` - Optional threshold for PROGRESSING state hints
+  - `hintOnCloseThreshold` - Optional threshold for CLOSE state hints
+  - `hintCooldownTurns` - Minimum turns between hints (default: 0 = no cooldown)
+  - `hintMaxPerConversation` - Maximum hints per conversation (default: 999 = unlimited)
+- **migration:** Created migrations for AISettings table
+  - `20250824201134_add_ai_settings` - Initial AISettings model
+  - `20250824203148_update_ai_settings_defaults` - Updated defaults to unlimited
+
+## Backend
+- **feat:** Created aiSettingsController with CRUD operations
+  - GET `/api/ai/settings` - Fetch current settings
+  - PUT `/api/ai/settings` - Update settings (admin only)
+  - POST `/api/ai/settings/reset` - Reset to defaults (admin only)
+- **feat:** Created aiSettingsService with caching
+  - 1-minute cache for performance
+  - Automatic default creation if no settings exist
+- **feat:** Enhanced ConversationStateMachine with configurable hint logic
+  - Tracks separate counters for EARLY, PROGRESSING, and CLOSE states
+  - Supports configurable thresholds per state
+  - Implements cooldown periods between hints
+  - Enforces maximum hints per conversation
+- **refactor:** Updated aiController to use database settings
+  - Removed hardcoded USE_MODERN_CHAT_AGENT environment variable
+  - Now reads chat agent version from database
+  - Passes all hint settings to ConversationStateMachine
+
+## Frontend
+- **feat:** Created AISettings component in admin panel
+  - Professional UI matching existing design system
+  - Toggle switches consistent with NotificationSettings
+  - Real-time change detection with proper state management
+  - Collapsible advanced settings section
+- **feat:** Enabled AI-asetukset tab in AITools page
+  - Previously disabled tab now fully functional
+  - Integrated with toast notifications for feedback
+- **fix:** Fixed validation to allow max hints up to 999
+- **fix:** Fixed change detection to properly track unsaved changes
+
+## Bug Fixes
+- **fix:** Hint system now actually provides hints in AI responses
+  - Added `forceHint` parameter to ModernChatAgent.respond()
+  - Updated prompt to include hint instructions when needed
+  - Hints are naturally embedded in AI responses
+- **fix:** UI properly displays hint badges
+  - Support students see "Vihje annettu" badge
+  - Admins see full details in ConversationModal
+  - Internal AI reasoning hidden from student view
+
+## UI/UX Improvements
+- **ui:** Differentiated views for different user roles
+  - **Support/Student view (CommentSection.jsx):**
+    - Shows only AI response text and "Vihje annettu" badge
+    - Hides internal evaluation states and reasoning
+  - **Admin view (ConversationModal.jsx):**
+    - Shows all ModernChatAgent fields
+    - Evaluation badges with tooltips
+    - Emotional states with emojis
+    - Collapsible reasoning sections
+- **ui:** Consistent design system
+  - Uses existing Button component
+  - Matches toggle switch styles from NotificationSettings
+  - Professional card layout with proper spacing
+  - Toast notifications for all actions
+
+# 24.08.2025 - ModernChatAgent Fields Added to Database & Documentation Updates
+
+## Documentation
+- **docs:** Updated ChatAgent documentation to accurately reflect current implementation
+  - Documented the two-phase LLM process (evaluation then response generation)
+  - Added detailed interface definitions matching actual code
+  - Clarified how technical skill level is determined from ticket priority
+  - Documented the flexible evaluation criteria (EARLY/PROGRESSING/CLOSE/SOLVED)
+  - Added information about logging and error handling
+  - Updated integration points to reflect actual API flow
+- **docs:** Created comprehensive ModernChatAgent documentation
+  - Documented single LLM call architecture with structured outputs
+  - Added Zod schema definitions and validation flow
+  - Documented emotional state tracking and hint system
+  - Created detailed flowcharts for ModernChatAgent, StreamingChatAgent, and ConversationStateMachine
+  - Explained feature flag system for gradual migration
+  - Added performance comparison with traditional ChatAgent
+  - Documented all three implementation variants (Modern, Streaming, React)
+- **docs:** Corrected documentation to match actual implementation:
+  - Fixed database table references: Uses `Comment` table, not `AITrainingConversation`
+  - Clarified that `emotionalState`, `reasoning`, and `shouldRevealHint` are NOT saved to database
+  - Marked StreamingChatAgent and ConversationStateMachine as "NOT IN USE" 
+  - Updated flowcharts to show correct database fields
+  - Added notes about which ModernChatAgent features are theoretical vs actually implemented
+
+## Backend Implementation
+- **feat:** Added ModernChatAgent fields to Comment model in database
+  - `emotionalState` - tracks AI's simulated emotional state (frustrated/hopeful/excited/satisfied/confused)
+  - `reasoning` - stores internal reasoning about the evaluation for analytics
+  - `shouldRevealHint` - indicates whether AI decided to provide hints
+- **feat:** Updated aiController to save all ModernChatAgent fields when USE_MODERN_CHAT_AGENT=true
+- **refactor:** Removed unused agent implementations
+  - Deleted StreamingChatAgent (was never used in production)
+  - Deleted ReactChatAgent (experimental code never used)
+  - Kept ConversationStateMachine for future implementation
+- **database:** Created migration `20250824185234_add_modern_chat_agent_fields`
+  - Added three new nullable fields to Comment table
+  - Fields are populated only when ModernChatAgent is active
+
+## Frontend UI Enhancements
+- **feat:** Enhanced ConversationModal to display ModernChatAgent fields
+  - Added emotional state display with emojis (😤 Turhautunut, 🤔 Toiveikas, 😃 Innostunut, 😊 Tyytyväinen, 😕 Hämmentynyt)
+  - Added collapsible reasoning section showing AI's internal decision logic
+  - Added hint indicator badge when AI provides hints to stuck students
+  - All new fields integrate seamlessly with existing conversation analysis view
+  - Admins can now see complete AI behavior insights in "Keskusteluanalyysi"
+
+## ConversationStateMachine Integration
+- **feat:** Integrated ConversationStateMachine with ModernChatAgent
+  - Tracks conversation flow through states: initial → diagnosing → attempting → verifying → resolved
+  - Maintains stuck counter for consecutive EARLY evaluations
+  - Provides hints only after 3+ consecutive stuck turns (not just total message count)
+  - Resets stuck counter when progress is made (smarter hint timing)
+  - In-memory state management (state persists during conversation, cleared on resolution)
+  - State machine info added to reasoning field for debugging
+- **improvement:** Much smarter hint logic
+  - OLD: Hints given when `conversationHistory.length > 3 && evaluation === "EARLY"`
+  - NEW: Hints given when stuck for 3+ consecutive turns, resets on progress
+  - Prevents confusing scenarios where hints appear after temporary success
+- **fix:** Fixed hint system to actually provide hints in AI responses
+  - Previously, `shouldRevealHint` was only a flag without affecting the response
+  - Now, when stuck for 3+ turns, the AI is explicitly told to include subtle hints
+  - Hints guide students toward the solution area without giving away the answer
+  - Example hints: "Hmm, ongelma tuntuu liittyvän [specific area]..." or "Olen huomannut että [symptom]..."
+
+# 22.01.2025 - Modern Chat Agent with Single LLM Call
+
+## Backend Improvements
+
+### AI Chat Agent Rewrite
+- **feat:** Uusi moderni chat agent arkkitehtuuri (`backend/src/ai/agents/modernChatAgent.ts`)
+  - Yksittäinen LLM-kutsu yhdistää arvioinnin ja vastauksen generoinnin
+  - Strukturoitu output käyttäen Zod-skeemoja OpenAI:n JSON-moodin kanssa
+  - Tunnelmatilan seuranta realistisempaa käyttäjäsimulaatiota varten
+  - Vihjeiden paljastuslogiikka keskustelun tilan perusteella
+
+### Kolme Arkkitehtuurivaihtoehtoa
+1. **ModernChatAgent:** Yksittäinen kutsu strukturoidulla outputilla tuotantokäyttöön
+2. **ReactChatAgent:** Tool-calling lähestymistapa eksplisiittisiin päättelyaskeliin (kokeellinen)
+3. **StreamingChatAgent:** Oikea streaming-tuki ilman hakkerointia
+
+### Feature Flag System
+- **Lisätty:** `USE_MODERN_CHAT_AGENT` ympäristömuuttuja asteittaiseen migraatioon
+- Säilyttää taaksepäin yhteensopivuuden olemassa olevan chat agentin kanssa
+- Nolla-downtime deployment polku
+
+### Tekniset Parannukset
+- **Suorituskyky:** Poistaa turhat kaksinkertaiset LLM-kutsut (arviointi + vastaus)
+- **Tyyppiturvallisuus:** Täydet TypeScript-tyypit Zod-validoinnilla
+- **Streaming:** Hybridi-lähestymistapa nopealla arvioinnilla ja streamatulla vastauksella
+- **Tilanhallinta:** Keskustelun tilakone edistymisen seuraamiseen ja jumittumisen havaitsemiseen
+
+### Riippuvuudet
+- Lisätty `zod-to-json-schema` paketti OpenAI:n strukturoidun outputin tueksi
+
+### Migraatiopolku
+1. Aseta `USE_MODERN_CHAT_AGENT=false` (oletus) käyttääksesi vanhaa toteutusta
+2. Testaa `USE_MODERN_CHAT_AGENT=true` kehitysympäristössä
+3. Asteittainen käyttöönotto tuotannossa feature flagin avulla
+
+# 22.08.2025 - AI Ticket Attachment Restriction
+
+## Frontend Changes
+
+### CommentSection Component
+- **fix:** Disabled attachment/media upload functionality for AI-generated tickets
+- Modified `canAddMediaComment()` function to check `ticket.isAiGenerated` flag
+- Prevents users from adding images or videos to AI-generated training tickets
+- Ensures training scenarios remain consistent without external media interference
+
+# 21.08.2025 - Major Infrastructure Improvements
+
+## Backend Improvements
+
+### Error Handling & Logging
+- **Keskitetty virheenkäsittely:** Lisätty `errorHandler.ts` middleware custom error-luokilla (ValidationError, AuthenticationError, NotFoundError, etc.)
+- **Strukturoitu lokitus:** Migrated from console.log to Winston logger throughout the application
+- **Request ID tracking:** Jokainen pyyntö saa uniikin ID:n seurantaa varten (X-Request-ID header)
+- **API Response standardization:** Lisätty `apiResponse.ts` utility yhtenäisille vastauksille ja sivutukselle
+
+### Environment & Configuration
+- **Zod-pohjainen validointi:** Lisätty `config/env.ts` ympäristömuuttujien validointiin
+- **Prisma client singleton:** Keskitetty Prisma client (`lib/prisma.ts`) hot-reload-ongelmien välttämiseksi
+- **Enhanced security:** Helmet integration, CORS whitelist, rate limiting (200 req/min general, 5 req/15min auth)
+
+### Health Monitoring
+- **Uudet health check endpointit:**
+  - `GET /api/health` - Täysi järjestelmän terveys ja metriikat
+  - `GET /api/health/live` - Kubernetes liveness probe
+  - `GET /api/health/ready` - Readiness probe tietokantayhteyden tarkistuksella
+
+### Database Optimization
+- **Performance indexes migration:** Lisätty strategisia composite-indeksejä:
+  - Ticket filtering (status, priority)
+  - Assignment queries
+  - Category filtering
+  - Date-based sorting
+  - Notification and AI analytics queries
+
+### API Enhancements
+- **Uusi endpoint:** `GET /api/tickets/my-work` - Optimoitu MyWorkView-näkymälle
+- **Parannettu autentikointi:** Tuki sekä Azure AD (RS256) että local JWT (HS256) tokeneille
+- **Developer support:** DEVELOPER_EMAILS environment variable kehitystä varten
+
+### AI Agents Improvements
+- **Strukturoitu lokitus:** Kaikki AI-agentit käyttävät nyt Winston loggeria
+- **Keskitetty Prisma:** Kaikki agentit käyttävät jaettua Prisma singletonia
+- **TicketGeneratorAgent:** Etsii nyt dedikoidun AI-käyttäjän ennen admin-käyttäjiä
+
+### Development Tools
+- **JWT Token Generator:** Lisätty `scripts/generateTestToken.js` testaukseen
+- **Parannetut npm scriptit:** `dev:server` ja `dev:studio` erillisinä komentoina
+
+## Frontend Improvements
+
+### React Query Optimization
+- **Optimoitu cache-konfiguraatio:** 30s staleTime, 5min cacheTime
+- **Real-time integration:** WebSocket-tapahtumat päivittävät React Query cachen automaattisesti
+
+### WebSocket Enhancements
+- **Singleton pattern:** Välttää useita yhteyksiä
+- **Uudet tapahtumat:** ticketCreated, ticketUpdated, ticketStatusChanged, ticketAssigned, etc.
+- **Automaattinen uudelleenyhdistäminen:** Parannettu yhteyden hallinta
+
+### Authentication & Error Handling
+- **401 error handling:** Automaattinen uloskirjautuminen ja session-pohjainen alerttien esto
+- **Standardized API responses:** Yhtenäinen response.data.data käsittely
+- **Request tracking:** X-Request-ID header integration
+
+### Performance
+- **Poistettu polling:** Korvattu WebSocket-pohjaisilla reaaliaikaisilla päivityksillä
+- **Optimoidut kyselyt:** Vähemmän tarpeettomia API-kutsuja
+- **Parannettu cache-strategia:** Käytetään setQueryData immediate UI päivityksiin
+
+## Dependencies Updates
+- **Backend additions:** winston, zod, express-rate-limit, helmet
+- **Backend removals:** cookie-parser, csurf (unused)
+- **Type definitions:** Added missing TypeScript types
+
 # 11.05.2025 - fix: foreign key constraint violation
 
 - Fixed a foreign key constraint violation (P2003) when deleting tickets. Ensured that related `SupportAssistantConversation` records are deleted within the same transaction before deleting the ticket itself in `ticketService.ts`. 

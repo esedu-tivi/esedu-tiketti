@@ -7,9 +7,8 @@ export const AI_CONFIG = {
   // OpenAI configuration
   openai: {
     apiKey: process.env.OPENAI_API_KEY || '',
-    chatModel: process.env.OPENAI_COMPLETION_MODEL || 'gpt-4o-mini',
+    chatModel: process.env.OPENAI_COMPLETION_MODEL || 'gpt-4.1',
     embeddingModel: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
-    temperature: 0.7,
   },
   
   // Training ticket generator settings

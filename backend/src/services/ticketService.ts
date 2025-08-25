@@ -1,9 +1,10 @@
-import { PrismaClient, Ticket, Prisma, TicketStatus, ResponseFormat } from '@prisma/client';
+import { Ticket, Prisma, TicketStatus, ResponseFormat } from '@prisma/client';
+import logger from '../utils/logger.js';
 import { CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
 import fs from 'fs/promises'; // Added for file deletion
 import path from 'path'; // Added for path construction
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma.js';
+import { NotFoundError, ValidationError, AuthorizationError } from '../middleware/errorHandler.js';
 
 // Helper function to get absolute path for uploads
 const getUploadPath = (relativePath: string): string => {
@@ -162,7 +163,7 @@ export const ticketService = {
     });
 
     // Käytetään transaktiota varmistamaan, että kaikki poistot onnistuvat tai mikään ei onnistu
-    console.log(`Attempting to delete ticket ${id} and related data within a transaction.`);
+    logger.info(`Attempting to delete ticket ${id} and related data within a transaction.`);
     return prisma.$transaction(async (tx) => {
       
       // 1. Käsittele ja poista tikettiin liittyvät liitteet (tiedostot + tietueet)
@@ -172,15 +173,15 @@ export const ticketService = {
       });
       
       if (attachmentsToDelete.length > 0) {
-        console.log(`Found ${attachmentsToDelete.length} attachments for ticket ${id}. Attempting file deletion...`);
+        logger.info(`Found ${attachmentsToDelete.length} attachments for ticket ${id}. Attempting file deletion...`);
         for (const attachment of attachmentsToDelete) {
           try {
             const filePath = getUploadPath(attachment.path); // Use helper to get absolute path
             await fs.unlink(filePath);
-            console.log(`Successfully deleted attachment file: ${filePath}`);
+            logger.info(`Successfully deleted attachment file: ${filePath}`);
           } catch (fileError: any) {
             // Log file deletion errors but don't stop the transaction
-            console.error(`Failed to delete attachment file ${attachment.path} for attachment ID ${attachment.id}:`, fileError.message);
+            logger.error(`Failed to delete attachment file ${attachment.path} for attachment ID ${attachment.id}:`, fileError.message);
             // Consider more robust error handling/logging here if needed
           }
         }
@@ -191,9 +192,9 @@ export const ticketService = {
             ticketId: id
           }
         });
-        console.log(`Deleted ${deletedAttachments.count} attachment records from DB for ticket ${id}.`);
+        logger.info(`Deleted ${deletedAttachments.count} attachment records from DB for ticket ${id}.`);
       } else {
-        console.log(`No attachments found for ticket ${id}.`);
+        logger.info(`No attachments found for ticket ${id}.`);
       }
 
       // 2. Poista tikettiin liittyvät kommentit
@@ -202,7 +203,7 @@ export const ticketService = {
           ticketId: id
         }
       });
-      console.log(`Deleted ${deletedComments.count} comments related to ticket ${id}.`);
+      logger.info(`Deleted ${deletedComments.count} comments related to ticket ${id}.`);
 
       // 3. Poista tikettiin liittyvät ilmoitukset
       const deletedNotifications = await tx.notification.deleteMany({
@@ -210,7 +211,7 @@ export const ticketService = {
           ticketId: id
         }
       });
-      console.log(`Deleted ${deletedNotifications.count} notifications related to ticket ${id}.`);
+      logger.info(`Deleted ${deletedNotifications.count} notifications related to ticket ${id}.`);
 
       // 4. Poista tikettiin liittyvät AI-interaktiot
       const deletedAIInteractions = await tx.aIAssistantInteraction.deleteMany({
@@ -218,11 +219,11 @@ export const ticketService = {
           ticketId: id
         }
       });
-      console.log(`Deleted ${deletedAIInteractions.count} AI interactions related to ticket ${id}.`);
+      logger.info(`Deleted ${deletedAIInteractions.count} AI interactions related to ticket ${id}.`);
 
       // 5. Jos tiketti on AI-generoitu, poista siihen liittyvä KnowledgeArticle
       if (ticketToDelete?.isAiGenerated) {
-        console.log(`Ticket ${id} is AI-generated. Attempting to delete related KnowledgeArticle.`);
+        logger.info(`Ticket ${id} is AI-generated. Attempting to delete related KnowledgeArticle.`);
         const relatedArticles = await tx.knowledgeArticle.findMany({
           where: { relatedTicketIds: { has: id } },
           select: { id: true } // Valitaan vain ID
@@ -230,32 +231,32 @@ export const ticketService = {
 
         if (relatedArticles.length > 0) {
           const articleIdsToDelete = relatedArticles.map(article => article.id);
-          console.log(`Found ${relatedArticles.length} KnowledgeArticle(s) to delete with IDs: ${articleIdsToDelete.join(', ')}`);
+          logger.info(`Found ${relatedArticles.length} KnowledgeArticle(s) to delete with IDs: ${articleIdsToDelete.join(', ')}`);
           await tx.knowledgeArticle.deleteMany({ where: { id: { in: articleIdsToDelete } } });
         } else {
-          console.log(`No related KnowledgeArticle found for ticket ${id}.`);
+          logger.info(`No related KnowledgeArticle found for ticket ${id}.`);
         }
       } else {
-         console.log(`Ticket ${id} is not AI-generated. Skipping KnowledgeArticle deletion.`);
+         logger.info(`Ticket ${id} is not AI-generated. Skipping KnowledgeArticle deletion.`);
       }
 
       // NEW STEP: Poista tikettiin liittyvät SupportAssistantConversation-tietueet
       // This step is added to address the foreign key constraint P2003
       // when deleting tickets that have associated support assistant conversations.
-      console.log(`Attempting to delete SupportAssistantConversation records for ticket ${id}.`);
+      logger.info(`Attempting to delete SupportAssistantConversation records for ticket ${id}.`);
       const deletedSupportConversations = await tx.supportAssistantConversation.deleteMany({
         where: {
           ticketId: id
         }
       });
-      console.log(`Deleted ${deletedSupportConversations.count} SupportAssistantConversation records related to ticket ${id}.`);
+      logger.info(`Deleted ${deletedSupportConversations.count} SupportAssistantConversation records related to ticket ${id}.`);
 
       // 6. Poista itse tiketti
-      console.log(`Deleting ticket ${id} itself within transaction.`);
+      logger.info(`Deleting ticket ${id} itself within transaction.`);
       const deletedTicket = await tx.ticket.delete({
         where: { id }
       });
-      console.log(`Successfully deleted ticket ${id} and related data within transaction.`);
+      logger.info(`Successfully deleted ticket ${id} and related data within transaction.`);
       return deletedTicket; // Palautetaan poistettu tiketti transaktiosta
     });
   },
@@ -325,7 +326,7 @@ export const ticketService = {
     });
 
     if (!ticket) {
-      throw new Error('Tikettiä ei löydy');
+      throw new NotFoundError('Tikettiä ei löydy');
     }
 
     // Haetaan käyttäjä
@@ -334,12 +335,12 @@ export const ticketService = {
     });
 
     if (!user) {
-      throw new Error('Käyttäjää ei löydy');
+      throw new NotFoundError('Käyttäjää ei löydy');
     }
 
     // Tarkistetaan kommentointioikeudet
     if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
-      throw new Error('Tiketti on ratkaistu tai suljettu - kommentointi ei ole mahdollista');
+      throw new ValidationError('Tiketti on ratkaistu tai suljettu - kommentointi ei ole mahdollista');
     }
 
     // Jos käyttäjä on tiketin luoja, saa aina kommentoida (paitsi jos tiketti on suljettu/ratkaistu)
@@ -374,11 +375,11 @@ export const ticketService = {
 
       // Tukihenkilö voi kommentoida vain jos tiketti on käsittelyssä ja hän on tiketin käsittelijä
       if (ticket.status === 'OPEN') {
-        throw new Error('Ota tiketti ensin käsittelyyn kommentoidaksesi');
+        throw new AuthorizationError('Ota tiketti ensin käsittelyyn kommentoidaksesi');
       }
 
       if (ticket.status === 'IN_PROGRESS' && ticket.assignedToId !== userId) {
-        throw new Error('Vain tiketin käsittelijä voi kommentoida');
+        throw new AuthorizationError('Vain tiketin käsittelijä voi kommentoida');
       }
     }
 

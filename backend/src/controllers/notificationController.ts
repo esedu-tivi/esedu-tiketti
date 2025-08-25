@@ -1,8 +1,10 @@
-import { Request, Response } from 'express';
-import { PrismaClient, NotificationType } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger.js';
+import { asyncHandler, NotFoundError, AuthorizationError } from '../middleware/errorHandler.js';
+import { prisma } from '../lib/prisma.js';
+import { NotificationType } from '@prisma/client';
 import { getSocketService } from '../services/socketService.js';
 
-const prisma = new PrismaClient();
 
 // Utility function to create notifications
 export const createNotification = async (
@@ -12,72 +14,94 @@ export const createNotification = async (
   ticketId?: string,
   metadata?: Record<string, any>
 ) => {
-  console.log('Creating notification:', { userId, type, content, ticketId, metadata });
+  logger.info('Creating notification:', { userId, type, content, ticketId, metadata });
 
-  // Get user's notification settings with proper type inclusion
-  const userWithSettings = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      notificationSettings: true
+  // Get or create notification settings with retry logic for race conditions
+  let settings;
+  let retries = 3;
+  
+  while (retries > 0) {
+    try {
+      settings = await prisma.notificationSettings.upsert({
+        where: { userId: userId },
+        update: {}, // Don't update if exists, just return it
+        create: {
+          userId: userId,
+          webNotifications: true,
+          notifyOnAssigned: true,
+          notifyOnStatusChange: true,
+          notifyOnComment: true,
+          notifyOnPriority: true,
+          notifyOnMention: true
+        }
+      });
+      break; // Success, exit loop
+    } catch (error: any) {
+      // P2002 is Prisma's unique constraint violation error
+      if (error.code === 'P2002' && retries > 1) {
+        retries--;
+        logger.warn(`Notification settings upsert failed due to race condition, retrying... (${retries} retries left)`);
+        // Wait a bit before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 100 * (4 - retries)));
+        // Try to find existing settings
+        settings = await prisma.notificationSettings.findUnique({
+          where: { userId: userId }
+        });
+        if (settings) {
+          logger.info('Found existing notification settings after retry');
+          break; // Found existing settings, exit loop
+        }
+        // Otherwise continue to retry
+      } else {
+        throw error; // Re-throw if not a unique constraint error or out of retries
+      }
     }
-  });
+  }
+  
+  if (!settings) {
+    logger.error('Failed to get or create notification settings after retries');
+    return null;
+  }
 
-  console.log('User with settings:', userWithSettings);
-
-  const settings = userWithSettings?.notificationSettings;
-  console.log('Notification settings:', settings);
+  logger.info('Notification settings:', settings);
 
   // Check if notifications are enabled for this type
-  if (settings) {
-    const shouldNotify = (() => {
-      switch (type) {
-        case 'TICKET_ASSIGNED':
-          return settings.notifyOnAssigned;
-        case 'COMMENT_ADDED':
-          return settings.notifyOnComment;
-        case 'STATUS_CHANGED':
-          return settings.notifyOnStatusChange;
-        case 'PRIORITY_CHANGED':
-          return settings.notifyOnPriority;
-        case 'MENTIONED':
-          return settings.notifyOnMention;
-        case 'DEADLINE_APPROACHING':
-          return settings.notifyOnDeadline;
-        default:
-          return true;
-      }
-    })();
-
-    console.log('Should notify based on settings:', shouldNotify);
-
-    // If notifications are disabled for this type, return without creating notification
-    if (!shouldNotify) {
-      console.log(`Notification of type ${type} skipped due to user settings`);
-      return null;
+  const shouldNotify = (() => {
+    switch (type) {
+      case 'TICKET_ASSIGNED':
+        return settings.notifyOnAssigned;
+      case 'COMMENT_ADDED':
+        return settings.notifyOnComment;
+      case 'STATUS_CHANGED':
+        return settings.notifyOnStatusChange;
+      case 'PRIORITY_CHANGED':
+        return settings.notifyOnPriority;
+      case 'MENTIONED':
+        return settings.notifyOnMention;
+      default:
+        return true;
     }
+  })();
 
-    // If web notifications are disabled, don't create notification
-    if (!settings.webNotifications) {
-      console.log('Web notifications are disabled for user');
-      return null;
-    }
-  } else {
-    // If no settings exist, create default settings
-    console.log('No notification settings found, creating default settings');
-    await prisma.notificationSettings.create({
-      data: {
-        userId: userId,
-        emailNotifications: true,
-        webNotifications: true,
-        notifyOnAssigned: true,
-        notifyOnStatusChange: true,
-        notifyOnComment: true,
-        notifyOnPriority: true,
-        notifyOnMention: true,
-        notifyOnDeadline: true
-      }
-    });
+  logger.info('Should notify based on settings:', shouldNotify);
+
+  // If notifications are disabled for this type, return without creating notification
+  if (!shouldNotify) {
+    logger.info(`Notification of type ${type} skipped due to user settings`);
+    return null;
   }
+
+  // If web notifications are disabled, don't create notification
+  if (!settings.webNotifications) {
+    logger.info('Web notifications are disabled for user');
+    return null;
+  }
+  
+  // Get user email for WebSocket notification
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true }
+  });
 
   const notification = await prisma.notification.create({
     data: {
@@ -97,22 +121,21 @@ export const createNotification = async (
     },
   });
 
-  console.log('Created notification in database:', notification);
+  logger.info('Created notification in database:', notification);
 
-  if (userWithSettings?.email) {
+  if (user?.email) {
     // Send real-time notification via WebSocket
-    console.log('Sending notification via WebSocket to:', userWithSettings.email);
-    getSocketService().sendNotificationToUser(userWithSettings.email, notification);
+    logger.info('Sending notification via WebSocket to:', user.email);
+    getSocketService().sendNotificationToUser(user.email, notification);
   } else {
-    console.log('Could not send WebSocket notification - user email not found');
+    logger.info('Could not send WebSocket notification - user email not found');
   }
 
   return notification;
 };
 
 // Get all notifications for the current user
-export const getUserNotifications = async (req: Request, res: Response) => {
-  try {
+export const getUserNotifications = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -143,17 +166,11 @@ export const getUserNotifications = async (req: Request, res: Response) => {
     });
 
     res.json(notifications);
-  } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: 'Failed to fetch notifications' });
-  }
-};
+});
 
 // Mark notification as read
-export const markAsRead = async (req: Request, res: Response) => {
+export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-
-  try {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -171,11 +188,11 @@ export const markAsRead = async (req: Request, res: Response) => {
     });
 
     if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
+      throw new NotFoundError('Notification not found');
     }
 
     if (notification.userId !== user.id) {
-      return res.status(403).json({ error: 'Not authorized to modify this notification' });
+      throw new AuthorizationError('Not authorized to modify this notification');
     }
 
     const updatedNotification = await prisma.notification.update({
@@ -184,15 +201,10 @@ export const markAsRead = async (req: Request, res: Response) => {
     });
 
     res.json(updatedNotification);
-  } catch (error) {
-    console.error('Error marking notification as read:', error);
-    res.status(500).json({ error: 'Failed to mark notification as read' });
-  }
-};
+});
 
 // Mark all notifications as read for the current user
-export const markAllAsRead = async (req: Request, res: Response) => {
-  try {
+export const markAllAsRead = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -214,17 +226,11 @@ export const markAllAsRead = async (req: Request, res: Response) => {
     });
 
     res.json({ message: 'All notifications marked as read' });
-  } catch (error) {
-    console.error('Error marking all notifications as read:', error);
-    res.status(500).json({ error: 'Failed to mark notifications as read' });
-  }
-};
+});
 
 // Delete a notification
-export const deleteNotification = async (req: Request, res: Response) => {
+export const deleteNotification = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-
-  try {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -242,11 +248,11 @@ export const deleteNotification = async (req: Request, res: Response) => {
     });
 
     if (!notification) {
-      return res.status(404).json({ error: 'Notification not found' });
+      throw new NotFoundError('Notification not found');
     }
 
     if (notification.userId !== user.id) {
-      return res.status(403).json({ error: 'Not authorized to delete this notification' });
+      throw new AuthorizationError('Not authorized to delete this notification');
     }
 
     await prisma.notification.delete({
@@ -254,15 +260,10 @@ export const deleteNotification = async (req: Request, res: Response) => {
     });
 
     res.json({ message: 'Notification deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting notification:', error);
-    res.status(500).json({ error: 'Failed to delete notification' });
-  }
-};
+});
 
 // Get unread notification count
-export const getUnreadCount = async (req: Request, res: Response) => {
-  try {
+export const getUnreadCount = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -283,8 +284,4 @@ export const getUnreadCount = async (req: Request, res: Response) => {
     });
 
     res.json({ count });
-  } catch (error) {
-    console.error('Error getting unread count:', error);
-    res.status(500).json({ error: 'Failed to get unread count' });
-  }
-}; 
+}); 

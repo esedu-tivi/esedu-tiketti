@@ -1,11 +1,12 @@
 import { ChatOpenAI } from "@langchain/openai";
+import logger from '../../utils/logger.js';
 import CHAT_AGENT_PROMPT from "../prompts/chatAgentPrompt.js";
 import { AI_CONFIG } from "../config.js";
+import { prisma } from '../../lib/prisma.js';
 import { PrismaClient } from '@prisma/client';
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 
 // Create Prisma client
-const prisma = new PrismaClient();
 
 /**
  * Interface for the comment object used in conversations
@@ -102,7 +103,7 @@ Arvioi keskustelun koko konteksti, ei vain viimeisintä kommenttia. Valitse edis
 
 Vastaa VAIN yhdellä sanalla: EARLY, PROGRESSING, CLOSE tai SOLVED.
 `);
-console.log(PROGRESS_EVALUATION_PROMPT);
+logger.info(PROGRESS_EVALUATION_PROMPT);
 
 // Define the return type for generateChatResponse
 interface ChatAgentResponse {
@@ -122,10 +123,9 @@ export class ChatAgent {
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
       modelName: AI_CONFIG.openai.chatModel,
-      temperature: AI_CONFIG.openai.temperature + 0.2, // Slightly higher temperature for more variation
     });
     
-    console.log('ChatAgent: Initialized with model:', AI_CONFIG.openai.chatModel);
+    logger.info('ChatAgent: Initialized with model:', AI_CONFIG.openai.chatModel);
   }
 
   /**
@@ -143,8 +143,8 @@ export class ChatAgent {
         solution
       } = params;
       
-      console.log(`ChatAgent: Generating response for ticket: ${ticket.id}, to support comment by user: ${supportUserId}`);
-      console.log(`ChatAgent: Full ticket data:`, JSON.stringify({
+      logger.info(`ChatAgent: Generating response for ticket: ${ticket.id}, to support comment by user: ${supportUserId}`);
+      logger.info(`ChatAgent: Full ticket data:`, JSON.stringify({
         id: ticket.id,
         title: ticket.title,
         description: ticket.description,
@@ -157,12 +157,12 @@ export class ChatAgent {
       }, null, 2));
       
       // Add debug log for solution/knowledge article
-      console.log(`ChatAgent: Solution/Knowledge article provided: ${solution ? 'YES' : 'NO'}`);
+      logger.info(`ChatAgent: Solution/Knowledge article provided: ${solution ? 'YES' : 'NO'}`);
       if (solution) {
-        console.log(`ChatAgent: Solution length: ${solution.length} characters`);
-        console.log(`ChatAgent: Solution preview: ${solution.substring(0, 150)}${solution.length > 150 ? '...' : ''}`);
+        logger.info(`ChatAgent: Solution length: ${solution.length} characters`);
+        logger.info(`ChatAgent: Solution preview: ${solution.substring(0, 150)}${solution.length > 150 ? '...' : ''}`);
       } else {
-        console.log(`ChatAgent: WARNING - No solution/knowledge article provided for ticket ${ticket.id}`);
+        logger.info(`ChatAgent: WARNING - No solution/knowledge article provided for ticket ${ticket.id}`);
       }
       
       // Get category name
@@ -177,14 +177,14 @@ export class ChatAgent {
       // Get full ticket data including additionalInfo if not provided
       let ticketAdditionalInfo = ticket.additionalInfo;
       if (!ticketAdditionalInfo) {
-        console.log(`ChatAgent: AdditionalInfo not provided in params, fetching from database`);
+        logger.info(`ChatAgent: AdditionalInfo not provided in params, fetching from database`);
         const fullTicket = await prisma.ticket.findUnique({
           where: { id: ticket.id }
         });
         
         if (fullTicket) {
           ticketAdditionalInfo = fullTicket.additionalInfo || '';
-          console.log(`ChatAgent: Found additionalInfo from database: ${ticketAdditionalInfo}`);
+          logger.info(`ChatAgent: Found additionalInfo from database: ${ticketAdditionalInfo}`);
         }
       }
       
@@ -209,15 +209,15 @@ export class ChatAgent {
       });
       
       // Debug conversation history
-      console.log(`ChatAgent: Conversation history (${conversationHistory.length} messages):`);
+      logger.info(`ChatAgent: Conversation history (${conversationHistory.length} messages):`);
       conversationHistory.forEach((msg, i) => {
-        console.log(`  ${i+1}. [${msg.role}] ${msg.name}: ${msg.content.substring(0, 50)}${msg.content.length > 50 ? '...' : ''}`);
+        logger.info(`  ${i+1}. [${msg.role}] ${msg.name}: ${msg.content.substring(0, 50)}${msg.content.length > 50 ? '...' : ''}`);
       });
       
       // Get userProfile from params or use default
       // Since the Ticket model does not have a userProfile field directly in the database
       let userProfile = ticket.userProfile || 'student';
-      console.log(`ChatAgent: Using userProfile from params: ${userProfile}`);
+      logger.info(`ChatAgent: Using userProfile from params: ${userProfile}`);
       
       // Determine complexity from priority
       const complexity = 
@@ -225,7 +225,7 @@ export class ChatAgent {
         ticket.priority === 'MEDIUM' ? 'moderate' : 
         ticket.priority === 'HIGH' || ticket.priority === 'CRITICAL' ? 'complex' : 'moderate';
       
-      console.log(`ChatAgent: Ticket complexity determined as: ${complexity} based on priority: ${ticket.priority}`);
+      logger.info(`ChatAgent: Ticket complexity determined as: ${complexity} based on priority: ${ticket.priority}`);
       
       // Map technical skill level based on complexity
       const technicalSkillLevel = 
@@ -233,10 +233,10 @@ export class ChatAgent {
         complexity === 'moderate' ? 'keskitasoinen' : 
         'hyvä';
       
-      console.log(`ChatAgent: Technical skill level mapped to: ${technicalSkillLevel}`);
+      logger.info(`ChatAgent: Technical skill level mapped to: ${technicalSkillLevel}`);
       
       // Estimate solution progress using LLM evaluation
-      console.log(`ChatAgent: Starting solution progress evaluation with LLM`);
+      logger.info(`ChatAgent: Starting solution progress evaluation with LLM`);
       const progressToSolution = await this.evaluateSolutionProgressWithLLM(
         ticket.title,
         ticket.description,
@@ -247,10 +247,10 @@ export class ChatAgent {
         ticket.additionalInfo || ''
       );
       
-      console.log(`ChatAgent: Solution progress evaluated by LLM: ${progressToSolution}`);
+      logger.info(`ChatAgent: Solution progress evaluated by LLM: ${progressToSolution}`);
       
       // Format the prompt for conversation
-      console.log(`ChatAgent: Preparing prompt for chat response`);
+      logger.info(`ChatAgent: Preparing prompt for chat response`);
       const formattedMessages = await CHAT_AGENT_PROMPT.formatMessages({
         ticketTitle: ticket.title,
         ticketDescription: ticket.description,
@@ -267,17 +267,17 @@ export class ChatAgent {
       });
       
       // Log the final formatted prompt messages being sent to the LLM
-      console.log('ChatAgent: Final formatted messages for LLM:', JSON.stringify(formattedMessages, null, 2));
+      logger.info('ChatAgent: Final formatted messages for LLM:', JSON.stringify(formattedMessages, null, 2));
 
       // Generate the chat response using the LLM
-      console.log('ChatAgent: Invoking LLM for chat response...');
+      logger.info('ChatAgent: Invoking LLM for chat response...');
       const startTime = performance.now();
       const aiResponse = await this.model.invoke(formattedMessages);
       const endTime = performance.now();
       const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       
-      console.log(`ChatAgent: LLM response received (${responseTime}s). Content length: ${aiResponse?.content?.toString().length}`);
-      // console.log('ChatAgent: Raw AI response content:', aiResponse?.content);
+      logger.info(`ChatAgent: LLM response received (${responseTime}s). Content length: ${aiResponse?.content?.toString().length}`);
+      // logger.info('ChatAgent: Raw AI response content:', aiResponse?.content);
 
       const responseText = aiResponse?.content?.toString() || "Pahoittelut, en osaa vastata tähän tällä hetkellä.";
 
@@ -288,7 +288,7 @@ export class ChatAgent {
       };
 
     } catch (error: any) {
-      console.error('ChatAgent Error in generateChatResponse:', error);
+      logger.error('ChatAgent Error in generateChatResponse:', error);
       // Return a default response and an 'error' evaluation state in case of failure
       return {
         responseText: "Valitettavasti kohtasin odottamattoman ongelman enkä voi vastata juuri nyt.",
@@ -325,29 +325,29 @@ export class ChatAgent {
       });
       
       // Log the prompt being sent for evaluation
-      // console.log('ChatAgent: Evaluation prompt messages:', JSON.stringify(formattedPrompt, null, 2));
+      // logger.info('ChatAgent: Evaluation prompt messages:', JSON.stringify(formattedPrompt, null, 2));
 
-      console.log('ChatAgent: Invoking LLM for progress evaluation...');
+      logger.info('ChatAgent: Invoking LLM for progress evaluation...');
       const startTime = performance.now();
       const evaluationResponse = await this.model.invoke(formattedPrompt);
       const endTime = performance.now();
       const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       
-      console.log(`ChatAgent: Evaluation response received (${responseTime}s).`);
+      logger.info(`ChatAgent: Evaluation response received (${responseTime}s).`);
 
       let evaluation = evaluationResponse?.content?.toString().trim().toUpperCase() || 'ERROR';
       
       // Validate the response is one of the expected values
       const validEvaluations = ['EARLY', 'PROGRESSING', 'CLOSE', 'SOLVED'];
       if (!validEvaluations.includes(evaluation)) {
-          console.warn(`ChatAgent: LLM evaluation returned unexpected value: '${evaluation}'. Defaulting to PROGRESSING.`);
+          logger.warn(`ChatAgent: LLM evaluation returned unexpected value: '${evaluation}'. Defaulting to PROGRESSING.`);
           evaluation = 'PROGRESSING'; // Default to PROGRESSING if invalid response
       }
       
       return evaluation;
 
     } catch (error: any) {
-        console.error('ChatAgent Error during LLM progress evaluation:', error);
+        logger.error('ChatAgent Error during LLM progress evaluation:', error);
         return 'ERROR'; // Return an error state if evaluation fails
     }
   }

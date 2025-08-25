@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient, UserRole, TicketStatus } from '@prisma/client';
+import { UserRole, TicketStatus } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
+import logger from '../utils/logger.js';
 
-const prisma = new PrismaClient();
 
 export const canModifyTicket = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -47,7 +48,12 @@ export const canModifyTicket = async (req: Request, res: Response, next: NextFun
 
     next();
   } catch (error) {
-    console.error('Error in canModifyTicket middleware:', error);
+    logger.error('Error in canModifyTicket middleware', { 
+      error: error instanceof Error ? error.message : error,
+      requestId: (req as any).requestId,
+      ticketId: req.params.id,
+      userEmail: req.user?.email
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 }; 

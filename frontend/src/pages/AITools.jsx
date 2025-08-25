@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AITicketGenerator from '../components/Admin/AITicketGenerator';
 import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
@@ -7,6 +7,10 @@ import TicketDetailsModal from '../components/Tickets/TicketDetailsModal';
 import AIAssistantInfo from '../components/Admin/AIAssistantInfo';
 import AIAssistantDemo from '../components/Admin/AIAssistantDemo';
 import AIAssistantAnalytics from '../components/Admin/AIAssistantAnalytics';
+import AISettings from '../components/Admin/AISettings';
+import { useAllTickets } from '../hooks/useTickets';
+import { useUsers } from '../hooks/useUsers';
+import { useAIAnalytics } from '../hooks/useAIAnalytics';
 import { 
   Sparkles, 
   CogIcon, 
@@ -23,9 +27,6 @@ import {
   ThumbsUp,
   BookOpen
 } from 'lucide-react';
-import axios from 'axios';
-import { authService } from '../services/authService';
-import { aiAnalyticsService } from '../services/aiAnalyticsService';
 
 /**
  * AITools - Page for AI-related tools for administrators and support staff
@@ -49,11 +50,7 @@ const AITools = () => {
   const [selectedTicketForDetails, setSelectedTicketForDetails] = useState(null);
   const [isTicketDetailsModalOpen, setIsTicketDetailsModalOpen] = useState(false);
 
-  // State for stats
-  const [ticketsCount, setTicketsCount] = useState(0);
-  const [ticketsAssistedCount, setTicketsAssistedCount] = useState(0);
-  const [totalInteractions, setTotalInteractions] = useState(0);
-  const [supportAgentsCount, setSupportAgentsCount] = useState(0);
+  // No need for useState - we'll use data from hooks directly
 
   // Handler to open conversation modal
   const handleViewConversation = (ticketId) => {
@@ -92,61 +89,23 @@ const AITools = () => {
     setSelectedTicketForDetails(null);
   };
   
-  // Fetch data for dashboard stats
-  useEffect(() => {
-    const fetchStatsData = async () => {
-      try {
-        const token = await authService.acquireToken();
-        
-        // Fetch total tickets count
-        const ticketsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/tickets`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (ticketsResponse.data && ticketsResponse.data.tickets) {
-          setTicketsCount(ticketsResponse.data.tickets.length);
-        }
-        
-        // Fetch AI-assisted tickets count from AI analytics
-        const analyticsData = await aiAnalyticsService.getOverallStats();
-        if (analyticsData) {
-          setTicketsAssistedCount(analyticsData.totalTicketsAssisted || 0);
-          setTotalInteractions(analyticsData.totalInteractions || 0);
-        }
-        
-        // Fetch all users and count support personnel
-        const usersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (usersResponse.data) {
-          // Handle both array response and object with users property
-          const users = Array.isArray(usersResponse.data) 
-            ? usersResponse.data 
-            : (usersResponse.data.users || []);
-          
-          // Count users with SUPPORT role only (excluding admins)
-          const supportCount = users.filter(user => 
-            user.role === 'SUPPORT'
-          ).length;
-          
-          setSupportAgentsCount(supportCount);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-      }
-    };
-    
-    fetchStatsData();
-  }, []);
+  // Use centralized hooks for data
+  const { data: ticketsData } = useAllTickets({});
+  const { data: users } = useUsers();
+  const { data: analyticsData } = useAIAnalytics();
   
-  // Stats used in the dashboard (using real data from APIs)
-  const stats = [
-    { label: 'Tikettejä luotu', value: ticketsCount.toString(), icon: <FileText size={16} className="text-blue-500" /> },
-    { label: 'AI:n analysoituja', value: ticketsAssistedCount.toString(), icon: <Brain size={16} className="text-purple-500" /> },
-    { label: 'AI Interaktiot yhteensä', value: totalInteractions.toString(), icon: <MessageSquare size={16} className="text-green-500" /> },
-    { label: 'Tukihenkilöitä', value: supportAgentsCount.toString(), icon: <Users size={16} className="text-orange-500" /> }
-  ];
+  // Calculate stats using useMemo instead of useState + useEffect
+  const stats = useMemo(() => {
+    const tickets = ticketsData?.data || ticketsData?.tickets || [];
+    const supportCount = (users || []).filter(user => user.role === 'SUPPORT').length;
+    
+    return [
+      { label: 'Tikettejä luotu', value: tickets.length.toString(), icon: <FileText size={16} className="text-blue-500" /> },
+      { label: 'AI:n analysoituja', value: (analyticsData?.totalTicketsAssisted || 0).toString(), icon: <Brain size={16} className="text-purple-500" /> },
+      { label: 'AI Interaktiot yhteensä', value: (analyticsData?.totalInteractions || 0).toString(), icon: <MessageSquare size={16} className="text-green-500" /> },
+      { label: 'Tukihenkilöitä', value: supportCount.toString(), icon: <Users size={16} className="text-orange-500" /> }
+    ];
+  }, [ticketsData, users, analyticsData]);
 
   // Tabs available in the AI tools section
   const tabs = [
@@ -174,7 +133,7 @@ const AITools = () => {
       label: 'AI-asetukset', 
       icon: <CogIcon size={16} className="text-gray-500" />,
       description: 'Määritä tekoälyominaisuuksien asetukset ja mallit',
-      disabled: true
+      disabled: false
     }
   ];
 
@@ -332,14 +291,7 @@ const AITools = () => {
               </>
             )}
             {activeTab === 'config' && (
-              <div className="text-center py-20 text-gray-500">
-                <CogIcon size={48} className="mx-auto mb-4 opacity-30" />
-                <h3 className="text-lg font-medium mb-2">AI-asetukset</h3>
-                <p className="max-w-md mx-auto">
-                  Tämä ominaisuus on kehityksen alla. Se mahdollistaa tekoälyominaisuuksien
-                  asetusten ja mallien määrittämisen.
-                </p>
-              </div>
+              <AISettings />
             )}
           </div>
         </div>

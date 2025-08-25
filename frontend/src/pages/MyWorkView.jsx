@@ -1,82 +1,94 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../providers/AuthProvider';
-import { fetchTickets } from '../utils/api';
+import { useAllTickets } from '../hooks/useTickets';
 import TicketList from '../components/Tickets/TicketList';
 import TicketListView from '../components/Tickets/TicketListView';
 import { Alert } from '../components/ui/Alert';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs';
 import { List, Grid } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { useSocket } from '../hooks/useSocket';
 
 export default function MyWorkView() {
   const { user } = useAuth();
   const [viewMode, setViewMode] = useViewMode('myWorkView', 'card');
   const [activeTab, setActiveTab] = useLocalStorage('myWorkView_activeTab', 'in-progress');
+  const queryClient = useQueryClient();
+  const { subscribe } = useSocket();
 
   // Query for tickets that are IN_PROGRESS and assigned to the current user
   const {
-    data: inProgressTicketsData,
+    data: inProgressResponse,
     isLoading: isLoadingInProgress,
     error: inProgressError
-  } = useQuery({
-    queryKey: ['tickets', { status: 'IN_PROGRESS' }],
-    queryFn: () => {
-      // Haetaan kaikki IN_PROGRESS-tilassa olevat tiketit ja suodatetaan clientillä ne jotka on osoitettu tälle käyttäjälle
-      return fetchTickets({ status: 'IN_PROGRESS' }).then(data => ({
-        tickets: data.tickets.filter(ticket => ticket.assignedToId === user?.id)
-      }));
-    },
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
+  } = useAllTickets({ status: 'IN_PROGRESS' });
+  
+  const inProgressTicketsData = {
+    tickets: (inProgressResponse?.data || []).filter(ticket => ticket.assignedToId === user?.id)
+  };
 
   // Query for tickets that are OPEN and have no assignee
   const {
-    data: unassignedTicketsData,
+    data: openResponse,
     isLoading: isLoadingUnassigned,
     error: unassignedError
-  } = useQuery({
-    queryKey: ['tickets', { status: 'OPEN' }],
-    queryFn: () => {
-      // Haetaan kaikki OPEN-tilassa olevat tiketit ja suodatetaan clientillä ne joilla ei ole käsittelijää
-      return fetchTickets({ status: 'OPEN' }).then(data => ({
-        tickets: data.tickets.filter(ticket => !ticket.assignedToId)
-      }));
-    },
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
+  } = useAllTickets({ status: 'OPEN' });
+  
+  const unassignedTicketsData = {
+    tickets: (openResponse?.data || []).filter(ticket => !ticket.assignedToId)
+  };
 
   // Query for resolved and closed tickets that were handled by the current user
   const {
-    data: historyTicketsData,
+    data: allTicketsResponse,
     isLoading: isLoadingHistory,
     error: historyError
-  } = useQuery({
-    queryKey: ['tickets', { status: ['RESOLVED', 'CLOSED'] }],
-    queryFn: () => {
-      // Haetaan kaikki tiketit ja suodatetaan ne jotka tämä käyttäjä on käsitellyt
-      return fetchTickets({}).then(data => ({
-        tickets: data.tickets.filter(ticket => {
-          // Tarkistetaan onko tiketti ratkaistu/suljettu ja onko käyttäjä käsitellyt sen
-          const isResolvedOrClosed = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
-          // Tarkistetaan että tiketti on ollut käsittelyssä (eli sillä on processingStartedAt)
-          const wasHandledByUser = ticket.processingStartedAt && (ticket.assignedToId === user?.id || ticket.processingEndedAt);
+  } = useAllTickets({});
+  
+  const historyTicketsData = {
+    tickets: (allTicketsResponse?.data || []).filter(ticket => {
+      const isResolvedOrClosed = ticket.status === 'RESOLVED' || ticket.status === 'CLOSED';
+      const wasHandledByUser = ticket.processingStartedAt && (ticket.assignedToId === user?.id || ticket.processingEndedAt);
+      return isResolvedOrClosed && wasHandledByUser;
+    }).sort((a, b) => {
+      const dateA = new Date(a.processingEndedAt || a.updatedAt);
+      const dateB = new Date(b.processingEndedAt || b.updatedAt);
+      return dateB - dateA;
+    })
+  };
 
-          return isResolvedOrClosed && wasHandledByUser;
-        }).sort((a, b) => {
-          // Järjestetään uusimmat ensin
-          const dateA = new Date(a.processingEndedAt || a.updatedAt);
-          const dateB = new Date(b.processingEndedAt || b.updatedAt);
-          return dateB - dateA;
-        })
-      }));
-    },
-    enabled: !!user,
-    refetchInterval: 30000,
-  });
+  // Set up WebSocket listeners for ticket updates
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribers = [];
+
+    // Listen for all ticket events and invalidate relevant queries
+    const handleTicketUpdate = () => {
+      // Invalidate all ticket queries to refresh the view
+      queryClient.invalidateQueries(['tickets']);
+    };
+
+    // Subscribe to all ticket-related events
+    subscribe('ticketCreated', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketUpdated', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketStatusChanged', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketAssigned', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketDeleted', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    
+    // Special handler for tickets assigned to current user
+    subscribe('ticketAssignedToYou', () => {
+      queryClient.invalidateQueries(['tickets']);
+      // Could also show a toast notification here
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribers.forEach(unsub => unsub && unsub());
+    };
+  }, [user, subscribe, queryClient]);
 
   if (inProgressError || unassignedError || historyError) {
     return (

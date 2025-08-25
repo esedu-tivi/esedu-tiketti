@@ -1,5 +1,6 @@
 import express from 'express';
 import { aiController } from '../controllers/aiController.js';
+import { aiSettingsController } from '../controllers/aiSettingsController.js';
 import { requireRole } from '../middleware/roleMiddleware.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { UserRole } from '@prisma/client';
@@ -33,6 +34,9 @@ router.post('/tickets/:ticketId/summarize', aiController.summarizeConversation);
 // Get support assistant response for a specific question about a ticket
 router.post('/tickets/:ticketId/support-assistant', aiController.getSupportAssistantResponse);
 
+// Get streaming support assistant response for a specific question about a ticket
+router.post('/tickets/:ticketId/support-assistant/stream', aiController.getSupportAssistantResponseStream);
+
 // Get conversation history between a student and the support assistant for a specific ticket
 router.get('/tickets/:ticketId/support-assistant/history/:supportUserId', aiController.getSupportAssistantConversationHistory);
 
@@ -52,5 +56,25 @@ router.get(
   aiController.getAiTicketConversation
 );
 // --- End New Analysis Routes ---
+
+// --- AI Settings Routes (Admin only) ---
+router.get(
+  '/settings',
+  requireRole([UserRole.ADMIN]),
+  aiSettingsController.getSettings
+);
+
+router.put(
+  '/settings',
+  requireRole([UserRole.ADMIN]),
+  aiSettingsController.updateSettings
+);
+
+router.post(
+  '/settings/reset',
+  requireRole([UserRole.ADMIN]),
+  aiSettingsController.resetSettings
+);
+// --- End AI Settings Routes ---
 
 export default router; 

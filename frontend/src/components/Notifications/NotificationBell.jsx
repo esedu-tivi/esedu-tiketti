@@ -2,59 +2,72 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BiBell } from 'react-icons/bi';
 import { format } from 'date-fns';
 import { fi } from 'date-fns/locale';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  getNotifications,
-  getUnreadNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
 } from '../../utils/api';
+import { useNotifications } from '../../hooks/useNotifications';
 import { useSocket } from '../../hooks/useSocket';
 import toast from 'react-hot-toast';
 
 const NotificationBell = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const { subscribe } = useSocket();
+  const queryClient = useQueryClient();
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const data = await getNotifications();
-      console.log('Fetched notifications:', data);
-      setNotifications(data);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    }
-  }, []);
+  // Use centralized notifications hook
+  const { 
+    notifications, 
+    unreadCount, 
+    refetch: refetchAllNotifications,
+    invalidate: invalidateNotifications 
+  } = useNotifications();
 
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      const count = await getUnreadNotificationCount();
-      console.log('Fetched unread count:', count);
-      setUnreadCount(count);
-    } catch (error) {
-      console.error('Error fetching unread count:', error);
-    }
-  }, []);
+  // Mutation for marking as read
+  const markAsReadMutation = useMutation({
+    mutationFn: markNotificationAsRead,
+    onSuccess: () => {
+      invalidateNotifications();
+    },
+  });
+
+  // Mutation for marking all as read
+  const markAllAsReadMutation = useMutation({
+    mutationFn: markAllNotificationsAsRead,
+    onSuccess: () => {
+      invalidateNotifications();
+    },
+  });
+
+  // Mutation for deleting notification
+  const deleteNotificationMutation = useMutation({
+    mutationFn: deleteNotification,
+    onSuccess: () => {
+      invalidateNotifications();
+    },
+  });
 
   const handleNewNotification = useCallback((notification) => {
     console.log('Handling new notification:', notification);
     
-    setNotifications(prev => {
+    // Optimistically update the cache
+    queryClient.setQueryData(['notifications'], (old = []) => {
       // Check if notification already exists
-      const exists = prev.some(n => n.id === notification.id);
+      const exists = old.some(n => n.id === notification.id);
       if (exists) {
         console.log('Notification already exists, skipping:', notification.id);
-        return prev;
+        return old;
       }
-      console.log('Adding new notification to state:', notification.id);
-      return [notification, ...prev];
+      console.log('Adding new notification to cache:', notification.id);
+      return [notification, ...old];
     });
     
-    setUnreadCount(prev => {
-      const newCount = prev + 1;
+    // Update unread count
+    queryClient.setQueryData(['notifications', 'unread-count'], (old = 0) => {
+      const newCount = old + 1;
       console.log('Updated unread count:', newCount);
       return newCount;
     });
@@ -62,7 +75,7 @@ const NotificationBell = () => {
     toast(notification.content, {
       icon: '🔔',
     });
-  }, []);
+  }, [queryClient]);
 
   // Set up WebSocket subscription
   useEffect(() => {
@@ -81,73 +94,29 @@ const NotificationBell = () => {
       }
     };
 
-    // Initial setup
     setupSubscription();
-    fetchNotifications();
-    fetchUnreadCount();
 
     return () => {
       console.log('Cleaning up WebSocket subscription');
       cleanup();
     };
-  }, [subscribe, handleNewNotification, fetchNotifications, fetchUnreadCount]);
+  }, [subscribe, handleNewNotification]);
 
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
-      try {
-        await markNotificationAsRead(notification.id);
-        console.log('Marked notification as read:', notification.id);
-        
-        setNotifications(prev =>
-          prev.map(n =>
-            n.id === notification.id ? { ...n, read: true } : n
-          )
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } catch (error) {
-        console.error('Error marking notification as read:', error);
-      }
-    }
-    
-    if (notification.ticketId) {
-      const ticketUrl = `/tickets/${notification.ticketId}`;
-      window.open(ticketUrl, '_blank');
+      markAsReadMutation.mutate(notification.id);
     }
   };
 
   const handleMarkAllAsRead = async () => {
-    try {
-      await markAllNotificationsAsRead();
-      console.log('Marked all notifications as read');
-      
-      setNotifications(prev =>
-        prev.map(n => ({ ...n, read: true }))
-      );
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
+    markAllAsReadMutation.mutate();
   };
 
-  const handleDeleteNotification = async (id, event) => {
-    event.stopPropagation();
-    try {
-      await deleteNotification(id);
-      console.log('Deleted notification:', id);
-      
-      const wasUnread = notifications.find(n => n.id === id && !n.read);
-      setNotifications(prev =>
-        prev.filter(n => n.id !== id)
-      );
-      if (wasUnread) {
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-    }
+  const handleDeleteNotification = async (e, notificationId) => {
+    e.stopPropagation();
+    deleteNotificationMutation.mutate(notificationId);
   };
 
-  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -156,71 +125,112 @@ const NotificationBell = () => {
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'TICKET_ASSIGNED':
+        return '🎫';
+      case 'TICKET_STATUS_CHANGED':
+        return '📝';
+      case 'TICKET_COMMENT':
+        return '💬';
+      case 'TICKET_MENTIONED':
+        return '@';
+      default:
+        return '📢';
+    }
+  };
+
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const notificationDate = new Date(date);
+    const diffInHours = Math.floor((now - notificationDate) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor((now - notificationDate) / (1000 * 60));
+      if (diffInMinutes < 1) return 'Juuri nyt';
+      return `${diffInMinutes} min sitten`;
+    }
+    if (diffInHours < 24) return `${diffInHours}h sitten`;
+    if (diffInHours < 48) return 'Eilen';
+    
+    return format(notificationDate, 'd.M.yyyy', { locale: fi });
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        className="relative p-2 text-gray-600 hover:text-gray-800 focus:outline-none"
         onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 text-gray-600 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg transition-colors"
+        aria-label="Ilmoitukset"
       >
-        <BiBell className="w-6 h-6" />
+        <BiBell className="h-6 w-6" />
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
-            {unreadCount}
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-          <div className="p-4 border-b">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Ilmoitukset</h3>
-              {notifications.length > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  Merkitse kaikki luetuiksi
-                </button>
-              )}
-            </div>
+        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+            <h3 className="text-lg font-semibold text-gray-900">Ilmoitukset</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                disabled={markAllAsReadMutation.isLoading}
+              >
+                Merkitse kaikki luetuiksi
+              </button>
+            )}
           </div>
-          
-          <div className="divide-y divide-gray-100">
+
+          <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                Ei ilmoituksia
+              <div className="px-4 py-8 text-center text-gray-500">
+                Ei uusia ilmoituksia
               </div>
             ) : (
-              notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                    !notification.read ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="flex justify-between">
-                    <div className="flex-1">
-                      <p className={`text-sm ${!notification.read ? 'font-semibold' : ''}`}>
-                        {notification.content}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {format(new Date(notification.createdAt), 'PPp', { locale: fi })}
-                      </p>
+              <ul className="divide-y divide-gray-200">
+                {notifications.map((notification) => (
+                  <li
+                    key={notification.id}
+                    className={`px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      !notification.read ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => handleNotificationClick(notification)}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <span className="text-2xl flex-shrink-0 mt-1">
+                        {getNotificationIcon(notification.type)}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm ${!notification.read ? 'font-semibold' : 'font-normal'} text-gray-900 break-words`}>
+                          {notification.content}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {getTimeAgo(notification.createdAt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => handleDeleteNotification(e, notification.id)}
+                        className="text-gray-400 hover:text-red-600 transition-colors"
+                        disabled={deleteNotificationMutation.isLoading}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => handleDeleteNotification(notification.id, e)}
-                      className="ml-2 text-gray-400 hover:text-gray-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              ))
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </div>
@@ -229,4 +239,4 @@ const NotificationBell = () => {
   );
 };
 
-export default NotificationBell; 
+export default NotificationBell;

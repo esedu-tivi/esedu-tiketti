@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../providers/AuthProvider';
-import { fetchTickets } from '../utils/api';
+import { useAllTickets } from '../hooks/useTickets';
 import TicketList from '../components/Tickets/TicketList';
 import TicketListView from '../components/Tickets/TicketListView';
 import { Alert } from '../components/ui/Alert';
 import UserManagementDialog from '../components/Admin/UserManagementDialog';
 import FilterMenu from './FilterMenu';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { List, Grid } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
+import { useSocket } from '../hooks/useSocket';
 
 export default function Tickets() {
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
@@ -16,17 +17,51 @@ export default function Tickets() {
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode('allTickets', 'card');
+  const queryClient = useQueryClient();
+  const { subscribe } = useSocket();
 
   const {
     data: ticketsData,
     isLoading,
     error
-  } = useQuery({
-    queryKey: ['tickets', filters],
-    queryFn: () => fetchTickets(filters),
-    enabled: !!user,
-    refetchInterval: 30000, // Päivitä tiketit automaattisesti 30 sekunnin välein
-  });
+  } = useAllTickets(filters);
+
+  // Set up WebSocket listeners for ticket updates
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribers = [];
+
+    // Listen for new tickets
+    subscribe('ticketCreated', () => {
+      queryClient.invalidateQueries(['tickets']);
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Listen for ticket updates
+    subscribe('ticketUpdated', () => {
+      queryClient.invalidateQueries(['tickets']);
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Listen for ticket status changes
+    subscribe('ticketStatusChanged', () => {
+      queryClient.invalidateQueries(['tickets']);
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Listen for ticket assignments
+    subscribe('ticketAssigned', () => {
+      queryClient.invalidateQueries(['tickets']);
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Listen for ticket deletions
+    subscribe('ticketDeleted', () => {
+      queryClient.invalidateQueries(['tickets']);
+    }).then(unsub => unsubscribers.push(unsub));
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribers.forEach(unsub => unsub && unsub());
+    };
+  }, [user, subscribe, queryClient]);
 
   // Suodattimien päivitys
   const handleFilterChange = (newFilters) => {
@@ -42,7 +77,7 @@ export default function Tickets() {
     );
   }
 
-  const tickets = ticketsData?.tickets || [];
+  const tickets = ticketsData?.data || ticketsData?.tickets || [];
 
   return (
     <>
@@ -99,10 +134,12 @@ export default function Tickets() {
           </div>
         )}
 
-        <UserManagementDialog
-          isOpen={isUserManagementOpen}
-          onClose={() => setIsUserManagementOpen(false)}
-        />
+        {userRole === 'ADMIN' && (
+          <UserManagementDialog
+            isOpen={isUserManagementOpen}
+            onClose={() => setIsUserManagementOpen(false)}
+          />
+        )}
       </div>
     </>
   );

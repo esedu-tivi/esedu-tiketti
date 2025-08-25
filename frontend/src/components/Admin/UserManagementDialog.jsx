@@ -1,41 +1,27 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Alert } from '../ui/Alert';
-import { authService } from '../../services/authService';
-import { Search } from 'lucide-react';
+import { useUsers } from '../../hooks/useUsers';
+import { useUpdateUserRole } from '../../hooks/useRoleChange';
+import { Search, RefreshCw } from 'lucide-react';
 
 export default function UserManagementDialog({ isOpen, onClose }) {
+  const { data: fetchedUsers, isLoading, error: fetchError, refetch } = useUsers();
+  const { mutate: updateUserRole, isLoading: isUpdating } = useUpdateUserRole();
+  
   const [users, setUsers] = useState([]);
   const [modifiedUsers, setModifiedUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      loadUsers();
+    if (isOpen && fetchedUsers) {
+      setUsers(fetchedUsers);
+      setModifiedUsers(fetchedUsers);
     }
-  }, [isOpen]);
+  }, [isOpen, fetchedUsers]);
 
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const token = await authService.acquireToken();
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/users`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      setUsers(response.data);
-      setModifiedUsers(response.data);
-    } catch (err) {
-      console.error('Error loading users:', err);
-      setError('Käyttäjien lataaminen epäonnistui');
-    } finally {
-      setLoading(false);
-    }
+  const loadUsers = () => {
+    refetch();
   };
 
   const handleRoleChange = (userId, isSupport) => {
@@ -53,35 +39,26 @@ export default function UserManagementDialog({ isOpen, onClose }) {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
-      setSaving(true);
-      const token = await authService.acquireToken();
-
       // Etsi muuttuneet käyttäjät
       const changedUsers = modifiedUsers.filter((modifiedUser) => {
         const originalUser = users.find((u) => u.id === modifiedUser.id);
-        return originalUser.role !== modifiedUser.role;
+        return originalUser && originalUser.role !== modifiedUser.role;
       });
 
-      // Päivitä kaikki muuttuneet käyttäjät
-      await Promise.all(
-        changedUsers.map((user) =>
-          axios.put(
-            `${import.meta.env.VITE_API_URL}/users/${user.id}/role`,
-            { role: user.role },
-            { headers: { Authorization: `Bearer ${token}` } },
-          ),
-        ),
-      );
-
-      // Päivitä käyttäjälista
-      await loadUsers();
-    } catch (err) {
-      console.error('Error updating user roles:', err);
-      setError('Roolien päivitys epäonnistui');
+      // Päivitä roolit käyttäen hook-muutaatiota
+      for (const user of changedUsers) {
+        await updateUserRole({ userId: user.id, newRole: user.role });
+      }
+      
+      // Update the original users list after successful save
+      setUsers(modifiedUsers);
     } finally {
       setSaving(false);
     }
+    
+    // Hook hoitaa automaattisesti queryClient.invalidateQueries(['users'])
   };
 
   const handleCancel = () => {
@@ -133,16 +110,26 @@ export default function UserManagementDialog({ isOpen, onClose }) {
       <div className="w-full max-h-[90vh] rounded-lg bg-white p-4 md:p-6 shadow-xl overflow-y-auto max-w-xs sm:max-w-md md:max-w-2xl">
         <div className="mb-4 md:mb-6 flex items-center justify-between">
           <h2 className="text-lg md:text-xl font-bold">Käyttäjien hallinta</h2>
-          <button onClick={onClose} className="rounded p-2 hover:bg-gray-100">
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={loadUsers} 
+              disabled={isLoading}
+              className="rounded p-2 hover:bg-gray-100 disabled:opacity-50"
+              title="Päivitä käyttäjälista"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={onClose} className="rounded p-2 hover:bg-gray-100">
+              ✕
+            </button>
+          </div>
         </div>
 
-        {error && (
+        {fetchError && (
           <Alert
             variant="error"
             title="Virhe"
-            message={error}
+            message={fetchError.message || 'Käyttäjien lataaminen epäonnistui'}
             className="mb-4"
           />
         )}
@@ -186,7 +173,7 @@ export default function UserManagementDialog({ isOpen, onClose }) {
           )}
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex justify-center py-8">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
           </div>

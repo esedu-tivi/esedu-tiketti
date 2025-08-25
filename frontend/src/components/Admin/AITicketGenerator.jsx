@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { authService } from '../../services/authService';
+import { useUsers } from '../../hooks/useUsers';
+import { useCategories } from '../../hooks/useCategories';
 import TicketDetailsModal from '../Tickets/TicketDetailsModal';
 import { 
   Sparkles, 
@@ -38,6 +40,10 @@ import {
  * realistic training tickets using AI.
  */
 const AITicketGenerator = () => {
+  // Get categories and users from hooks
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: allUsers } = useUsers();
+  
   // State for form inputs
   const [complexity, setComplexity] = useState('moderate');
   const [category, setCategory] = useState('');
@@ -47,11 +53,12 @@ const AITicketGenerator = () => {
   const [ticketCount, setTicketCount] = useState(1); // New state for ticket quantity
   
   // State for dropdown options 
-  const [categoryOptions, setCategoryOptions] = useState([]);
   const [complexityOptions, setComplexityOptions] = useState([]);
   const [userProfileOptions, setUserProfileOptions] = useState([]);
-  const [supportUsers, setSupportUsers] = useState([]);
   const [responseFormatOptions, setResponseFormatOptions] = useState(['TEKSTI', 'KUVA', 'VIDEO']);
+  
+  // Derive support users from allUsers
+  const supportUsers = allUsers?.filter(u => u.role === 'SUPPORT' || u.role === 'ADMIN') || [];
   
   // UI state
   const [isLoading, setIsLoading] = useState(false);
@@ -106,36 +113,24 @@ const AITicketGenerator = () => {
         
         // Set options from the API response
         setComplexityOptions(configResponse.data.complexityOptions || []);
-        setCategoryOptions(configResponse.data.categoryOptions || []);
         setUserProfileOptions(configResponse.data.userProfileOptions || []);
         addLog('success', 'Asetukset haettu onnistuneesti', {
-          categories: configResponse.data.categoryOptions?.length || 0,
+          categories: categories?.length || 0,
           complexityLevels: configResponse.data.complexityOptions?.length || 0
         });
         
         // Set default values if available
-        if (configResponse.data.categoryOptions?.length > 0) {
-          setCategory(configResponse.data.categoryOptions[0].id);
+        if (categories?.length > 0 && !category) {
+          setCategory(categories[0].id);
         }
         
-        // Fetch support users for assignment
-        addLog('info', 'Haetaan tukihenkilöiden tietoja');
-        const usersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        
-        // Handle the data structure - the users array might be directly in data instead of data.users
-        const usersArray = Array.isArray(usersResponse.data) 
-          ? usersResponse.data
-          : (usersResponse.data.users || []);
-          
-        const supportUsersList = usersArray.filter(
-          user => user.role === 'SUPPORT' || user.role === 'ADMIN'
-        );
-        setSupportUsers(supportUsersList);
-        addLog('success', `Löydettiin ${supportUsersList.length} tukihenkilöä`);
+        // Support users are already fetched via hook
+        addLog('info', 'Tukihenkilötiedot haettu');
+        if (supportUsers.length > 0) {
+          addLog('success', `Löydettiin ${supportUsers.length} tukihenkilöä`);
+        } else {
+          addLog('warning', 'Tukihenkilöitä ei löytynyt');
+        }
         addLog('debug', 'Configuration and user data fetched successfully.');
         
         setIsFetching(false);
@@ -155,7 +150,7 @@ const AITicketGenerator = () => {
     };
     
     fetchConfig();
-  }, []);
+  }, [categories]); // Re-run when categories are loaded
 
   // Handle form submission to generate PREVIEW(S)
   const handleGeneratePreview = async (e) => {
@@ -612,13 +607,14 @@ const AITicketGenerator = () => {
                     id="category"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    disabled={isLoading || isFetching || categoryOptions.length === 0}
+                    disabled={isLoading || isFetching || categoriesLoading || !categories?.length}
                     className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
                             focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
                             shadow-sm appearance-none bg-white"
                   >
-                    {categoryOptions.length === 0 && <option>Ladataan...</option>}
-                    {categoryOptions.map((cat) => (
+                    {categoriesLoading && <option>Ladataan...</option>}
+                    {!categoriesLoading && categories?.length === 0 && <option>Ei kategorioita</option>}
+                    {categories?.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </select>
