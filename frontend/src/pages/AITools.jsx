@@ -8,6 +8,7 @@ import AIAssistantInfo from '../components/Admin/AIAssistantInfo';
 import AIAssistantDemo from '../components/Admin/AIAssistantDemo';
 import AIAssistantAnalytics from '../components/Admin/AIAssistantAnalytics';
 import AISettings from '../components/Admin/AISettings';
+import TokenAnalytics from '../components/Admin/TokenAnalytics';
 import { useAllTickets } from '../hooks/useTickets';
 import { useUsers } from '../hooks/useUsers';
 import { useAIAnalytics } from '../hooks/useAIAnalytics';
@@ -25,7 +26,8 @@ import {
   PlayCircle,
   PieChart,
   ThumbsUp,
-  BookOpen
+  BookOpen,
+  Coins
 } from 'lucide-react';
 
 /**
@@ -133,6 +135,13 @@ const AITools = () => {
       label: 'AI-asetukset', 
       icon: <CogIcon size={16} className="text-gray-500" />,
       description: 'Määritä tekoälyominaisuuksien asetukset ja mallit',
+      disabled: false
+    },
+    { 
+      id: 'token-analytics', 
+      label: 'Token-analytiikka', 
+      icon: <Coins size={16} className="text-yellow-500" />,
+      description: 'Seuraa AI-mallien token-käyttöä ja kustannuksia',
       disabled: false
     }
   ];
@@ -292,6 +301,9 @@ const AITools = () => {
             )}
             {activeTab === 'config' && (
               <AISettings />
+            )}
+            {activeTab === 'token-analytics' && (
+              <TokenAnalytics />
             )}
           </div>
         </div>

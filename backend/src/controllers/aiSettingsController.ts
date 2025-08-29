@@ -14,6 +14,11 @@ const AISettingsSchema = z.object({
   hintOnCloseThreshold: z.number().min(1).max(10).nullable().optional(),
   hintCooldownTurns: z.number().min(0).max(999).optional(),
   hintMaxPerConversation: z.number().min(1).max(999).optional(),
+  // Model settings for each AI agent
+  chatAgentModel: z.string().optional(),
+  supportAssistantModel: z.string().optional(),
+  ticketGeneratorModel: z.string().optional(),
+  summarizerModel: z.string().optional(),
 });
 
 export const aiSettingsController = {
@@ -37,6 +42,10 @@ export const aiSettingsController = {
             hintOnCloseThreshold: null,
             hintCooldownTurns: 0,
             hintMaxPerConversation: 999,
+            chatAgentModel: 'gpt-4.1',
+            supportAssistantModel: 'gpt-4o-mini',
+            ticketGeneratorModel: 'gpt-4.1',
+            summarizerModel: 'gpt-4.1',
           }
         });
         logger.info('🔧 Created default AI settings');
@@ -81,6 +90,10 @@ export const aiSettingsController = {
             hintOnEarlyThreshold: validatedData.hintOnEarlyThreshold || 3,
             hintCooldownTurns: validatedData.hintCooldownTurns ?? 0,
             hintMaxPerConversation: validatedData.hintMaxPerConversation || 999,
+            chatAgentModel: validatedData.chatAgentModel || 'gpt-4.1',
+            supportAssistantModel: validatedData.supportAssistantModel || 'gpt-4o-mini',
+            ticketGeneratorModel: validatedData.ticketGeneratorModel || 'gpt-4.1',
+            summarizerModel: validatedData.summarizerModel || 'gpt-4.1',
           }
         });
       } else {
@@ -140,6 +153,10 @@ export const aiSettingsController = {
           hintOnCloseThreshold: null,
           hintCooldownTurns: 0,
           hintMaxPerConversation: 999,
+          chatAgentModel: 'gpt-4.1',
+          supportAssistantModel: 'gpt-4o-mini',
+          ticketGeneratorModel: 'gpt-4.1',
+          summarizerModel: 'gpt-4.1',
           updatedBy: userId
         }
       });

@@ -1,6 +1,6 @@
 # Backend-sovellus (Node.js / Express)
 
-Tämä dokumentti kuvaa tikettijärjestelmän backend-sovelluksen arkkitehtuurin, käytetyt teknologiat, API-rakenteen, projektin hakemistorakenteen, Docker-käytön, tietokannan hallinnan, tuotantoon viennin, vianetsinnän ja muut keskeiset backend-toiminnallisuudet.
+Tämä dokumentti kuvaa tikettijärjestelmän backend-sovelluksen arkkitehtuurin, käytetyt teknologiat, API-rakenteen, projektin hakemistorakenteen, Docker-käytön, tietokannan hallinnan, tuotantoon viennin, vianetsinnän, token-seurannan ja muut keskeiset backend-toiminnallisuudet.
 
 ## Docker-konttien Käyttö (Backend & DB)
 
@@ -110,6 +110,41 @@ Virheelliset syötteet hylätään, ja API palauttaa yleensä 400 Bad Request -v
 }
 ```
 
+## Token-käytön seuranta
+
+Backend sisältää kattavan token-käytön seurantajärjestelmän AI-agenttien käytön analysointiin:
+
+### TokenTrackingService (`services/tokenTrackingService.ts`)
+- Seuraa kaikkien AI-agenttien token-käyttöä automaattisesti
+- Laskee kustannukset OpenAI:n hinnoittelun mukaan
+- Tukee uusimpia malleja: GPT-5, GPT-4.1, O4 ja legacy-malleja
+- Tarjoaa kattavat analytiikkafunktiot:
+  - `trackTokenUsage()` - Tallentaa jokaisen AI-kutsun token-käytön
+  - `getTokenAnalytics()` - Hakee analytiikkadatan monipuolisilla suodattimilla
+  - `getDailyTokenUsage()` - Päivittäinen käyttödata kaavioita varten
+  - `getTopUsersByTokenUsage()` - Aktiivisimmat käyttäjät
+
+### TokenTrackingCallbackHandler (`utils/tokenCallbackHandler.ts`)
+- LangChain.js callback handler automaattiseen seurantaan
+- Kerää token-tiedot kaikista AI-kutsuista ilman manuaalista koodia
+- Tukee useita OpenAI response-formaatteja
+- Seuraa myös vastausaikoja ja virheitä
+- Integroituu saumattomasti kaikkiin AI-agentteihin
+
+### Token Analytics API (`controllers/tokenAnalyticsController.ts`)
+- `GET /ai/token-analytics` - Kattava analytiikka suodattimilla (päivämäärä, agentti, käyttäjä, tiketti)
+- `GET /ai/token-analytics/daily?days=30` - Päivittäinen käyttödata valitulta ajanjaksolta
+- `GET /ai/token-analytics/top-users?limit=10` - Top käyttäjät token-käytön mukaan
+- `GET /ai/token-analytics/summary` - Kuukausittainen yhteenveto vertailuineen
+
+### Tietokantamalli
+`AITokenUsage`-taulu tallentaa jokaisen AI-kutsun tiedot:
+- Agent- ja mallitiedot
+- Prompt/completion/total tokenit
+- Arvioitu kustannus USD:nä
+- Linkitys tikettiin ja käyttäjään
+- Vastausaika ja virheseuranta
+
 ## Vianetsintä (Backend)
 
 *   **Docker-kontti ei käynnisty:** Tarkista Docker Desktopin tila, porttivaraukset (3001, 5434/5432), ja `docker-compose logs -f backend` tai `docker-compose logs -f postgres`.
@@ -160,6 +195,8 @@ src/
 ├── controllers/     # API-endpointtien käsittelijäfunktiot. Vastaavat requesteista ja responseista.
 │   ├── authController.ts
 │   ├── ticketController.ts # Tikettien ja kommenttien CRUD ym.
+│   ├── aiSettingsController.ts # AI-asetusten hallinta (mallit, vihjeet)
+│   ├── tokenAnalyticsController.ts # Token-käytön analytiikka
 │   ├── userController.ts
 │   ├── notificationController.ts
 │   ├── notificationSettingsController.ts
@@ -183,10 +220,14 @@ src/
 │   ├── aiRoutes.ts
 │   └── aiAnalyticsRoutes.ts   # AI-analytiikan API-reitit
 ├── services/        # Sovelluksen ydinlogiikka ja tietokantainteraktiot.
-
 │   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka. Vastaa myös kaikkien tikettiin liittyvien tietojen (liitteet, kommentit, ilmoitukset, AI-interaktiot, SupportAssistantConversation-tietueet) poistamisesta transaktiossa tiketöinnin poiston yhteydessä.
+│   ├── aiSettingsService.ts # AI-asetusten hallinta cachen kanssa
+│   ├── tokenTrackingService.ts # Token-käytön seuranta ja kustannuslaskenta
 │   ├── socketService.ts # Socket.IO-tapahtumien hallinta ja lähetys.
 │   └── ... (muut palvelut)
+├── utils/           # Apuohjelmat ja työkalut
+│   ├── tokenCallbackHandler.ts # LangChain callback handler token-seurantaan
+│   └── ... (muut työkalut)
 └── types/           # Jaetut TypeScript-tyyppimäärittelyt (esim. API-pyyntöjen ja vastausten tyypit).
 ```
 

@@ -11,6 +11,11 @@ export interface AISettingsData {
   hintOnCloseThreshold: number | null;
   hintCooldownTurns: number;
   hintMaxPerConversation: number;
+  // Model settings
+  chatAgentModel: string;
+  supportAssistantModel: string;
+  ticketGeneratorModel: string;
+  summarizerModel: string;
 }
 
 class AISettingsService {
@@ -39,6 +44,10 @@ class AISettingsService {
             hintOnCloseThreshold: null,
             hintCooldownTurns: 0,
             hintMaxPerConversation: 999,
+            chatAgentModel: 'gpt-4.1',
+            supportAssistantModel: 'gpt-4o-mini',
+            ticketGeneratorModel: 'gpt-4.1',
+            summarizerModel: 'gpt-4.1',
           }
         });
         logger.info('🔧 Created default AI settings in service');
@@ -53,6 +62,10 @@ class AISettingsService {
         hintOnCloseThreshold: settings.hintOnCloseThreshold,
         hintCooldownTurns: settings.hintCooldownTurns,
         hintMaxPerConversation: settings.hintMaxPerConversation,
+        chatAgentModel: settings.chatAgentModel,
+        supportAssistantModel: settings.supportAssistantModel,
+        ticketGeneratorModel: settings.ticketGeneratorModel,
+        summarizerModel: settings.summarizerModel,
       };
       this.cacheExpiry = new Date(Date.now() + this.CACHE_DURATION_MS);
 
@@ -69,6 +82,10 @@ class AISettingsService {
         hintOnCloseThreshold: null,
         hintCooldownTurns: 0,
         hintMaxPerConversation: 999,
+        chatAgentModel: 'gpt-4.1',
+        supportAssistantModel: 'gpt-4o-mini',
+        ticketGeneratorModel: 'gpt-4.1',
+        summarizerModel: 'gpt-4.1',
       };
     }
   }
@@ -89,6 +106,23 @@ class AISettingsService {
   async isHintSystemEnabled(): Promise<boolean> {
     const settings = await this.getSettings();
     return settings.hintSystemEnabled;
+  }
+
+  // Get model for specific agent
+  async getModelForAgent(agent: 'chat' | 'support' | 'generator' | 'summarizer'): Promise<string> {
+    const settings = await this.getSettings();
+    switch (agent) {
+      case 'chat':
+        return settings.chatAgentModel;
+      case 'support':
+        return settings.supportAssistantModel;
+      case 'generator':
+        return settings.ticketGeneratorModel;
+      case 'summarizer':
+        return settings.summarizerModel;
+      default:
+        return 'gpt-4.1';
+    }
   }
 }
 

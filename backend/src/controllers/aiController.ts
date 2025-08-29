@@ -49,14 +49,24 @@ export const aiController = {
         throw new ValidationError('complexity, category, and userProfile are required');
       }
       
+      // Get the requesting user's ID for token tracking
+      let userId: string | undefined;
+      if (req.user?.email) {
+        const user = await prisma.user.findUnique({
+          where: { email: req.user.email }
+        });
+        userId = user?.id;
+      }
+      
       // Generate ticket data using the AI agent but DO NOT save it yet
-      logger.info('Calling ticket generator for preview with parameters:', { complexity, category, userProfile, assignToId, responseFormat });
+      logger.info('Calling ticket generator for preview with parameters:', { complexity, category, userProfile, assignToId, responseFormat, userId });
       const ticketData = await ticketGenerator.generateTicket({
         complexity,
         category,
         userProfile,
         assignToId, // Pass assignToId so it's included in the preview data
-        responseFormat
+        responseFormat,
+        userId // Pass userId for token tracking
       });
       
       logger.info('Successfully generated ticket preview data');
@@ -72,6 +82,7 @@ export const aiController = {
         description: ticketData.description,
         device: ticketData.device,
         categoryId: ticketData.categoryId, // We need category ID to find the name
+        userId // Pass userId for token tracking
       });
       logger.info('Successfully generated solution for preview');
       
@@ -341,7 +352,9 @@ export const aiController = {
             timestamp: comment.createdAt
           })),
           commentText,
-          shouldForceHint // Pass the hint flag to the AI
+          shouldForceHint, // Pass the hint flag to the AI
+          supportUserId,
+          ticketId
         );
         
         responseText = response.response;

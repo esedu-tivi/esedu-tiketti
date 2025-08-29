@@ -11,6 +11,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import notificationSettingsRoutes from './routes/notificationSettingsRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import aiAnalyticsRoutes from './routes/aiAnalyticsRoutes.js';
+import tokenAnalyticsRoutes from './routes/tokenAnalyticsRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import { createServer } from 'http';
 import { initializeSocketService } from './services/socketService.js';
@@ -202,6 +203,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/notification-settings', notificationSettingsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/ai-analytics', aiAnalyticsRoutes);
+app.use('/api/ai/token-analytics', tokenAnalyticsRoutes);
 
 // 404 handler - must be added before error handler and after all routes
 app.use(notFoundHandler);

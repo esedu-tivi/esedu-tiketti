@@ -3,6 +3,8 @@ import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import logger from '../../utils/logger.js';
 import { AI_CONFIG } from "../config.js";
+import { aiSettingsService } from '../../services/aiSettingsService.js';
+import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 
 // Structured output schema - single source of truth
 const ChatResponseSchema = z.object({
@@ -52,18 +54,25 @@ interface ConversationTurn {
  * IMPORTANT: No caching of prompts or responses - each ticket is unique
  */
 export class ModernChatAgent {
-  protected model: ChatOpenAI;
+  protected model: ChatOpenAI | null = null;
   
   constructor() {
-    // Initialize model with ONLY OpenAI's built-in deduplication
+    // Model will be initialized on first use with settings from database
+    logger.info('🚀 [ModernChatAgent] Created - model will be initialized on first use');
+  }
+  
+  private async initializeModel(): Promise<void> {
+    if (this.model) return;
+    
+    const modelName = await aiSettingsService.getModelForAgent('chat');
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      modelName: "gpt-4.1",
+      model: modelName,  // Use 'model' instead of deprecated 'modelName'
       cache: true, // OpenAI's deduplication for exact duplicate requests only
     });
     
-    logger.info('🚀 [ModernChatAgent] Initialized:', {
-      model: 'gpt-4.1',
+    logger.info('🚀 [ModernChatAgent] Model initialized:', {
+      model: modelName,
       caching: 'DISABLED - Each ticket gets unique prompt and response',
       note: 'Only OpenAI deduplication for exact duplicates'
     });
@@ -76,8 +85,13 @@ export class ModernChatAgent {
     ticketContext: TicketContext,
     conversationHistory: ConversationTurn[],
     latestSupportMessage: string,
-    forceHint: boolean = false
+    forceHint: boolean = false,
+    userId?: string,
+    ticketId?: string
   ): Promise<ChatResponse> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     logger.info('🤖 [ModernChatAgent] Starting response generation');
     logger.info('📋 [ModernChatAgent] Ticket context:', JSON.stringify({
       title: ticketContext.title,
@@ -102,8 +116,18 @@ export class ModernChatAgent {
       logger.info('🚀 [ModernChatAgent] Invoking LLM for FRESH response (no response caching)...');
       const startTime = Date.now();
       
+      // Create token tracking callback
+      const modelName = await aiSettingsService.getModelForAgent('chat');
+      const tokenCallback = createTokenCallback({
+        agentType: 'chat',
+        modelUsed: modelName,
+        ticketId,
+        userId,
+        requestType: 'chat_response'
+      });
+      
       // ALWAYS get fresh response - NEVER cache the actual response
-      const response = await this.model.invoke(
+      const response = await this.model!.invoke(
         [
           { role: "system", content: systemPrompt },
           { role: "user", content: `
@@ -125,7 +149,8 @@ ${forceHint ? '\nIMPORTANT: The support has been stuck for multiple turns. Inclu
               schema: zodToJsonSchema(ChatResponseSchema),
               strict: true
             }
-          }
+          },
+          callbacks: [tokenCallback]
         }
       );
 

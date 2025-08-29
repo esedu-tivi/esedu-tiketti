@@ -2,6 +2,84 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 29.08.2025 - Token Usage Tracking and AI Model Selection
+
+## New Features
+- **feat:** Comprehensive token usage tracking system for all AI agents
+  - Real-time token counting using LangChain callbacks
+  - Cost calculation based on OpenAI pricing (GPT-5, GPT-4.1, O4 models)
+  - Detailed analytics dashboard with multiple visualizations
+  - Per-agent, per-model, and per-user tracking
+  
+- **feat:** Individual model selection for each AI agent
+  - Separate model configuration for ChatAgent, SupportAssistant, TicketGenerator, and Summarizer
+  - Dropdown selectors in AI Settings with Finnish translations
+  - Default models set to current production values (gpt-4o-mini)
+  
+- **feat:** Advanced Token Analytics Dashboard
+  - Exact token counts with proper number formatting (no rounding)
+  - Daily/weekly/monthly usage charts
+  - Hourly usage patterns with heatmap
+  - Error analytics with failure tracking
+  - Response time distribution analysis
+  - Interactive agent-specific deep dive analysis
+  - Request-level breakdown with search and filters
+  - Model efficiency scatter plot
+  - Top users by token consumption
+
+## Database
+- **database:** Added AITokenUsage model for tracking
+  - Fields: agentType, modelUsed, promptTokens, completionTokens, totalTokens, estimatedCost
+  - Links to tickets and users for detailed attribution
+  - Response time and error tracking
+- **database:** Added model selection fields to AISettings
+  - chatAgentModel, supportAssistantModel, ticketGeneratorModel, summarizerAgentModel
+- **migration:** Created migrations for token tracking and model settings
+
+## Backend Implementation  
+- **feat:** TokenTrackingCallbackHandler for automatic usage capture
+  - Extracts token data from multiple OpenAI response formats
+  - Handles errors and tracks failed requests
+  - Calculates response times automatically
+- **feat:** TokenTrackingService with cost calculation
+  - Updated pricing for GPT-5, GPT-4.1, and O4 model families
+  - Aggregated analytics with multiple grouping options
+  - Daily usage patterns and top user analysis
+- **feat:** Token Analytics API endpoints
+  - GET `/ai/token-analytics` - Comprehensive analytics with filters
+  - GET `/ai/token-analytics/daily` - Daily usage for charts
+  - GET `/ai/token-analytics/top-users` - Top consumers
+  - GET `/ai/token-analytics/summary` - Monthly summary with comparisons
+
+## Frontend Components
+- **feat:** TokenAnalytics component with rich visualizations
+  - Line charts for usage trends
+  - Pie charts for agent distribution
+  - Bar charts for response time distribution
+  - Area charts for hourly patterns
+  - Scatter plots for efficiency analysis
+- **feat:** Interactive filtering and search
+  - Search by user, ticket, agent, or model
+  - Filter by request type with Finnish labels
+  - Model-specific filtering
+  - Collapsible detailed breakdown table
+- **feat:** Deep agent analysis on click
+  - Performance metrics (min/max/median response times)
+  - Token efficiency metrics
+  - Cost analysis with ROI calculations
+  - Usage timeline for last 20 requests
+  - Request type breakdown
+
+## UI/UX Improvements
+- **ui:** Exact number display without K/M abbreviations
+  - Full token counts with thousand separators (Finnish format)
+  - Precise cost display with 4 decimal places for small amounts
+  - No rounding - shows exact values
+- **ui:** Interactive agent selection in pie chart
+  - Click to select agent for detailed analysis
+  - Highlighted selection with visual feedback
+  - "Syväanalyysi" card appears with comprehensive metrics
+
 # 25.08.2025 - Comprehensive Hook Refactoring & Authorization Fixes
 
 ## Frontend - Major Hook Architecture Overhaul

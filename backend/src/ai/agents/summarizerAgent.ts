@@ -2,6 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import logger from '../../utils/logger.js';
 import CONVERSATION_SUMMARY_PROMPT from "../prompts/conversationSummaryPrompt.js";
 import { AI_CONFIG } from "../config.js";
+import { aiSettingsService } from '../../services/aiSettingsService.js';
+import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { TicketStatus, Ticket, Comment, User, Category } from '@prisma/client'; // Import related types
 
@@ -18,21 +20,30 @@ interface SummarizeParams {
  * SummarizerAgent generates concise summaries of ticket conversations.
  */
 export class SummarizerAgent {
-  private model: ChatOpenAI;
+  private model: ChatOpenAI | null = null;
 
   constructor() {
-    // Initialize the language model
+    logger.info('SummarizerAgent: Created - model will be initialized on first use');
+  }
+  
+  private async initializeModel(): Promise<void> {
+    if (this.model) return;
+    
+    const modelName = await aiSettingsService.getModelForAgent('summarizer');
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      modelName: AI_CONFIG.openai.chatModel, 
+      model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
-    logger.info('SummarizerAgent: Initialized with model:', AI_CONFIG.openai.chatModel);
+    logger.info('SummarizerAgent: Model initialized:', { model: modelName });
   }
 
   /**
    * Generates a summary for the given ticket and its conversation history.
    */
   async summarizeConversation(params: SummarizeParams): Promise<string> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     const { ticket } = params;
     const ticketId = ticket.id; // Get ticket ID for saving
     // --- DEBUG LOG: Input Parameters --- 
@@ -70,7 +81,19 @@ export class SummarizerAgent {
       // Invoke LLM
       logger.info(`SummarizerAgent: Invoking LLM for summarization of ticket ${ticketId}...`);
       const startTime = performance.now();
-      const response = await this.model.invoke(formattedMessages);
+      
+      // Create token tracking callback
+      const modelName = await aiSettingsService.getModelForAgent('summarizer');
+      const tokenCallback = createTokenCallback({
+        agentType: 'summarizer',
+        modelUsed: modelName,
+        ticketId: ticketId,
+        requestType: 'generate_summary'
+      });
+      
+      const response = await this.model!.invoke(formattedMessages, {
+        callbacks: [tokenCallback]
+      });
       const endTime = performance.now();
       const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       logger.info(`SummarizerAgent: Summarization LLM response received (${responseTime}s).`);

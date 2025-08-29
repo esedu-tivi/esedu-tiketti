@@ -705,6 +705,10 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         ```json
         {
           "chatAgentVersion": "modern",
+          "chatAgentModel": "gpt-4o-mini",
+          "supportAssistantModel": "gpt-4o-mini", 
+          "ticketGeneratorModel": "gpt-4o-mini",
+          "summarizerAgentModel": "gpt-4o-mini",
           "hintSystemEnabled": true,
           "hintOnEarlyThreshold": 3,
           "hintOnProgressThreshold": 5,
@@ -722,6 +726,128 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 ### Liitetiedostot
 
 *   Liitetiedostojen lataus tapahtuu osana tikettien (`POST /tickets`) ja kommenttien (`POST /tickets/:id/comments/media`) luontia käyttäen `multipart/form-data` -enkoodausta. Palvelin tallentaa tiedoston ja liittää sen URL/viite luotuun tikettiin/kommenttiin. 
+
+## Token Analytics API (`/ai/token-analytics`)
+
+*   **GET /ai/token-analytics**
+    *   **Kuvaus:** Hakee kattavan token-käytön analytiikan suodattimilla.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:**
+        - `startDate` - Alkupäivämäärä (ISO 8601)
+        - `endDate` - Loppupäivämäärä (ISO 8601)
+        - `agentType` - Agenttityyppi (chat, support, generator, summarizer)
+        - `userId` - Käyttäjän ID
+        - `ticketId` - Tiketin ID
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "usage": [
+            {
+              "id": "uuid",
+              "agentType": "chat",
+              "modelUsed": "gpt-4o-mini",
+              "promptTokens": 512,
+              "completionTokens": 256,
+              "totalTokens": 768,
+              "estimatedCost": 0.0012,
+              "ticketId": "ticket-id",
+              "userId": "user-id",
+              "requestType": "chat_response",
+              "success": true,
+              "responseTime": 2.3,
+              "createdAt": "2025-08-29T10:00:00Z"
+            }
+          ],
+          "stats": {
+            "totalRequests": 150,
+            "totalTokens": 125000,
+            "totalPromptTokens": 75000,
+            "totalCompletionTokens": 50000,
+            "totalCost": 2.5,
+            "avgTokensPerRequest": 833,
+            "avgResponseTime": 2.1,
+            "successRate": 98.5,
+            "byAgent": {
+              "chat": {
+                "requests": 50,
+                "totalTokens": 40000,
+                "totalCost": 0.8,
+                "avgResponseTime": 2.0
+              }
+            },
+            "byModel": {
+              "gpt-4o-mini": {
+                "requests": 100,
+                "totalTokens": 80000,
+                "totalCost": 1.6
+              }
+            }
+          }
+        }
+        ```
+
+*   **GET /ai/token-analytics/daily**
+    *   **Kuvaus:** Hakee päivittäisen token-käytön valitulta ajanjaksolta.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:** `days` - Päivien määrä (oletus: 30)
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          {
+            "date": "2025-08-29",
+            "totalTokens": 15000,
+            "totalCost": 0.3,
+            "requests": 25
+          }
+        ]
+        ```
+
+*   **GET /ai/token-analytics/top-users**
+    *   **Kuvaus:** Hakee aktiivisimmat käyttäjät token-käytön mukaan.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:** `limit` - Käyttäjien määrä (oletus: 10)
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          {
+            "user": {
+              "id": "user-id",
+              "name": "Matti Meikäläinen",
+              "email": "matti@example.com",
+              "role": "SUPPORT"
+            },
+            "totalTokens": 50000,
+            "totalCost": 1.0,
+            "requests": 60
+          }
+        ]
+        ```
+
+*   **GET /ai/token-analytics/summary**
+    *   **Kuvaus:** Hakee kuukausittaisen yhteenvedon ja vertailun edelliseen kuukauteen.
+    *   **Rooli:** ADMIN
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "currentMonth": {
+            "totalTokens": 500000,
+            "totalCost": 10.0,
+            "totalRequests": 600,
+            "successRate": 99.0,
+            "byAgent": {
+              "chat": { "totalTokens": 200000, "totalCost": 4.0, "requests": 250 }
+            },
+            "byModel": {
+              "gpt-4o-mini": { "totalTokens": 400000, "totalCost": 8.0, "requests": 500 }
+            }
+          },
+          "changes": {
+            "tokenChange": 15.5,
+            "costChange": 12.3,
+            "requestChange": 20.0
+          }
+        }
+        ```
 
 ## AI Analytics API (`/ai-analytics`)
 

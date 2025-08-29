@@ -36,6 +36,26 @@ const AISettings = () => {
   const [originalSettings, setOriginalSettings] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeTab, setActiveTab] = useState('chat-agent');
+  
+  // Available models (updated with latest OpenAI pricing)
+  const availableModels = [
+    // GPT-5 models
+    { value: 'gpt-5', label: 'GPT-5', description: 'Paras koodaukseen ($1.25/$10 per 1M)' },
+    { value: 'gpt-5-mini', label: 'GPT-5 Mini', description: 'Nopeampi GPT-5 ($0.25/$2 per 1M)' },
+    { value: 'gpt-5-nano', label: 'GPT-5 Nano', description: 'Edullisin GPT-5 ($0.05/$0.40 per 1M)' },
+    
+    // GPT-4.1 models (current default)
+    { value: 'gpt-4.1', label: 'GPT-4.1', description: 'Edistynyt ($3/$12 per 1M)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Tasapainoinen ($0.80/$3.20 per 1M)' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano', description: 'Kevyt ($0.20/$0.80 per 1M)' },
+    
+    // O4 models
+    { value: 'o4-mini', label: 'O4 Mini', description: 'Vahvistettu ($4/$16 per 1M)' },
+    
+    // Legacy models
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Vanha edullinen malli' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', description: 'Vanhin edullinen malli' },
+  ];
 
   // Calculate if there are changes by comparing with original
   const hasChanges = originalSettings && settings && 
@@ -55,21 +75,21 @@ const AISettings = () => {
       label: 'Support Assistant', 
       icon: <Users size={16} className="text-blue-500" />,
       description: 'Tukihenkilöiden avustajan asetukset',
-      disabled: true
+      disabled: false
     },
     { 
       id: 'ticket-generator', 
       label: 'Ticket Generator', 
       icon: <Sparkles size={16} className="text-purple-500" />,
       description: 'Tikettien generoinnin asetukset',
-      disabled: true
+      disabled: false
     },
     { 
       id: 'summarizer', 
       label: 'Summarizer', 
       icon: <FileText size={16} className="text-orange-500" />,
       description: 'Yhteenvetojen luonnin asetukset',
-      disabled: true
+      disabled: false
     }
   ];
 
@@ -96,7 +116,12 @@ const AISettings = () => {
       hintOnProgressThreshold: settings.hintOnProgressThreshold,
       hintOnCloseThreshold: settings.hintOnCloseThreshold,
       hintCooldownTurns: settings.hintCooldownTurns,
-      hintMaxPerConversation: settings.hintMaxPerConversation
+      hintMaxPerConversation: settings.hintMaxPerConversation,
+      // Model settings
+      chatAgentModel: settings.chatAgentModel,
+      supportAssistantModel: settings.supportAssistantModel,
+      ticketGeneratorModel: settings.ticketGeneratorModel,
+      summarizerModel: settings.summarizerModel
     };
 
     updateSettings(updateData, {
@@ -202,6 +227,16 @@ const AISettings = () => {
             </div>
           </label>
         </div>
+      </div>
+      
+      {/* Chat Agent Model Selection */}
+      <div className="border-t pt-6">
+        {renderModelSettings(
+          'chatAgentModel',
+          'Chat Agent',
+          'Valitse malli, jota käytetään käyttäjäsimulaatiossa harjoitustiketeissä. Tämä malli vastaa käyttäjän roolissa tukihenkilön viesteihin.',
+          <MessageSquare className="text-green-500" size={20} />
+        )}
       </div>
 
       {/* Hint System Section */}
@@ -378,17 +413,48 @@ const AISettings = () => {
     </div>
   );
 
-  // Render placeholder for other agents
-  const renderComingSoon = (agentName, description) => (
-    <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-      <Settings size={48} className="mb-4 opacity-30" />
-      <h3 className="text-lg font-medium mb-2">{agentName} -asetukset</h3>
-      <p className="text-sm text-center max-w-md">
-        {description}
-      </p>
-      <p className="text-xs mt-4 text-gray-400">
-        Tulossa pian
-      </p>
+  // Render model selection for agents
+  const renderModelSettings = (modelField, agentName, description, icon) => (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b">
+          {icon}
+          <h3 className="text-lg font-semibold text-gray-800">{agentName} malliasetukset</h3>
+        </div>
+        
+        <p className="text-sm text-gray-600">{description}</p>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Valitse tekoälymalli
+            </label>
+            <select
+              value={settings[modelField]}
+              onChange={(e) => handleSettingChange(modelField, e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+            >
+              {availableModels.map((model) => (
+                <option key={model.value} value={model.value}>
+                  {model.label} - {model.description}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="text-sm text-gray-600">
+              <span className="font-medium text-gray-700">Nykyinen malli: </span>
+              <span className="text-gray-900">
+                {availableModels.find(m => m.value === settings[modelField])?.label || settings[modelField]}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {availableModels.find(m => m.value === settings[modelField])?.description}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 
@@ -451,36 +517,47 @@ const AISettings = () => {
 
       {/* Tab content */}
       <div className="mt-6">
-        {activeTab === 'chat-agent' && renderChatAgentSettings()}
-        {activeTab === 'support-assistant' && renderComingSoon(
-          'Support Assistant',
-          'Tässä voit määrittää, miten Support Assistant auttaa tukihenkilöitä tikettien ratkaisemisessa. Asetukset sisältävät mm. vastausten pituuden, käytettävän mallin ja tietolähteen valinnat.'
-        )}
-        {activeTab === 'ticket-generator' && renderComingSoon(
-          'Ticket Generator',
-          'Tässä voit säätää, miten harjoitustiketit generoidaan. Voit määrittää tikettien monimutkaisuuden, kategorioiden painotuksen ja automaattisen jakelun asetukset.'
-        )}
-        {activeTab === 'summarizer' && renderComingSoon(
-          'Summarizer',
-          'Tässä voit määrittää, miten keskustelujen yhteenvedot luodaan. Asetukset sisältävät yhteenvedon pituuden, kielen ja automaattisen generoinnin säännöt.'
-        )}
-        
-        {/* Info Box - Only show for chat-agent */}
         {activeTab === 'chat-agent' && (
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex gap-3">
-              <Info className="text-blue-600 mt-0.5 flex-shrink-0" size={18} />
-              <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">Huomioitavaa:</p>
-                <ul className="list-disc list-inside space-y-0.5 text-blue-700">
-                  <li>Asetukset vaikuttavat kaikkiin uusiin AI-keskusteluihin</li>
-                  <li>Käynnissä olevat keskustelut jatkuvat vanhoilla asetuksilla</li>
-                  <li>Vihjesysteemi toimii vain ModernChatAgent-versiossa</li>
-                </ul>
-              </div>
-            </div>
+          <div className="space-y-6">
+            {renderChatAgentSettings()}
           </div>
         )}
+        {activeTab === 'support-assistant' && renderModelSettings(
+          'supportAssistantModel',
+          'Support Assistant',
+          'Valitse malli, jota käytetään tukihenkilöiden avustamisessa. Tämä malli antaa ehdotuksia ja ohjeita tikettien ratkaisemiseen.',
+          <Users className="text-blue-500" size={20} />
+        )}
+        {activeTab === 'ticket-generator' && renderModelSettings(
+          'ticketGeneratorModel',
+          'Ticket Generator',
+          'Valitse malli, jota käytetään harjoitustikettien generoinnissa. Tämä malli luo realistisia IT-tukitikettejä opiskelijoiden harjoittelua varten.',
+          <Sparkles className="text-purple-500" size={20} />
+        )}
+        {activeTab === 'summarizer' && renderModelSettings(
+          'summarizerModel',
+          'Summarizer',
+          'Valitse malli, jota käytetään keskustelujen yhteenvetojen luomisessa. Tämä malli tiivistää tikettien keskustelut ja ratkaisut.',
+          <FileText className="text-orange-500" size={20} />
+        )}
+        
+        {/* Info Box */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex gap-3">
+            <Info className="text-blue-600 mt-0.5 flex-shrink-0" size={18} />
+            <div className="text-sm text-blue-800">
+              <p className="font-medium mb-1">Huomioitavaa:</p>
+              <ul className="list-disc list-inside space-y-0.5 text-blue-700">
+                <li>Asetukset vaikuttavat kaikkiin uusiin AI-toimintoihin</li>
+                <li>Käynnissä olevat prosessit jatkuvat vanhoilla asetuksilla</li>
+                {activeTab === 'chat-agent' && <li>Vihjesysteemi toimii vain ModernChatAgent-versiossa</li>}
+                <li>Mallien vaihtaminen voi vaikuttaa suorituskykyyn ja kustannuksiin</li>
+                <li>GPT-4 mallit ovat kalliimpia mutta tarkempia</li>
+                <li>GPT-3.5 ja GPT-4o-mini ovat nopeampia ja edullisempia</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Footer with Actions */}
@@ -488,7 +565,7 @@ const AISettings = () => {
         <Button
           variant="outline"
           onClick={handleReset}
-          disabled={isResetting || isUpdating || activeTab !== 'chat-agent'}
+          disabled={isResetting || isUpdating}
           className="flex items-center gap-2"
         >
           <RotateCcw size={16} />
@@ -496,7 +573,7 @@ const AISettings = () => {
         </Button>
         
         <div className="flex items-center gap-3">
-          {hasChanges && activeTab === 'chat-agent' && (
+          {hasChanges && (
             <span className="text-sm text-amber-600 flex items-center gap-1">
               <AlertCircle size={14} />
               Tallentamattomia muutoksia
@@ -504,7 +581,7 @@ const AISettings = () => {
           )}
           <Button
             onClick={handleSave}
-            disabled={isUpdating || isResetting || !hasChanges || activeTab !== 'chat-agent'}
+            disabled={isUpdating || isResetting || !hasChanges}
             className="flex items-center gap-2"
           >
             {isUpdating ? (

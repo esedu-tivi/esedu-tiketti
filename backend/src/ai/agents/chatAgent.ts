@@ -2,6 +2,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import logger from '../../utils/logger.js';
 import CHAT_AGENT_PROMPT from "../prompts/chatAgentPrompt.js";
 import { AI_CONFIG } from "../config.js";
+import { aiSettingsService } from '../../services/aiSettingsService.js';
+import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { PrismaClient } from '@prisma/client';
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -116,16 +118,22 @@ interface ChatAgentResponse {
  * It provides realistic responses based on the ticket details and solution.
  */
 export class ChatAgent {
-  private model: ChatOpenAI;
+  private model: ChatOpenAI | null = null;
   
   constructor() {
-    // Initialize the language model
+    logger.info('ChatAgent: Created - model will be initialized on first use');
+  }
+  
+  private async initializeModel(): Promise<void> {
+    if (this.model) return;
+    
+    const modelName = await aiSettingsService.getModelForAgent('chat');
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      modelName: AI_CONFIG.openai.chatModel,
+      model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
     
-    logger.info('ChatAgent: Initialized with model:', AI_CONFIG.openai.chatModel);
+    logger.info('ChatAgent: Model initialized:', { model: modelName });
   }
 
   /**
@@ -134,6 +142,9 @@ export class ChatAgent {
    * Returns both the response text and the evaluation of support progress.
    */
   async generateChatResponse(params: ChatResponseParams): Promise<ChatAgentResponse> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     try {
       const { 
         ticket, 
@@ -244,7 +255,9 @@ export class ChatAgent {
         newSupportComment, 
         solution || '',
         JSON.stringify(conversationHistory),
-        ticket.additionalInfo || ''
+        ticket.additionalInfo || '',
+        ticket.id,
+        (params as any).userId
       );
       
       logger.info(`ChatAgent: Solution progress evaluated by LLM: ${progressToSolution}`);
@@ -272,7 +285,20 @@ export class ChatAgent {
       // Generate the chat response using the LLM
       logger.info('ChatAgent: Invoking LLM for chat response...');
       const startTime = performance.now();
-      const aiResponse = await this.model.invoke(formattedMessages);
+      
+      // Create token tracking callback for chat response
+      const modelName = await aiSettingsService.getModelForAgent('chat');
+      const chatCallback = createTokenCallback({
+        agentType: 'chat',
+        modelUsed: modelName,
+        ticketId: ticket.id,
+        userId: (params as any).userId,
+        requestType: 'chat_response'
+      });
+      
+      const aiResponse = await this.model!.invoke(formattedMessages, {
+        callbacks: [chatCallback]
+      });
       const endTime = performance.now();
       const responseTime = ((endTime - startTime) / 1000).toFixed(2);
       
@@ -308,7 +334,9 @@ export class ChatAgent {
     currentComment: string,
     solution: string,
     conversationHistory: string,
-    additionalInfo: string
+    additionalInfo: string,
+    ticketId: string,
+    userId?: string
   ): Promise<string> {
     try {
       // Ensure solution is not empty for the prompt
@@ -328,10 +356,23 @@ export class ChatAgent {
       // logger.info('ChatAgent: Evaluation prompt messages:', JSON.stringify(formattedPrompt, null, 2));
 
       logger.info('ChatAgent: Invoking LLM for progress evaluation...');
-      const startTime = performance.now();
-      const evaluationResponse = await this.model.invoke(formattedPrompt);
+      const evalStartTime = performance.now();
+      
+      // Create token tracking callback for evaluation
+      const evalModelName = await aiSettingsService.getModelForAgent('chat');
+      const evalCallback = createTokenCallback({
+        agentType: 'chat',
+        modelUsed: evalModelName,
+        ticketId: ticketId,
+        userId: userId,
+        requestType: 'chat_evaluation'
+      });
+      
+      const evaluationResponse = await this.model!.invoke(formattedPrompt, {
+        callbacks: [evalCallback]
+      });
       const endTime = performance.now();
-      const responseTime = ((endTime - startTime) / 1000).toFixed(2);
+      const responseTime = ((endTime - evalStartTime) / 1000).toFixed(2);
       
       logger.info(`ChatAgent: Evaluation response received (${responseTime}s).`);
 

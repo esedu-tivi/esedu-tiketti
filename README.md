@@ -34,6 +34,24 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Joustavampi mediakommentointi: kaikki tukihenkilöt voivat liittää kuvia ja videoita tiketteihin riippumatta siitä, onko tiketti heille osoitettu
 
 ### Tekoälyominaisuudet
+
+#### Token-seuranta ja kustannusten hallinta
+- Automaattinen token-käytön seuranta kaikille AI-agenteille
+- Reaaliaikainen kustannuslaskenta OpenAI:n hinnoittelun mukaan
+- Kattava analytiikkanäkymä:
+  - Päivittäiset, viikottaiset ja kuukausittaiset trendit
+  - Agenttikohtaiset tilastot ja syväanalyysi
+  - Käyttäjäkohtainen seuranta
+  - Virheanalyysi ja vastausaikajakaumat
+  - Interaktiiviset kaaviot ja visualisoinnit
+
+#### Mallivalinta ja konfigurointi
+- Erillinen OpenAI-mallin valinta jokaiselle AI-agentille
+- Tuetut mallit: GPT-5, GPT-4.1, O4 ja legacy-mallit
+- Helppokäyttöinen dropdown-valinta AI-asetuksissa
+- Mahdollisuus optimoida kustannuksia ja suorituskykyä
+
+### Tekoälyagentit
 - Realististen harjoitustikettien generointi tekoälyn avulla
   - Parametrisoitu tikettien luonti (vaikeustaso, kategoria, käyttäjäprofiili)
   - Esikatselumahdollisuus ennen tallennusta
@@ -76,6 +94,8 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
   - Interaktiivinen demo tukihenkilöassistentista
   - Edistyneet debug-työkalut tekoälyn toiminnan seuraamiseen
   - AI-avustajan analytiikkanäkymä
+  - AI-asetukset: mallivalinta jokaiselle agentille erikseen
+  - Token-seuranta: reaaliaikainen token-käytön ja kustannusten analytiikka
 
 
 ### Liitetiedostot ja median käsittely
@@ -119,6 +139,7 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Microsoft Authentication Library (MSAL)
 - Socket.IO Client
 - React Hot Toast
+- Recharts (analytiikkakaaviot)
 
 ### Backend
 - Node.js + Express
@@ -131,6 +152,7 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Docker-kontitus (kehitys- ja tuotantoympäristöt)
 - LangChain.js (tekoälyintegraatiot)
 - OpenAI API
+- Token tracking callbacks (automaattinen seuranta)
 
 ### Tietokanta
 - PostgreSQL
@@ -140,6 +162,8 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
   - Ilmoitukset ja asetukset
   - Media ja liitetiedostot
   - Tekoälyasetukset ja -vastaukset
+  - Token-käytön seurantatiedot (AITokenUsage)
+  - AI-mallien konfiguraatio (AISettings)
 
 ## 📱 Käyttöliittymä
 - Responsiivinen design

@@ -3,6 +3,8 @@ import logger from '../../utils/logger.js';
 import SUPPORT_ASSISTANT_PROMPT from "../prompts/supportAssistantPrompt.js";
 import { AI_CONFIG } from "../config.js";
 import { prisma } from '../../lib/prisma.js';
+import { aiSettingsService } from '../../services/aiSettingsService.js';
+import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { PrismaClient } from '@prisma/client';
 import { performance } from 'perf_hooks';
 
@@ -52,19 +54,31 @@ interface SupportAssistantParams {
  * Only generates fresh, context-aware assistance for support staff.
  */
 export class SupportAssistantAgent {
-  private model: ChatOpenAI;
+  private model: ChatOpenAI | null = null;
   
   constructor() {
-    // Initialize the language model
+    // Model will be initialized on first use with settings from database
+    logger.info('🚀 [SupportAssistantAgent] Created - model will be initialized on first use');
+  }
+  
+  private async initializeModel(): Promise<void> {
+    if (this.model) return;
+    
+    const modelName = await aiSettingsService.getModelForAgent('support');
+    logger.info(`🔍 [SupportAssistantAgent] Retrieved model from settings: "${modelName}"`);
+    
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      modelName: "gpt-4o-mini",
+      model: modelName,  // Use 'model' instead of deprecated 'modelName'
       cache: true, // Enable OpenAI's built-in deduplication only
-      
     });
     
-    logger.info('🚀 [SupportAssistantAgent] Initialized:', {
-      model: AI_CONFIG.openai.chatModel,
+    // Log the actual model that LangChain will use
+    logger.info(`🚀 [SupportAssistantAgent] Model initialized with settings model: "${modelName}"`);
+    logger.info(`🚀 [SupportAssistantAgent] LangChain ChatOpenAI model property: "${this.model.model}"`);
+    logger.info('🚀 [SupportAssistantAgent] Full initialization details:', {
+      settingsModel: modelName,
+      langchainModel: this.model.model,
       responseCaching: 'DISABLED - Always fresh, context-aware responses',
       note: 'Each ticket requires unique assistance'
     });
@@ -80,6 +94,9 @@ export class SupportAssistantAgent {
     responseTime: number;
     interaction?: any;
   }> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     const startTime = performance.now();
     
     try {
@@ -219,7 +236,23 @@ export class SupportAssistantAgent {
       // Get FRESH response - NEVER cache support responses as they're context-dependent
       logger.info(`\n--- SENDING TO LANGUAGE MODEL (NO RESPONSE CACHING) ---`);
       const llmStartTime = performance.now();
-      const response = await this.model.invoke(formattedMessages);
+      
+      // Create token tracking callback
+      const modelName = await aiSettingsService.getModelForAgent('support');
+      logger.info(`📊 [SupportAssistant] Tracking model for token analytics: ${modelName}`);
+      logger.info(`📊 [SupportAssistant] Actual model being used by LangChain: ${this.model!.model}`);
+      
+      const tokenCallback = createTokenCallback({
+        agentType: 'support',
+        modelUsed: modelName,
+        ticketId: ticket.id,
+        userId: supportUserId,
+        requestType: 'support_assistance'
+      });
+      
+      const response = await this.model!.invoke(formattedMessages, {
+        callbacks: [tokenCallback]
+      });
       const llmEndTime = performance.now();
       
       const responseTime = (llmEndTime - llmStartTime) / 1000;
@@ -345,6 +378,9 @@ export class SupportAssistantAgent {
     interactionId?: string;
     error?: string;
   }> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     const startTime = performance.now();
     
     try {
@@ -418,8 +454,20 @@ export class SupportAssistantAgent {
       logger.info(`\n--- STARTING STREAMING RESPONSE ---`);
       const llmStartTime = performance.now();
       
+      // Create token tracking callback for streaming
+      const modelName = await aiSettingsService.getModelForAgent('support');
+      const streamCallback = createTokenCallback({
+        agentType: 'support',
+        modelUsed: modelName,
+        ticketId: ticket.id,
+        userId: supportUserId,
+        requestType: 'support_assistance_stream'
+      });
+      
       // Use stream method instead of invoke
-      const stream = await this.model.stream(formattedMessages);
+      const stream = await this.model!.stream(formattedMessages, {
+        callbacks: [streamCallback]
+      });
       
       let fullResponse = '';
       

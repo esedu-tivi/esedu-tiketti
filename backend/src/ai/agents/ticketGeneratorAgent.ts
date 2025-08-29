@@ -3,6 +3,8 @@ import logger from '../../utils/logger.js';
 import { TICKET_GENERATOR_PROMPT } from "../prompts/ticketGeneratorPrompt.js";
 import SOLUTION_GENERATOR_PROMPT from "../prompts/solutionGeneratorPrompt.js";
 import { AI_CONFIG } from "../config.js";
+import { aiSettingsService } from '../../services/aiSettingsService.js';
+import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { Priority, ResponseFormat } from '@prisma/client';
 import { z } from "zod";
@@ -43,16 +45,21 @@ interface GeneratedTicket {
  * and simulates user responses in conversations
  */
 export class TicketGeneratorAgent {
-  private model: ChatOpenAI;
+  private model: ChatOpenAI | null = null;
   
   constructor() {
-    logger.debug('TicketGeneratorAgent: Initializing...'); // DEBUG LOG
-    // Initialize the language model
+    logger.debug('TicketGeneratorAgent: Created - model will be initialized on first use'); // DEBUG LOG
+  }
+  
+  private async initializeModel(): Promise<void> {
+    if (this.model) return;
+    
+    const modelName = await aiSettingsService.getModelForAgent('generator');
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      modelName: AI_CONFIG.openai.chatModel,
+      model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
-    logger.debug('TicketGeneratorAgent: Initialized successfully.'); // DEBUG LOG
+    logger.debug('TicketGeneratorAgent: Model initialized:', { model: modelName }); // DEBUG LOG
   }
 
   /**
@@ -64,7 +71,11 @@ export class TicketGeneratorAgent {
     userProfile?: string;
     assignToId?: string; // Optional: Assign ticket to a specific support person
     responseFormat?: string; // Optional: Specify the desired response format
+    userId?: string; // Optional: User ID for token tracking
   }): Promise<GeneratedTicket> {
+    // Ensure model is initialized
+    await this.initializeModel();
+    
     // logger.info('TicketGeneratorAgent: generateTicket called with params:', JSON.stringify(params, null, 2)); // DEBUG LOG
     logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Start', { params }); // DEBUG LOG
     try {
@@ -178,7 +189,18 @@ export class TicketGeneratorAgent {
       logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - LLM Input:', JSON.stringify(formattedMessages, null, 2)); // DEBUG LOG
       
       // Call the language model to generate ticket content
-      const response = await this.model.invoke(formattedMessages);
+      // Create token tracking callback
+      const modelName = await aiSettingsService.getModelForAgent('generator');
+      const tokenCallback = createTokenCallback({
+        agentType: 'generator',
+        modelUsed: modelName,
+        requestType: 'generate_ticket',
+        userId: params.userId // Pass userId if provided
+      });
+      
+      const response = await this.model!.invoke(formattedMessages, {
+        callbacks: [tokenCallback]
+      });
       
       // Parse the response
       // const outputInstructions = outputParser.getFormatInstructions(); // Not used currently
@@ -339,7 +361,16 @@ export class TicketGeneratorAgent {
       logger.debug('[DEBUG] TicketGeneratorAgent.generateSolution - LLM Input:', JSON.stringify(formattedMessages, null, 2)); // DEBUG LOG
       
       // Get solution from LLM
-      const response = await this.model.invoke(formattedMessages);
+      const solutionCallback = createTokenCallback({
+        agentType: 'generator',
+        modelUsed: await aiSettingsService.getModelForAgent('generator'),
+        ticketId,
+        requestType: 'generate_solution'
+      });
+      
+      const response = await this.model!.invoke(formattedMessages, {
+        callbacks: [solutionCallback]
+      });
       
       return response.content.toString();
     } catch (error) {
@@ -357,6 +388,7 @@ export class TicketGeneratorAgent {
     description: string;
     device?: string;
     categoryId: string;
+    userId?: string; // Optional: User ID for token tracking
   }): Promise<string> {
     // logger.info('TicketGeneratorAgent: generateSolutionForPreview called with data:', data); // DEBUG LOG
     logger.debug('[DEBUG] TicketGeneratorAgent.generateSolutionForPreview - Start', { data }); // DEBUG LOG
@@ -388,7 +420,16 @@ export class TicketGeneratorAgent {
       logger.debug('[DEBUG] TicketGeneratorAgent.generateSolutionForPreview - LLM Input:', JSON.stringify(formattedMessages, null, 2)); // DEBUG LOG
       
       // Get solution from LLM
-      const response = await this.model.invoke(formattedMessages);
+      const solutionCallback = createTokenCallback({
+        agentType: 'generator',
+        modelUsed: await aiSettingsService.getModelForAgent('generator'),
+        requestType: 'generate_solution_preview',
+        userId: data.userId // Pass userId if provided
+      });
+      
+      const response = await this.model!.invoke(formattedMessages, {
+        callbacks: [solutionCallback]
+      });
       const solutionContent = response.content.toString();
       
       // logger.info('TicketGeneratorAgent: Solution preview generated successfully.'); // DEBUG LOG

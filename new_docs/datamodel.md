@@ -19,6 +19,7 @@ Tietomalli määrittelee järjestelmän keskeiset entiteetit, niiden attribuutit
 *   **AIAssistantCategoryStat:** Kategoriakohtaiset käyttöstatistiikat tekoälyavustajalle.
 *   **SupportAssistantConversation:** Tukihenkilön ja tukihenkilöassistentin välinen keskusteluhistoria.
 *   **AISettings:** Singleton-tietue AI-agenttien konfiguraatiota varten.
+*   **AITokenUsage:** Token-käytön seurantatiedot kaikille AI-agenteille.
 
 ## Prisma Schema (`backend/prisma/schema.prisma`)
 
@@ -286,6 +287,12 @@ model AISettings {
   
   // ChatAgent Settings
   chatAgentVersion        String   @default("modern") // "modern" | "legacy"
+  chatAgentModel          String   @default("gpt-4o-mini") // Model for ChatAgent
+  
+  // Other Agent Models
+  supportAssistantModel   String   @default("gpt-4o-mini") // Model for SupportAssistant
+  ticketGeneratorModel    String   @default("gpt-4o-mini") // Model for TicketGenerator
+  summarizerAgentModel    String   @default("gpt-4o-mini") // Model for Summarizer
   
   // Hint System Settings
   hintSystemEnabled       Boolean  @default(true)
@@ -304,6 +311,42 @@ model AISettings {
   
   // There should only be one AISettings record (singleton pattern)
   @@index([id])
+}
+
+model AITokenUsage {
+  id                String   @id @default(uuid())
+  
+  // Agent and Model Information
+  agentType         String   // "chat" | "support" | "generator" | "summarizer"
+  modelUsed         String   // The OpenAI model used (e.g., "gpt-4o-mini")
+  
+  // Token Counts
+  promptTokens      Int      // Input tokens
+  completionTokens  Int      // Output tokens
+  totalTokens       Int      // Total tokens (prompt + completion)
+  
+  // Cost Tracking
+  estimatedCost     Float?   // Estimated cost in USD
+  
+  // Context Information
+  ticketId          String?  // Associated ticket if applicable
+  userId            String?  // User who triggered the request
+  requestType       String?  // Type of request (e.g., "generate_ticket", "chat_response")
+  
+  // Request Metadata
+  success           Boolean  @default(true)
+  errorMessage      String?  // Error message if request failed
+  responseTime      Float?   // Response time in seconds
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  
+  // Indexes for query performance
+  @@index([agentType])
+  @@index([userId])
+  @@index([ticketId])
+  @@index([createdAt])
+  @@index([modelUsed])
 }
 
 ## Suhteet ja Kardinaalisuudet

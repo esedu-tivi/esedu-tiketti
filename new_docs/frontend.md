@@ -249,6 +249,11 @@ Komponentti sijaitsee AI Tools -sivun "AI-asetukset"-välilehdellä (`/ai-tools`
 `AISettings.jsx` tarjoaa seuraavat ominaisuudet:
 
 * **Chat Agent Version** - Valinta ModernChatAgentin ja perinteisen ChatAgentin välillä
+* **Mallivalinnat** - Erillinen mallivalinta jokaiselle AI-agentille:
+  * Chat Agent malli (dropdown)
+  * Support Assistant malli (dropdown)
+  * Ticket Generator malli (dropdown)
+  * Summarizer Agent malli (dropdown)
 * **Vihjesysteemi** - Kytkin vihjesysteemin päälle/pois kytkemiseen
 * **Vihjekynnykset** - Konfiguroitavat kynnysarvot EARLY, PROGRESSING ja CLOSE tiloille
 * **Lisäasetukset** - Cooldown-aika vihjeiden välillä ja maksimi vihjeiden määrä
@@ -265,6 +270,48 @@ Komponentti sijaitsee AI Tools -sivun "AI-asetukset"-välilehdellä (`/ai-tools`
 * Päivittää asetukset `PUT /api/ai/settings` -rajapintaan
 * Palauttaa oletukset `POST /api/ai/settings/reset` -rajapinnalla
 * Vertaa muutoksia alkuperäisiin arvoihin tunnistaakseen tallentamattomat muutokset
+
+## Token Analytics
+
+Token Analytics -komponentti tarjoaa kattavan näkymän AI-agenttien token-käytöstä ja kustannuksista.
+
+### Sijainti Sovelluksessa
+Komponentti sijaitsee AI Tools -sivun "Token-seuranta"-välilehdellä (`/ai-tools` URL-polku). Saatavilla vain ADMIN-rooleille.
+
+### Komponentti (TokenAnalytics.jsx)
+`TokenAnalytics.jsx` tarjoaa seuraavat ominaisuudet:
+
+#### Päänäkymä:
+* **KPI-kortit** - Tokenien kokonaismäärä, kustannukset, pyynnöt, onnistumisprosentti
+* **Päivittäinen käyttökaavio** - Line chart tokenien ja kustannusten kehityksestä
+* **Agenttien käyttö** - Interaktiivinen piirakkakaavio, klikkaa nähdäksesi syväanalyysin
+* **Top käyttäjät** - 5 aktiivisinta käyttäjää token-käytön mukaan
+* **Mallijakauma** - Taulukko eri mallien käytöstä ja tehokkuudesta
+
+#### Syväanalyysi (per agentti):
+* **Suorituskyky** - Min/max/mediaani vastausajat
+* **Token-tehokkuus** - Prompt/completion suhde, min/max tokenit
+* **Kustannusanalyysi** - Halvin/kallein pyyntö, ROI per 1000 tokenia
+* **Käyttöhistoria** - Viimeisten 20 pyynnön visualisointi
+* **Pyyntötyypit** - Jakauma eri pyyntötyypeistä
+
+#### Lisäanalyysit:
+* **Tuntikohtainen käyttö** - 24h heatmap käyttöajoista
+* **Virheanalyysi** - Epäonnistuneet pyynnöt agenteittain
+* **Vastausaikajakauma** - Pyynnöt ryhmiteltyinä vastausajan mukaan
+* **Yksityiskohtainen historia** - Hakusuodattimet ja taulukkonäkymä
+* **Tehokkuusanalyysi** - Scatter plot mallien tehokkuudesta
+
+### Tiedonhallinta:
+* Käyttää `useTokenAnalytics`, `useDailyTokenUsage`, `useTopUsersByTokenUsage` ja `useTokenUsageSummary` hookeja
+* Hakee datan `/ai/token-analytics` API-rajapinnoista
+* Reaaliaikainen päivitys React Query:n avulla
+* Suodattimet agentin, mallin ja pyyntötyypin mukaan
+
+### Numeroformatointi:
+* Tokenit näytetään tarkkana lukuna ilman pyöristyksiä
+* Tuhaterotin suomalaisella formaatilla (välilyönti)
+* Kustannukset 4 desimaalin tarkkuudella pienille summille
 
 ## AI Assistant Analytics
 
