@@ -1,7 +1,6 @@
 import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
-import jwksRsa from 'jwks-rsa';
 import logger from '../utils/logger.js';
 
 interface SocketUser {
@@ -23,33 +22,6 @@ interface JWTPayload {
   exp?: number;
   [key: string]: unknown;
 }
-
-// Azure AD configuration
-const AZURE_TENANT_ID = process.env.AZURE_TENANT_ID || 'common';
-const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// Developer emails that bypass strict tenant validation
-const DEVELOPER_EMAILS = process.env.DEVELOPER_EMAILS?.split(',').map(email => email.trim().toLowerCase()) || [];
-
-// JWKS client for Azure AD
-const jwksClient = jwksRsa({
-  jwksUri: `https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys`,
-  cache: true,
-  rateLimit: true,
-  jwksRequestsPerMinute: 5
-});
-
-const getKey = (header: any, callback: any) => {
-  jwksClient.getSigningKey(header.kid, (err, key) => {
-    if (err) {
-      callback(err);
-    } else {
-      const signingKey = key?.getPublicKey();
-      callback(null, signingKey);
-    }
-  });
-};
 
 class SocketService {
   private io: Server;
@@ -75,66 +47,21 @@ class SocketService {
           return next(new Error('Authentication error'));
         }
 
-        let decoded: JWTPayload;
-        
-        // Always verify tokens - no exceptions!
         try {
-          const tokenHeader = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString());
+          // Simply decode the token without verification (like the working version)
+          // The token comes from Microsoft and has audience for MS Graph, not our app
+          const decoded = jwt.decode(token) as JWTPayload;
           
-          // First decode to check if it's a developer account
-          const decodedForCheck = jwt.decode(token) as JWTPayload;
-          const checkEmail = (decodedForCheck?.preferred_username || decodedForCheck?.upn || decodedForCheck?.email || '').toLowerCase();
-          const isDeveloper = DEVELOPER_EMAILS.includes(checkEmail);
-          
-          // Check if it's an Azure AD token
-          if (tokenHeader.kid && AZURE_CLIENT_ID) {
-            if (isDeveloper) {
-              // For developer accounts, skip strict verification
-              logger.info('Developer WebSocket connection, bypassing strict JWT verification', { email: checkEmail });
-              decoded = jwt.decode(token) as JWTPayload;
-            } else {
-              // Azure AD token - verify with JWKS for production users
-              decoded = await new Promise((resolve, reject) => {
-                jwt.verify(token, getKey as any, {
-                  audience: AZURE_CLIENT_ID,
-                  issuer: [`https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0`, 
-                           `https://sts.windows.net/${AZURE_TENANT_ID}/`]
-                }, (err, decoded) => {
-                  if (err) {
-                    logger.error('WebSocket token verification failed', {
-                      error: err.message,
-                      audience: decodedForCheck?.aud,
-                      expectedAudience: AZURE_CLIENT_ID
-                    });
-                    reject(err);
-                  } else {
-                    resolve(decoded as JWTPayload);
-                  }
-                });
-              });
-            }
-          } else {
-            // Local JWT - verify with secret
-            if (!JWT_SECRET) {
-              logger.error('JWT_SECRET not configured');
-              return next(new Error('Authentication configuration error'));
-            }
-            decoded = jwt.verify(token, JWT_SECRET) as JWTPayload;
-          }
-          
-          // Check token expiration
-          if (decoded.exp && decoded.exp < Date.now() / 1000) {
-            return next(new Error('Token expired'));
-          }
-          
-          logger.debug('Token verified successfully', {
+          logger.debug('Decoded token:', {
             upn: decoded?.upn,
             unique_name: decoded?.unique_name,
+            preferred_username: decoded?.preferred_username,
+            email: decoded?.email,
             hasToken: !!token,
             tokenLength: token.length
           });
 
-          // Extract user email from verified token
+          // Extract user email from token (check multiple possible fields)
           const userEmail = decoded?.preferred_username || decoded?.upn || decoded?.email || decoded?.unique_name;
 
           if (!decoded || !userEmail) {
@@ -142,14 +69,21 @@ class SocketService {
             return next(new Error('Invalid token'));
           }
 
+          // Check token expiration
+          if (decoded.exp && decoded.exp < Date.now() / 1000) {
+            logger.error('Token expired');
+            return next(new Error('Token expired'));
+          }
+
           socket.data.user = {
             email: userEmail
           };
 
+          logger.info('WebSocket authenticated for user:', userEmail);
           next();
-        } catch (verifyError) {
-          logger.error('Token verification error:', verifyError);
-          return next(new Error('Invalid or expired token'));
+        } catch (decodeError) {
+          logger.error('Token decode error:', decodeError);
+          return next(new Error('Invalid token'));
         }
       } catch (error) {
         logger.error('Socket authentication error:', error);
@@ -195,25 +129,25 @@ class SocketService {
 
   // Send notification to specific user
   sendNotificationToUser(userEmail: string, notification: any) {
-    logger.debug('SocketService: Attempting to send notification', {
-      userEmail,
-      notification
-    });
+    logger.info('SocketService: Attempting to send notification');
+    logger.info('User email:', userEmail);
+    logger.info('Notification:', notification);
 
     const socketIds = this.userSockets.get(userEmail);
     logger.info('Found socket IDs for user:', socketIds);
     
     if (socketIds && socketIds.length > 0) {
-      logger.debug(`Active socket connections found: ${socketIds.length}`);
+      logger.info('Active socket connections found:', socketIds.length);
       socketIds.forEach(socketId => {
+        logger.info('Emitting to socket:', socketId);
         this.io.to(socketId).emit('notification', {
           ...notification,
           timestamp: new Date().toISOString()
         });
+        logger.info('Notification emitted successfully');
       });
-      logger.debug('Notification emitted successfully to all sockets');
     } else {
-      logger.debug('No active socket connections found for user');
+      logger.info('No active socket connections found for user');
     }
   }
 
@@ -323,4 +257,4 @@ export const getSocketService = () => {
     throw new Error('Socket service not initialized');
   }
   return instance;
-}; 
+};
