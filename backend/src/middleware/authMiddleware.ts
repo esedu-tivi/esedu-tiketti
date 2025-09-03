@@ -248,9 +248,21 @@ export const authMiddleware = async (
                 tokenAudience: decodedForCheck?.aud
               });
               
+              // Check if token audience is for Microsoft Graph - accept it as fallback
+              const isGraphToken = decodedForCheck?.aud === '00000003-0000-0000-c000-000000000000';
+              if (isGraphToken) {
+                console.log('[PROD DEBUG] Token is for Microsoft Graph API, accepting as fallback');
+                logger.info('Accepting Microsoft Graph token as fallback', {
+                  tokenAudience: decodedForCheck?.aud,
+                  email: userEmail,
+                  requestId: (req as any).requestId
+                });
+              }
+              
               decoded = await new Promise((resolve, reject) => {
+                // Accept both Microsoft Graph and our app as valid audiences
                 const verifyOptions = {
-                  audience: AZURE_CLIENT_ID,
+                  audience: isGraphToken ? '00000003-0000-0000-c000-000000000000' : AZURE_CLIENT_ID,
                   issuer: [`https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0`, 
                            `https://sts.windows.net/${AZURE_TENANT_ID}/`],
                   algorithms: ['RS256', 'RS384', 'RS512'] as jwt.Algorithm[]

@@ -40,9 +40,12 @@ export const msalConfig = {
   },
 };
 
-// Basic login request for authentication
+// Basic login request for authentication - use OpenID Connect + Graph for compatibility
 export const loginRequest = {
-  scopes: ['User.Read'],
+  // This combination should work without exposing API scopes
+  scopes: ['openid', 'profile', 'User.Read'],
+  // Alternative: Try client ID directly (uncomment if needed)
+  // scopes: [`${import.meta.env.VITE_MSAL_CLIENT_ID}/.default`],
 };
 
 // Request for Microsoft Graph API access - use only basic permissions that don't require admin consent
