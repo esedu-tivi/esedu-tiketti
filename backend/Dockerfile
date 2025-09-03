@@ -31,9 +31,7 @@ COPY package*.json ./
 COPY . .
 # Install all dependencies (including devDependencies)
 RUN npm ci
-# Generate Prisma Client (this might be redundant if postinstall works, but safe to keep)
-RUN npx prisma generate
-# Build TypeScript code
+# Build TypeScript code (build script already includes prisma generate)
 RUN npm run build
 
 # ---- Runner ----

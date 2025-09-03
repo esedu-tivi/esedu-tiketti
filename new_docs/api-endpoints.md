@@ -5,11 +5,32 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 ## Yleistä
 
 *   **Perus-URL:** Kaikki API-polut alkavat oletusarvoisesti `/api` (tarkista `backend/src/app.ts` tai `routes/index.ts` tarkan version varalta, esim. `/api/v1`).
-*   **Autentikointi:** Useimmat päätepisteet vaativat autentikoinnin (`authMiddleware`). Pyynnön tulee sisältää `Authorization`-header, jonka arvo on `Bearer <JWT-token>`.
+*   **Autentikointi:** Useimmat päätepisteet vaativat autentikoinnin (`authMiddleware`). Pyynnön tulee sisältää `Authorization`-header, jonka arvo on `Bearer <JWT-token>`. Backend tukee sekä Azure AD (RS256) että local JWT (HS256) tokeneita.
 *   **Roolit:** Pääsy tiettyihin päätepisteisiin ja toimintoihin on rajoitettu käyttäjän roolin perusteella (USER, SUPPORT, ADMIN) käyttäen `requireRole`-middlewarea.
-*   **Vastausmuoto:** Onnistuneet vastaukset palautetaan yleensä JSON-muodossa. Virhetilanteissa palautetaan JSON-objekti, joka sisältää `error`-kentän (esim. `{ "error": "Virheilmoitus..." }`).
+*   **Vastausmuoto:** Kaikki vastaukset käyttävät standardoitua muotoa:
+    - Onnistuneet: `{ "success": true, "message": "...", "data": {...}, "timestamp": "...", "meta": {...} }`
+    - Virheet: `{ "success": false, "error": { "message": "...", "code": "...", "statusCode": 400, "requestId": "..." } }`
+*   **Request ID:** Jokainen pyyntö saa uniikin ID:n seurantaa varten (X-Request-ID header).
 *   **ID-Formaatti:** Useimmat ID:t (kuten `:id`, `:userId`, `:ticketId`) ovat UUID-merkkijonoja (esim. `123e4567-e89b-12d3-a456-426614174000`).
-*   **Validointi:** Backend suorittaa syötteille validoinnin (pituudet, tyypit, pakollisuus). Virheelliset syötteet palauttavat tyypillisesti `400 Bad Request` -vastauksen, jossa on `error`-kenttä.
+*   **Validointi:** Backend suorittaa syötteille validoinnin Zod-kirjastolla (pituudet, tyypit, pakollisuus). Virheelliset syötteet palauttavat tyypillisesti `400 Bad Request` -vastauksen standardoidussa virhemuodossa.
+*   **Rate Limiting:** API käyttää rate limitingiä: 200 pyyntöä/min yleinen, 5 pyyntöä/15min autentikointi.
+
+## Health Check Päätepisteet
+
+*   **GET /health**
+    *   **Kuvaus:** Täysi järjestelmän terveystarkistus
+    *   **Rooli:** Julkinen (ei vaadi autentikointia)
+    *   **Vastaus:** `{ "status": "healthy", "timestamp": "...", "uptime": 123, "database": "connected", "memory": {...}, "environment": "..." }`
+
+*   **GET /health/live**
+    *   **Kuvaus:** Kubernetes liveness probe
+    *   **Rooli:** Julkinen
+    *   **Vastaus:** `{ "status": "ok" }`
+
+*   **GET /health/ready**
+    *   **Kuvaus:** Readiness probe tietokantayhteyden tarkistuksella
+    *   **Rooli:** Julkinen
+    *   **Vastaus:** 200 jos valmis, 503 jos ei valmis
 
 ## Päätepisteet Resursseittain
 
@@ -65,7 +86,7 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         ```
 *   **GET /users**
     *   **Kuvaus:** Hakee kaikki käyttäjät.
-    *   **Rooli:** ADMIN (`requireRole(UserRole.ADMIN)`).
+    *   **Rooli:** ADMIN ja SUPPORT (`requireRole([UserRole.ADMIN, UserRole.SUPPORT])`).
     *   **Query-parametrit (Esimerkki):** `?page=1&limit=20` (Sivutus).
     *   **Vastaus (Esimerkki):**
         ```json
@@ -186,6 +207,13 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 *   **GET /tickets/my-tickets**
     *   **Kuvaus:** Hakee nimenomaisesti sisäänkirjautuneen käyttäjän luomat tiketit. Tukee samoja query-parametreja kuin `GET /tickets` (pl. `userId`).
     *   **Rooli:** Kaikki autentikoidut.
+*   **GET /tickets/my-work**
+    *   **Kuvaus:** Optimoitu endpoint MyWorkView-näkymää varten. Hakee kaikki tukihenkilön työhön liittyvät tiketit yhdellä kutsulla.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Vastaus:** Palauttaa kolme tikettilistaa:
+        - `assignedToMe`: Käyttäjälle osoitetut tiketit
+        - `availableTickets`: Vapaat OPEN-statuksen tiketit
+        - `allInProgress`: Kaikki IN_PROGRESS tiketit
 *   **POST /tickets**
     *   **Kuvaus:** Luo uuden tiketin. Käyttää `multipart/form-data` jos liitteitä.
     *   **Rooli:** Kaikki autentikoidut.
@@ -457,19 +485,17 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         {
           "id": "uuid-settings",
           "userId": "uuid-käyttäjälle",
-          "emailNotifications": true,
           "webNotifications": true,
           "notifyOnAssigned": true,
           "notifyOnStatusChange": true,
           "notifyOnComment": true,
           "notifyOnPriority": false,
-          "notifyOnMention": true,
-          "notifyOnDeadline": true
+          "notifyOnMention": true
         }
         ```
 *   **PUT /notification-settings**
     *   **Kuvaus:** Päivittää käyttäjän ilmoitusasetukset.
-    *   **Runko (Tyyppi):** `{ emailNotifications?: boolean, webNotifications?: boolean, notifyOnAssigned?: boolean, notifyOnStatusChange?: boolean, notifyOnComment?: boolean, notifyOnPriority?: boolean, notifyOnMention?: boolean, notifyOnDeadline?: boolean }`
+    *   **Runko (Tyyppi):** `{ webNotifications?: boolean, notifyOnAssigned?: boolean, notifyOnStatusChange?: boolean, notifyOnComment?: boolean, notifyOnPriority?: boolean, notifyOnMention?: boolean }`
     *   **Runko (Esimerkki):**
         ```json
         {
@@ -635,9 +661,193 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         }
         ```
 
+### AI Settings (`/ai/settings`)
+
+*   **GET /ai/settings**
+    *   **Kuvaus:** Hakee nykyiset AI-asetukset. Jos asetuksia ei ole, luo oletusasetukset automaattisesti.
+    *   **Rooli:** ADMIN
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "id": "uuid",
+            "chatAgentVersion": "modern",
+            "hintSystemEnabled": true,
+            "hintOnEarlyThreshold": 3,
+            "hintOnProgressThreshold": null,
+            "hintOnCloseThreshold": null,
+            "hintCooldownTurns": 0,
+            "hintMaxPerConversation": 999,
+            "updatedBy": "user-uuid",
+            "createdAt": "2025-08-21T10:00:00Z",
+            "updatedAt": "2025-08-21T10:00:00Z"
+          }
+        }
+        ```
+
+*   **PUT /ai/settings**
+    *   **Kuvaus:** Päivittää AI-asetukset. Kaikki kentät ovat valinnaisia.
+    *   **Rooli:** ADMIN
+    *   **Runko (Tyyppi):** 
+        ```typescript
+        {
+          chatAgentVersion?: "modern" | "legacy",
+          hintSystemEnabled?: boolean,
+          hintOnEarlyThreshold?: number (1-10),
+          hintOnProgressThreshold?: number | null (1-10),
+          hintOnCloseThreshold?: number | null (1-10),
+          hintCooldownTurns?: number (0-999),
+          hintMaxPerConversation?: number (1-999)
+        }
+        ```
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "chatAgentVersion": "modern",
+          "chatAgentModel": "gpt-4o-mini",
+          "supportAssistantModel": "gpt-4o-mini", 
+          "ticketGeneratorModel": "gpt-4o-mini",
+          "summarizerAgentModel": "gpt-4o-mini",
+          "hintSystemEnabled": true,
+          "hintOnEarlyThreshold": 3,
+          "hintOnProgressThreshold": 5,
+          "hintCooldownTurns": 2
+        }
+        ```
+    *   **Vastaus:** Samanlainen kuin GET-vastaus, sisältää päivitetyt asetukset
+
+*   **POST /ai/settings/reset**
+    *   **Kuvaus:** Palauttaa AI-asetukset oletusarvoihin.
+    *   **Rooli:** ADMIN
+    *   **Runko:** Tyhjä tai `{}`
+    *   **Vastaus:** Samanlainen kuin GET-vastaus, sisältää oletusasetukset
+
 ### Liitetiedostot
 
 *   Liitetiedostojen lataus tapahtuu osana tikettien (`POST /tickets`) ja kommenttien (`POST /tickets/:id/comments/media`) luontia käyttäen `multipart/form-data` -enkoodausta. Palvelin tallentaa tiedoston ja liittää sen URL/viite luotuun tikettiin/kommenttiin. 
+
+## Token Analytics API (`/ai/token-analytics`)
+
+*   **GET /ai/token-analytics**
+    *   **Kuvaus:** Hakee kattavan token-käytön analytiikan suodattimilla.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:**
+        - `startDate` - Alkupäivämäärä (ISO 8601)
+        - `endDate` - Loppupäivämäärä (ISO 8601)
+        - `agentType` - Agenttityyppi (chat, support, generator, summarizer)
+        - `userId` - Käyttäjän ID
+        - `ticketId` - Tiketin ID
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "usage": [
+            {
+              "id": "uuid",
+              "agentType": "chat",
+              "modelUsed": "gpt-4o-mini",
+              "promptTokens": 512,
+              "completionTokens": 256,
+              "totalTokens": 768,
+              "estimatedCost": 0.0012,
+              "ticketId": "ticket-id",
+              "userId": "user-id",
+              "requestType": "chat_response",
+              "success": true,
+              "responseTime": 2.3,
+              "createdAt": "2025-08-29T10:00:00Z"
+            }
+          ],
+          "stats": {
+            "totalRequests": 150,
+            "totalTokens": 125000,
+            "totalPromptTokens": 75000,
+            "totalCompletionTokens": 50000,
+            "totalCost": 2.5,
+            "avgTokensPerRequest": 833,
+            "avgResponseTime": 2.1,
+            "successRate": 98.5,
+            "byAgent": {
+              "chat": {
+                "requests": 50,
+                "totalTokens": 40000,
+                "totalCost": 0.8,
+                "avgResponseTime": 2.0
+              }
+            },
+            "byModel": {
+              "gpt-4o-mini": {
+                "requests": 100,
+                "totalTokens": 80000,
+                "totalCost": 1.6
+              }
+            }
+          }
+        }
+        ```
+
+*   **GET /ai/token-analytics/daily**
+    *   **Kuvaus:** Hakee päivittäisen token-käytön valitulta ajanjaksolta.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:** `days` - Päivien määrä (oletus: 30)
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          {
+            "date": "2025-08-29",
+            "totalTokens": 15000,
+            "totalCost": 0.3,
+            "requests": 25
+          }
+        ]
+        ```
+
+*   **GET /ai/token-analytics/top-users**
+    *   **Kuvaus:** Hakee aktiivisimmat käyttäjät token-käytön mukaan.
+    *   **Rooli:** ADMIN
+    *   **Query-parametrit:** `limit` - Käyttäjien määrä (oletus: 10)
+    *   **Vastaus (Esimerkki):**
+        ```json
+        [
+          {
+            "user": {
+              "id": "user-id",
+              "name": "Matti Meikäläinen",
+              "email": "matti@example.com",
+              "role": "SUPPORT"
+            },
+            "totalTokens": 50000,
+            "totalCost": 1.0,
+            "requests": 60
+          }
+        ]
+        ```
+
+*   **GET /ai/token-analytics/summary**
+    *   **Kuvaus:** Hakee kuukausittaisen yhteenvedon ja vertailun edelliseen kuukauteen.
+    *   **Rooli:** ADMIN
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "currentMonth": {
+            "totalTokens": 500000,
+            "totalCost": 10.0,
+            "totalRequests": 600,
+            "successRate": 99.0,
+            "byAgent": {
+              "chat": { "totalTokens": 200000, "totalCost": 4.0, "requests": 250 }
+            },
+            "byModel": {
+              "gpt-4o-mini": { "totalTokens": 400000, "totalCost": 8.0, "requests": 500 }
+            }
+          },
+          "changes": {
+            "tokenChange": 15.5,
+            "costChange": 12.3,
+            "requestChange": 20.0
+          }
+        }
+        ```
 
 ## AI Analytics API (`/ai-analytics`)
 
@@ -892,4 +1102,186 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
             }
           ]
         }
-        ``` 
+        ```
+
+---
+
+## Discord-integraatio
+
+### Discord-asetukset
+
+#### GET /api/discord/settings
+- **Kuvaus**: Hakee Discord-integraation asetukset
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "settings": {
+          "id": "uuid",
+          "cleanupTTLHours": 24,
+          "inactiveTTLHours": 48,
+          "statusRotationMs": 10000,
+          "showTicketStats": true,
+          "showCleanupTimer": true,
+          "defaultCategoryName": "Discord",
+          "allowUserClose": true,
+          "enableIntegration": false
+        }
+      }
+    }
+    ```
+
+#### PUT /api/discord/settings
+- **Kuvaus**: Päivittää Discord-integraation asetukset
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Body**:
+  ```json
+  {
+    "cleanupTTLHours": 24,
+    "inactiveTTLHours": 48,
+    "statusRotationMs": 10000,
+    "showTicketStats": true,
+    "showCleanupTimer": true,
+    "defaultCategoryName": "Discord",
+    "allowUserClose": true,
+    "enableIntegration": true
+  }
+  ```
+- **Vastaus**: 200 OK
+
+#### POST /api/discord/settings/reset
+- **Kuvaus**: Palauttaa Discord-asetukset oletusarvoihin
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+
+### Discord-käyttäjät
+
+#### GET /api/discord/users
+- **Kuvaus**: Hakee Discord-käyttäjät
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Query-parametrit**:
+  - `includeStats` (boolean): Sisällytä tilastot (default: true)
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "users": [
+          {
+            "id": "user-uuid",
+            "email": "discord_12345@discord.local",
+            "name": "KäyttäjäNimi",
+            "discordId": "12345",
+            "discordUsername": "KäyttäjäNimi",
+            "isBlocked": false,
+            "createdAt": "2024-05-01T10:00:00.000Z",
+            "_count": {
+              "tickets": 5,
+              "comments": 12
+            }
+          }
+        ]
+      }
+    }
+    ```
+
+#### PUT /api/discord/users/:id/block
+- **Kuvaus**: Estää tai poistaa eston Discord-käyttäjältä
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Body**:
+  ```json
+  {
+    "isBlocked": true
+  }
+  ```
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "user-uuid",
+          "name": "KäyttäjäNimi",
+          "discordUsername": "KäyttäjäNimi",
+          "isBlocked": true
+        }
+      },
+      "message": "Discord user blocked successfully"
+    }
+    ```
+
+#### DELETE /api/discord/users/:id
+- **Kuvaus**: Poistaa Discord-käyttäjän
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Body**:
+  ```json
+  {
+    "deleteTickets": true
+  }
+  ```
+- **Vastaus**: 200 OK
+
+#### POST /api/discord/users/:id/sync
+- **Kuvaus**: Synkronoi Discord-käyttäjän tiedot
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Vastaus**: 200 OK
+
+### Discord-tilastot
+
+#### GET /api/discord/statistics
+- **Kuvaus**: Hakee Discord-integraation tilastot
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "statistics": {
+          "totalUsers": 25,
+          "totalTickets": 150,
+          "activeChannels": 5,
+          "avgResponseTimeHours": 2.5,
+          "activityChart": [
+            {
+              "date": "2024-05-01",
+              "count": 10,
+              "dayName": "Ma"
+            }
+          ],
+          "recentActivity": [
+            {
+              "id": "ticket-uuid",
+              "title": "Ongelma tulostimen kanssa",
+              "status": "OPEN",
+              "createdAt": "2024-05-02T10:00:00.000Z",
+              "createdBy": {
+                "name": "KäyttäjäNimi",
+                "discordUsername": "KäyttäjäNimi"
+              }
+            }
+          ],
+          "lastUpdated": "2024-05-02T12:00:00.000Z"
+        }
+      }
+    }
+    ``` 

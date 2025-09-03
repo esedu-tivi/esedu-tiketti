@@ -4,13 +4,16 @@ ChatAgent on tekoälyagentti, joka simuloi käyttäjää harjoitustikettien kesk
 
 ## Toimintaperiaate
 
-ChatAgent aktivoituu automaattisesti, kun tukihenkilö vastaa AI-generoituun harjoitustikettiin. Agentti analysoi tukihenkilön vastauksen, vertaa sitä tiketin ratkaisuun ja tuottaa käyttäjän vastauksen, joka on linjassa:
+ChatAgent aktivoituu automaattisesti, kun tukihenkilö vastaa AI-generoituun harjoitustikettiin. Agentti käyttää kahden vaiheisen LLM-prosessin:
 
-1. Käyttäjän teknisen osaamistason kanssa
-2. Ongelman tyypin ja monimutkaisuuden kanssa
-3. Keskustelun tähänastisen etenemisen kanssa
+1. **Edistymisen arviointi**: Ensin arvioidaan erillisellä LLM-kutsulla, kuinka lähellä tukihenkilön vastaus on oikeaa ratkaisua
+2. **Vastauksen generointi**: Arvioinnin perusteella generoidaan kontekstiin sopiva käyttäjän vastaus
 
-**Huom:** Agentille annetaan käyttäjäprofiili (`userProfile`) suomenkielisenä (esim. 'Opiskelija', 'Opettaja'), jotta se voi paremmin mukauttaa vastaustyylinsä.
+Vastaus mukautuu:
+- Käyttäjän teknisen osaamistason mukaan (määritetään tiketin prioriteetin perusteella)
+- Ongelman tyypin ja monimutkaisuuden mukaan
+- Keskustelun tähänastisen etenemisen mukaan
+- Edistymisarvion tuloksen mukaan (EARLY/PROGRESSING/CLOSE/SOLVED)
 
 ## Ominaisuudet
 
@@ -22,18 +25,26 @@ ChatAgent aktivoituu automaattisesti, kun tukihenkilö vastaa AI-generoituun har
 
 ### Edistymisen arviointi
 
-Agentti arvioi tukihenkilön ehdottamien ratkaisujen laatua:
+Agentti käyttää neliportaista arviointiasteikkoa:
 
-- **Oikea ratkaisu**: Vastaa kiitollisuudella ja vahvistaa ongelman ratkeamisen
-- **Osittainen ratkaisu**: Antaa lisätietoja tai tarkentavia kysymyksiä
-- **Väärä ratkaisu**: Ilmaisee kohteliaasti, että ongelma jatkuu
+- **EARLY**: Tukihenkilö ehdottaa yleisiä toimenpiteitä, ei tunnista varsinaista ongelmaa
+- **PROGRESSING**: Oikea ongelma-alue tunnistettu, mutta ratkaisusta puuttuu tarkkuutta
+- **CLOSE**: Lähellä ratkaisua, puuttuu vain pieniä yksityiskohtia
+- **SOLVED**: Keskeinen ratkaisu löydetty, käyttäjä saisi ongelman ratkaistua
+
+**Erityishuomio**: Arviointi on joustava - tärkeintä on ratkaisun toimivuus käytännössä, ei täydellinen vastaavuus dokumentoidun ratkaisun kanssa
 
 ### Realistinen kommunikointi
 
-- Mukautuu käyttäjäprofiilin tekniseen tasoon:
-  - **Aloittelija**: Käyttää yksinkertaista kieltä, vähän teknistä sanastoa
-  - **Keskitaso**: Pystyy seuraamaan ohjeita, tarvitsee selkeät vaiheet
-  - **Edistynyt**: Kykenee tekniseen keskusteluun ja ymmärtää monimutkaisia ohjeita
+Tekninen taso määräytyy automaattisesti tiketin prioriteetin perusteella:
+- **LOW priority** → Vähäinen tekninen osaaminen (yksinkertainen kieli)
+- **MEDIUM priority** → Keskitasoinen osaaminen (seuraa ohjeita)
+- **HIGH/CRITICAL priority** → Hyvä tekninen osaaminen (ymmärtää monimutkaisia ohjeita)
+
+Käyttäjäprofiili vaikuttaa kommunikaatiotyyliin:
+- **student**: Opiskelija, epävarma teknisistä termeistä
+- **teacher**: Opettaja, odottaa nopeaa ratkaisua
+- **staff**: Henkilökunta, käytännönläheinen lähestymistapa
 
 ### Tunneilmaisu
 
@@ -48,30 +59,59 @@ Agentti ilmaisee tilanteeseen sopivia tunteita:
 
 ### Arkkitehtuuri
 
-ChatAgent on toteutettu `ChatAgent`-luokkana, joka integroituu tikettijärjestelmän kommentointitoiminnallisuuteen:
+ChatAgent on toteutettu `ChatAgent`-luokkana, joka käyttää LangChain-kirjastoa ja OpenAI:n API:a:
 
 ```typescript
+interface ChatResponseParams {
+  ticket: {
+    id: string;
+    title: string;
+    description: string;
+    device: string;
+    priority: string;
+    categoryId: string;
+    userProfile?: string;
+    createdById: string;
+    additionalInfo?: string;
+  };
+  comments: CommentData[];
+  newSupportComment: string;
+  supportUserId: string;
+  solution?: string | null;
+}
+
+interface ChatAgentResponse {
+  responseText: string;
+  evaluation: string; // EARLY, PROGRESSING, CLOSE, SOLVED
+}
+
 class ChatAgent {
   // Agentin päämetodi
-  generateUserResponse(
-    ticketData: TicketData,
-    supportComment: string,
-    conversationHistory: Comment[]
-  ): Promise<string>;
-
-  // Apumetodi edistymisen arviointiin
-  evaluateProgress(
-    supportComment: string, 
-    solution: string
-  ): ProgressLevel;
+  async generateChatResponse(params: ChatResponseParams): Promise<ChatAgentResponse>;
+  
+  // Yksityinen metodi edistymisen arviointiin
+  private async evaluateSolutionProgressWithLLM(...): Promise<string>;
 }
 ```
 
 ### Integraatiopisteet
 
-- `CommentController` - Aktivoi agentin kommenttia lisättäessä
-- `TicketService` - Hakee tiketin tiedot ja ratkaisun agentin käyttöön
-- `UserService` - Hakee käyttäjäprofiilin määrittämään kommunikaatiotyyliä
+- `AIController` - Käsittelee API-pyynnöt ja kutsuu agenttia
+- `Prisma` - Hakee kategoriatiedot ja käyttäjätiedot tietokannasta
+- `AI_CONFIG` - Keskitetty konfiguraatio OpenAI API:lle
+- Promptit - Erillinen `CHAT_AGENT_PROMPT` ja `PROGRESS_EVALUATION_PROMPT`
+
+### Kahden vaiheinen LLM-prosessi
+
+1. **Edistymisen arviointi** (`evaluateSolutionProgressWithLLM`):
+   - Vertaa tukihenkilön kommenttia oikeaan ratkaisuun
+   - Huomioi koko keskusteluhistorian
+   - Palauttaa arvion: EARLY, PROGRESSING, CLOSE tai SOLVED
+
+2. **Vastauksen generointi** (`generateChatResponse`):
+   - Käyttää edistymisarviota kontekstina
+   - Sisällyttää käyttäjäprofiilin ja teknisen tason
+   - Generoi tilanteeseen sopivan vastauksen
 
 ## Käyttöesimerkkejä
 
@@ -98,6 +138,8 @@ class ChatAgent {
 - Agentti ei pysty simuloimaan kaikkia mahdollisia käyttäjän reaktioita
 - Ei voi suorittaa todellisia järjestelmätoimenpiteitä (esim. kuvakaappauksia tai lokien lähettämistä)
 - Simuloidut vastaukset voivat joskus vaikuttaa tekoälypohjaisilta
+- Vaatii, että tiketillä on määritelty ratkaisu (`solution`) toimiakseen oikein
+- Tekninen taso sidottu prioriteettiin, ei voida määrittää erikseen
 
 ## Vinkkejä tukihenkilöille
 
@@ -112,4 +154,17 @@ Suunnitellut parannukset:
 - Monimutkaisempien käyttäjäprofiilien tuki
 - Personointiasetukset agentin käyttäytymiselle
 - Kuvakaappausten tai liitetiedostojen simulointi
-- Monimutkaisempien dialogi-skenaarioiden tuki 
+- Monimutkaisempien dialogi-skenaarioiden tuki
+- Siirtyminen modernimpaan yhden LLM-kutsun arkkitehtuuriin (ModernChatAgent)
+- Streaming-tuki reaaliaikaisille vastauksille
+
+## Lokitus
+
+ChatAgent käyttää kattavaa lokitusta debuggausta varten:
+- Tiketin kontekstitiedot
+- Edistymisarvion tulokset
+- LLM-kutsujen suoritusajat
+- Generoitujen vastausten pituudet
+- Virhetilanteiden käsittely
+
+Lokitustaso voidaan säätää `logger`-konfiguraatiosta. 

@@ -16,6 +16,14 @@ model User {
   role            UserRole  @default(USER)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  
+  // Discord integration
+  isDiscordUser   Boolean   @default(false)
+  discordId       String?   @unique
+  discordUsername String?
+  discordServerId String?
+  isBlocked       Boolean   @default(false) // Block users from creating tickets
+  
   comments        Comment[]
   assignedTickets Ticket[]  @relation("AssignedTickets")
   tickets         Ticket[]  @relation("CreatedTickets")
@@ -23,6 +31,7 @@ model User {
   notificationSettings NotificationSettings?
   aiInteractions  AIAssistantInteraction[]
   supportAssistantConversations SupportAssistantConversation[]
+  aiTokenUsage    AITokenUsage[]
 }
 
 model Ticket {
@@ -44,6 +53,15 @@ model Ticket {
   createdById    String
   assignedToId   String?
   categoryId     String
+  
+  // Discord integration
+  sourceType        String?  @default("WEB") // "WEB" | "DISCORD"
+  discordChannelId  String?  @unique
+  discordServerId   String?
+  
+  // AI Generation metadata (for ModernTicketGenerator)
+  generatorMetadata Json?    // Stores writing style, technical level, etc.
+  
   comments       Comment[]
   notifications  Notification[]
   attachments    Attachment[]
@@ -53,6 +71,7 @@ model Ticket {
   createdBy      User           @relation("CreatedTickets", fields: [createdById], references: [id])
   aiInteractions AIAssistantInteraction[]
   supportAssistantConversations SupportAssistantConversation[]
+  aiTokenUsage    AITokenUsage[]
 }
 
 model Attachment {
@@ -81,6 +100,13 @@ model Comment {
   ticket        Ticket   @relation(fields: [ticketId], references: [id])
   isAiGenerated Boolean  @default(false)
   evaluationResult String? // Stores the result from evaluateSolutionProgressWithLLM (EARLY, PROGRESSING, CLOSE, SOLVED)
+  emotionalState String?  // For ModernChatAgent: frustrated, hopeful, excited, satisfied, confused
+  reasoning     String?  // For ModernChatAgent: Internal reasoning about the evaluation (useful for analytics)
+  shouldRevealHint Boolean @default(false) // For ModernChatAgent: Whether AI decided to give a hint
+  
+  // Discord integration
+  discordMessageId String?
+  isFromDiscord    Boolean @default(false)
 
   @@index([ticketId])
   @@index([authorId])
@@ -150,14 +176,12 @@ model Notification {
 model NotificationSettings {
   id                    String   @id @default(uuid())
   userId                String   @unique
-  emailNotifications    Boolean  @default(true)
   webNotifications     Boolean  @default(true)
   notifyOnAssigned     Boolean  @default(true)
   notifyOnStatusChange Boolean  @default(true)
   notifyOnComment      Boolean  @default(true)
   notifyOnPriority     Boolean  @default(true)
   notifyOnMention      Boolean  @default(true)
-  notifyOnDeadline     Boolean  @default(true)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   user                 User     @relation(fields: [userId], references: [id])
@@ -232,4 +256,92 @@ model SupportAssistantConversation {
   @@unique([ticketId, supportUserId])
   @@index([ticketId])
   @@index([supportUserId])
+}
+
+model AISettings {
+  id                    String   @id @default(uuid())
+  
+  // ChatAgent Settings
+  chatAgentVersion      String   @default("modern") // "modern" | "legacy"
+  chatAgentSyncWithGenerator Boolean @default(false) // Sync chat style with ModernTicketGenerator (requires modern generator)
+  
+  // TicketGenerator Settings
+  ticketGeneratorVersion String  @default("legacy") // "modern" | "legacy"
+  
+  // Hint System Settings
+  hintSystemEnabled     Boolean  @default(true)
+  hintOnEarlyThreshold  Int      @default(3) // How many EARLY evaluations before hint
+  hintOnProgressThreshold Int?   // How many PROGRESSING evaluations before hint (null = disabled)
+  hintOnCloseThreshold  Int?     // How many CLOSE evaluations before hint (null = disabled)
+  
+  // Advanced Hint Settings
+  hintCooldownTurns     Int      @default(0) // Minimum turns between hints (0 = no cooldown)
+  hintMaxPerConversation Int     @default(999) // Maximum hints per conversation (999 = effectively unlimited)
+  
+  // Model Settings for each AI Agent
+  chatAgentModel        String   @default("gpt-4.1") // Model for ChatAgent (both legacy and modern)
+  supportAssistantModel String   @default("gpt-4o-mini") // Model for Support Assistant Widget
+  ticketGeneratorModel  String   @default("gpt-4.1") // Model for Ticket Generator
+  summarizerModel       String   @default("gpt-4.1") // Model for Summarizer
+  
+  // Metadata
+  updatedBy             String?  // User ID who last updated settings
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // There should only be one AISettings record (singleton pattern)
+  @@index([id])
+}
+
+model AITokenUsage {
+  id                    String   @id @default(uuid())
+  
+  // Agent identification
+  agentType             String   // "chat", "support", "generator", "summarizer"
+  modelUsed             String   // The actual model used (e.g., "gpt-4o-mini")
+  
+  // Token counts
+  promptTokens          Int      // Input tokens
+  completionTokens      Int      // Output tokens
+  totalTokens           Int      // Total tokens (prompt + completion)
+  
+  // Cost tracking (optional, can calculate based on model)
+  estimatedCost         Float?   // Estimated cost in USD
+  
+  // Context information
+  ticketId              String?  // Related ticket if applicable
+  userId                String?  // User who triggered the AI call
+  
+  // Request metadata
+  requestType           String?  // Type of request (e.g., "chat_response", "generate_ticket", etc.)
+  success               Boolean  @default(true) // Whether the request was successful
+  errorMessage          String?  // Error message if failed
+  responseTime          Float?   // Response time in seconds
+  
+  // Timestamps
+  createdAt             DateTime @default(now())
+  
+  // Relations
+  ticket                Ticket?  @relation(fields: [ticketId], references: [id])
+  user                  User?    @relation(fields: [userId], references: [id])
+  
+  @@index([agentType])
+  @@index([createdAt])
+  @@index([ticketId])
+  @@index([userId])
+  @@index([modelUsed])
+}
+
+model DiscordSettings {
+  id                  String   @id @default(uuid())
+  cleanupTTLHours     Int      @default(24)     // Channel cleanup after ticket closed
+  inactiveTTLHours    Int      @default(48)     // Inactive channel cleanup
+  statusRotationMs    Int      @default(10000)  // Status rotation interval (ms)
+  showTicketStats     Boolean  @default(true)   // Show ticket counts in status
+  showCleanupTimer    Boolean  @default(true)   // Show cleanup countdown
+  defaultCategoryName String   @default("Discord") // Default category name for Discord tickets
+  allowUserClose      Boolean  @default(true)   // Allow users to close their tickets
+  enableIntegration   Boolean  @default(true)   // Enable/disable Discord integration
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

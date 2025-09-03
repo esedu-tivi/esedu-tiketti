@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import { authService } from '../services/authService';
 import AITicketGenerator from '../components/Admin/AITicketGenerator';
 import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
@@ -7,6 +9,11 @@ import TicketDetailsModal from '../components/Tickets/TicketDetailsModal';
 import AIAssistantInfo from '../components/Admin/AIAssistantInfo';
 import AIAssistantDemo from '../components/Admin/AIAssistantDemo';
 import AIAssistantAnalytics from '../components/Admin/AIAssistantAnalytics';
+import AISettings from '../components/Admin/AISettings';
+import TokenAnalytics from '../components/Admin/TokenAnalytics';
+import { useAllTickets } from '../hooks/useTickets';
+import { useUsers } from '../hooks/useUsers';
+import { useAIAnalytics } from '../hooks/useAIAnalytics';
 import { 
   Sparkles, 
   CogIcon, 
@@ -21,11 +28,9 @@ import {
   PlayCircle,
   PieChart,
   ThumbsUp,
-  BookOpen
+  BookOpen,
+  Coins
 } from 'lucide-react';
-import axios from 'axios';
-import { authService } from '../services/authService';
-import { aiAnalyticsService } from '../services/aiAnalyticsService';
 
 /**
  * AITools - Page for AI-related tools for administrators and support staff
@@ -36,6 +41,31 @@ const AITools = () => {
   const [activeTab, setActiveTab] = useState('ticket-generator');
   // State for active AI Assistant subtab
   const [activeAssistantSubtab, setActiveAssistantSubtab] = useState('demo');
+  // State for OpenAI configuration check
+  const [isConfigured, setIsConfigured] = useState(null);
+  const [configDetails, setConfigDetails] = useState(null);
+
+  // Check OpenAI configuration on mount
+  useEffect(() => {
+    checkConfiguration();
+  }, []);
+
+  const checkConfiguration = async () => {
+    try {
+      const token = await authService.acquireToken();
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/ai/config-status`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setIsConfigured(response.data.data.isConfigured);
+      setConfigDetails(response.data.data.details);
+    } catch (error) {
+      console.error('Error checking OpenAI configuration:', error);
+      setIsConfigured(false);
+    }
+  };
 
   // State for conversation modal
   const [selectedConvTicketId, setSelectedConvTicketId] = useState(null);
@@ -49,11 +79,7 @@ const AITools = () => {
   const [selectedTicketForDetails, setSelectedTicketForDetails] = useState(null);
   const [isTicketDetailsModalOpen, setIsTicketDetailsModalOpen] = useState(false);
 
-  // State for stats
-  const [ticketsCount, setTicketsCount] = useState(0);
-  const [ticketsAssistedCount, setTicketsAssistedCount] = useState(0);
-  const [totalInteractions, setTotalInteractions] = useState(0);
-  const [supportAgentsCount, setSupportAgentsCount] = useState(0);
+  // No need for useState - we'll use data from hooks directly
 
   // Handler to open conversation modal
   const handleViewConversation = (ticketId) => {
@@ -92,61 +118,23 @@ const AITools = () => {
     setSelectedTicketForDetails(null);
   };
   
-  // Fetch data for dashboard stats
-  useEffect(() => {
-    const fetchStatsData = async () => {
-      try {
-        const token = await authService.acquireToken();
-        
-        // Fetch total tickets count
-        const ticketsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/tickets`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (ticketsResponse.data && ticketsResponse.data.tickets) {
-          setTicketsCount(ticketsResponse.data.tickets.length);
-        }
-        
-        // Fetch AI-assisted tickets count from AI analytics
-        const analyticsData = await aiAnalyticsService.getOverallStats();
-        if (analyticsData) {
-          setTicketsAssistedCount(analyticsData.totalTicketsAssisted || 0);
-          setTotalInteractions(analyticsData.totalInteractions || 0);
-        }
-        
-        // Fetch all users and count support personnel
-        const usersResponse = await axios.get(`${import.meta.env.VITE_API_URL}/users`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (usersResponse.data) {
-          // Handle both array response and object with users property
-          const users = Array.isArray(usersResponse.data) 
-            ? usersResponse.data 
-            : (usersResponse.data.users || []);
-          
-          // Count users with SUPPORT role only (excluding admins)
-          const supportCount = users.filter(user => 
-            user.role === 'SUPPORT'
-          ).length;
-          
-          setSupportAgentsCount(supportCount);
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-      }
-    };
-    
-    fetchStatsData();
-  }, []);
+  // Use centralized hooks for data
+  const { data: ticketsData } = useAllTickets({});
+  const { data: users } = useUsers();
+  const { data: analyticsData } = useAIAnalytics();
   
-  // Stats used in the dashboard (using real data from APIs)
-  const stats = [
-    { label: 'Tikettejä luotu', value: ticketsCount.toString(), icon: <FileText size={16} className="text-blue-500" /> },
-    { label: 'AI:n analysoituja', value: ticketsAssistedCount.toString(), icon: <Brain size={16} className="text-purple-500" /> },
-    { label: 'AI Interaktiot yhteensä', value: totalInteractions.toString(), icon: <MessageSquare size={16} className="text-green-500" /> },
-    { label: 'Tukihenkilöitä', value: supportAgentsCount.toString(), icon: <Users size={16} className="text-orange-500" /> }
-  ];
+  // Calculate stats using useMemo instead of useState + useEffect
+  const stats = useMemo(() => {
+    const tickets = ticketsData?.data || ticketsData?.tickets || [];
+    const supportCount = (users || []).filter(user => user.role === 'SUPPORT').length;
+    
+    return [
+      { label: 'Tikettejä luotu', value: tickets.length.toString(), icon: <FileText size={16} className="text-blue-500" /> },
+      { label: 'AI:n analysoituja', value: (analyticsData?.totalTicketsAssisted || 0).toString(), icon: <Brain size={16} className="text-purple-500" /> },
+      { label: 'AI Interaktiot yhteensä', value: (analyticsData?.totalInteractions || 0).toString(), icon: <MessageSquare size={16} className="text-green-500" /> },
+      { label: 'Tukihenkilöitä', value: supportCount.toString(), icon: <Users size={16} className="text-orange-500" /> }
+    ];
+  }, [ticketsData, users, analyticsData]);
 
   // Tabs available in the AI tools section
   const tabs = [
@@ -174,7 +162,14 @@ const AITools = () => {
       label: 'AI-asetukset', 
       icon: <CogIcon size={16} className="text-gray-500" />,
       description: 'Määritä tekoälyominaisuuksien asetukset ja mallit',
-      disabled: true
+      disabled: false
+    },
+    { 
+      id: 'token-analytics', 
+      label: 'Token-analytiikka', 
+      icon: <Coins size={16} className="text-yellow-500" />,
+      description: 'Seuraa AI-mallien token-käyttöä ja kustannuksia',
+      disabled: false
     }
   ];
 
@@ -200,6 +195,56 @@ const AITools = () => {
       description: 'Ohjeet AI-avustajan käyttöön ja toimintatapa'
     }
   ];
+
+  // Check if OpenAI is configured
+  if (isConfigured === false) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+              <Brain className="h-8 w-8 text-yellow-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">OpenAI API ei ole konfiguroitu</h2>
+            <p className="text-gray-600 mb-6">
+              AI-työkalujen käyttäminen vaatii OpenAI API -avaimen. Lisää seuraava ympäristömuuttuja:
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <span className={`inline-block w-3 h-3 rounded-full mr-2 ${configDetails?.hasApiKey ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  <code className="text-sm">OPENAI_API_KEY</code>
+                  {configDetails?.hasApiKey && !configDetails?.isValidFormat && (
+                    <span className="ml-2 text-xs text-red-600">(Invalid format - must start with 'sk-')</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <button
+                onClick={() => window.history.back()}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Takaisin
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state while checking configuration
+  if (isConfigured === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Tarkistetaan OpenAI-konfiguraatiota...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 relative">
@@ -332,14 +377,10 @@ const AITools = () => {
               </>
             )}
             {activeTab === 'config' && (
-              <div className="text-center py-20 text-gray-500">
-                <CogIcon size={48} className="mx-auto mb-4 opacity-30" />
-                <h3 className="text-lg font-medium mb-2">AI-asetukset</h3>
-                <p className="max-w-md mx-auto">
-                  Tämä ominaisuus on kehityksen alla. Se mahdollistaa tekoälyominaisuuksien
-                  asetusten ja mallien määrittämisen.
-                </p>
-              </div>
+              <AISettings />
+            )}
+            {activeTab === 'token-analytics' && (
+              <TokenAnalytics />
             )}
           </div>
         </div>

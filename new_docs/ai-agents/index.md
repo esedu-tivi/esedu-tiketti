@@ -6,8 +6,10 @@ Tässä dokumentissa listataan järjestelmässä käytettävät tekoälyagentit,
 
 | Agentti | Kuvaus | Dokumentaatio |
 |---------|--------|---------------|
-| TicketGeneratorAgent | Luo realistisia harjoitustikettejä helpdesk-koulutusta varten | [ticketGenerator.md](ticketGenerator.md) |
-| ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa | [chatAgent.md](chatAgent.md) |
+| TicketGeneratorAgent | Luo harjoitustikettejä helpdesk-koulutusta varten (perinteinen versio) | [ticketGenerator.md](ticketGenerator.md) |
+| ModernTicketGeneratorAgent | Realistinen tikettien generaattori teknisen tason skaalauksella | [modernTicketGeneratorAgent.md](modernTicketGeneratorAgent.md) |
+| ChatAgent | Simuloi käyttäjää keskusteluissa tukihenkilön kanssa (perinteinen toteutus) | [chatAgent.md](chatAgent.md) |
+| ModernChatAgent | Uuden sukupolven chat-agentti yhdellä LLM-kutsulla ja strukturoidulla outputilla | [modernChatAgent.md](modernChatAgent.md) |
 | SummarizerAgent | Tuottaa tiivistelmän tiketin keskusteluhistoriasta | [summarizerAgent.md](summarizerAgent.md) |
 | SupportAssistantAgent | Ohjaa IT-alan opiskelijoita ongelmanratkaisussa ja auttaa heitä oppimaan itsenäisesti. | [supportAssistantAgent.md](supportAssistantAgent.md) |
 
@@ -47,7 +49,7 @@ graph TD
     M --> N["<b>14. UI</b><br/>Näyttää onnistumisilmoituksen<br/>ja poistaa vahvistetun esikatselun."];
 ```
 
-### ChatAgent (Highly Detailed)
+### ChatAgent (Traditional - Two LLM Calls)
 
 ```mermaid
 graph TD
@@ -65,11 +67,188 @@ graph TD
     end
     F1 -- "Muotoiltu, tilanteeseen sopiva prompti" --> F2["<b>9b. LLM Call (OpenAI)</b><br/>Generoi simuloidun käyttäjän vastaus<br/>(generateResponse)"];
     F2 -- "LLM Vastaus (teksti)" --> G["<b>10. ChatAgent</b><br/>Jäsentää generoidun vastauksen"];
-    G -- "Vastaus (message),<br/>Arvio (evaluationResult)" --> H["<b>11. Database Write</b><br/>INSERT INTO AITrainingConversation<br/>(message, evaluationResult, senderType='AI'...)"];
+    G -- "Vastaus (message),<br/>Arvio (evaluationResult)" --> H["<b>11. Database Write</b><br/>INSERT INTO Comment<br/>(content, evaluationResult, isAiGenerated=true...)"];
     H -- "Tallennettu keskustelutieto" --> G;
     G --> I["<b>12. API Response</b><br/>Palauttaa generoidun vastauksen (JSON)<br/>(sisältäen ehkä evaluationResult?)"];
     I --> J["<b>13. UI</b><br/>Lisää AI:n vastauksen keskusteluun.<br/>Voi näyttää evaluationResult esim. tooltipissä."];
 ```
+
+### ModernChatAgent (Single LLM Call with Hint System)
+
+```mermaid
+graph TD
+    A["<b>1. SUPPORT/ADMIN</b><br/>Kirjoittaa kommentin AI-tikettiin UI:ssa"] --> B{"<b>2. UI Trigger</b><br/>Lähettää kommentin ja pyytää AI-vastausta"};
+    B --> C["<b>3. API Endpoint</b><br/>POST /api/ai/tickets/:id/generate-response"];
+    C --> D["<b>4. AISettings Check</b><br/>Hae AI-asetukset tietokannasta<br/>aiSettingsService.getSettings()"];
+    
+    D --> E{"<b>5. Version Selection</b><br/>chatAgentVersion?"};
+    
+    E -- "'modern'" --> F["<b>6a. Modern Path</b><br/>aiController käyttää ModernChatAgent"];
+    E -- "'legacy'" --> G["<b>6b. Legacy Path</b><br/>aiController käyttää ChatAgent<br/>(kaksi LLM-kutsua)"];
+    
+    F --> H["<b>7. Database Read</b><br/>Hae tiketin konteksti:<br/>- AITrainingTicket (skenaario + ratkaisu)<br/>- Keskusteluhistoria<br/>- Käyttäjätiedot ja kategoria"];
+    
+    H --> I["<b>8. ConversationStateMachine</b><br/>- Hae tai luo tilakone tikettille<br/>- Tarkista shouldProvideHint() AI-asetusten kanssa<br/>- Palauttaa: { shouldHint: boolean, triggerType?: 'EARLY'|'PROGRESSING'|'CLOSE' }<br/>- Huomioi cooldown ja maxHints rajoitukset"];
+    
+    I --> J["<b>9. Context Building</b><br/>Rakennetaan TicketContext JA HintInstruction:<br/>- TicketContext: title, description, solution jne.<br/>- HintInstruction (jos shouldHint=true):<br/>  • giveHint: true<br/>  • hintType: 'EARLY'/'PROGRESSING'/'CLOSE'<br/>  • hintNumber: 1/2/3...<br/>  • stuckDuration: montako vuoroa jumissa"];
+    
+    J --> K["<b>10. Single LLM Call</b><br/>modernChatAgent.respond()<br/>Yksi kutsu OpenAI:lle<br/>+ hintInstruction (jos määritelty)"];
+    
+    subgraph "Strukturoitu Output (JSON Schema)"
+        direction LR
+        K --> L1["<b>evaluation</b><br/>EARLY/PROGRESSING/<br/>CLOSE/SOLVED"];
+        K --> L2["<b>reasoning</b><br/>Sisäinen päättely<br/>(tallennetaan DB:hen)"];
+        K --> L3["<b>response</b><br/>Käyttäjän vastaus<br/>suomeksi"];
+        K --> L4["<b>emotionalState</b><br/>frustrated/hopeful/<br/>excited/satisfied/confused"];
+        K --> L5["<b>hintGiven</b><br/>true jos vihje annettu<br/>(tallennetaan shouldRevealHint-kenttään)"];
+    end
+    
+    L1 & L2 & L3 & L4 & L5 --> M["<b>11. Zod Validation</b><br/>ChatResponseSchema.parse()<br/>Varmistaa tyypin oikeellisuuden"];
+    
+    M --> N["<b>12. State Update</b><br/>stateMachine.transition(evaluation)<br/>Päivittää stuck-laskuria"];
+    
+    N --> O["<b>13. Database Write</b><br/>INSERT INTO Comment<br/>- content (response text)<br/>- evaluationResult<br/>- emotionalState<br/>- reasoning<br/>- shouldRevealHint<br/>- isAiGenerated: true"];
+    
+    O --> P["<b>14. API Response</b><br/>Palauttaa:<br/>- responseText<br/>- evaluation<br/>- emotionalState<br/>- shouldRevealHint"];
+    
+    P --> Q{"<b>15. UI Update</b><br/>Näkymä riippuu käyttäjästä"};
+    
+    Q -- "Support/Student" --> R["<b>CommentSection.jsx</b><br/>- AI:n vastaus<br/>- 'Vihje annettu' badge<br/>- EI sisäisiä tietoja"];
+    
+    Q -- "Admin/Trainer" --> S["<b>ConversationModal.jsx</b><br/>- Kaikki tiedot<br/>- Evaluation badges<br/>- Emotional states<br/>- Reasoning dropdown"];
+    
+    G --> T["Legacy flow<br/>(katso ChatAgent-kaavio)"];
+```
+
+### ConversationStateMachine (Dialogue Flow Control with Hint System)
+
+**Status**: KÄYTÖSSÄ ModernChatAgentin kanssa vihjesysteemin hallintaan.
+
+```mermaid
+stateDiagram-v2
+    [*] --> initial: Start
+    
+    initial --> initial: EARLY (stuck++)
+    initial --> diagnosing: PROGRESSING (stuck=0)
+    
+    diagnosing --> diagnosing: EARLY (stuck++)
+    diagnosing --> diagnosing: PROGRESSING (stuck=0)
+    diagnosing --> attempting: CLOSE (stuck=0)
+    
+    attempting --> attempting: EARLY (stuck++)
+    attempting --> attempting: PROGRESSING/CLOSE (stuck=0)
+    attempting --> verifying: SOLVED (stuck=0)
+    
+    verifying --> verifying: CLOSE/PROGRESSING (stuck=0)
+    verifying --> resolved: SOLVED
+    
+    resolved --> [*]: End
+    
+    note right of initial
+        User describes problem
+        Support gathering info
+        stuck >= 3 = hint provided
+    end note
+    
+    note right of diagnosing
+        Support identifies area
+        Testing solutions
+        Hint if stuck >= 3
+    end note
+    
+    note right of attempting
+        Close to solution
+        Fine-tuning approach
+        Hint if stuck >= 3
+    end note
+    
+    note right of verifying
+        Solution works
+        User confirms fix
+        No stuck tracking
+    end note
+```
+
+**Vihjesysteemin toiminta (Refaktoroitu 2025-01-02):**
+
+**Päätöksenteko (StateMachine):**
+- `stuckCounter` kasvaa kun evaluation = EARLY
+- `progressCounter` kasvaa kun evaluation = PROGRESSING  
+- `closeCounter` kasvaa kun evaluation = CLOSE
+- Laskurit nollautuvat kun tila vaihtuu
+- StateMachine päättää milloin vihje annetaan:
+  - `stuckCounter >= hintOnEarlyThreshold` (oletus 3) → triggerType: 'EARLY'
+  - `progressCounter >= hintOnProgressThreshold` → triggerType: 'PROGRESSING'
+  - `closeCounter >= hintOnCloseThreshold` → triggerType: 'CLOSE'
+  - Huomioi cooldown ja maxHints rajoitukset
+
+**Vihjeiden toteutus (ModernChatAgent):**
+- AI saa suoran ohjeen StateMachinelta (ei tee omaa päätöstä)
+- Progressiivinen vihjesysteemi:
+  - EARLY #1: Ultra epämääräinen ("Jotain on pielessä...")
+  - EARLY #2: Hieman tarkempi ("Verkossa jotain...")
+  - EARLY #3: Kategoria maininta ("Asetuksissa ongelma...")
+  - PROGRESSING: Spesifisiä oireita
+  - CLOSE: Tarkat yksityiskohdat
+- AI asettaa `hintGiven: true` kun vihje annettu
+
+### ModernTicketGeneratorAgent (Single LLM Call with Technical Level Scaling)
+
+```mermaid
+graph TD
+    A["<b>1. SUPPORT/ADMIN</b><br/>Valitsee parametrit UI:ssa<br/>(complexity, category, userProfile)"] --> B{"<b>2. UI Trigger</b><br/>POST /api/ai/generate-ticket-preview"};
+    
+    B --> C["<b>3. API Controller</b><br/>aiController.generateTrainingTicketPreview"];
+    
+    C --> D["<b>4. Version Check</b><br/>aiSettingsService.useModernTicketGenerator()"];
+    
+    D --> E{"<b>5. Version Selection</b><br/>ticketGeneratorVersion?"};
+    
+    E -- "'modern'" --> F["<b>6a. Modern Path</b><br/>modernTicketGenerator.generateTicket()"];
+    E -- "'legacy'" --> G["<b>6b. Legacy Path</b><br/>ticketGenerator.generateTicket()<br/>(vanha toteutus)"];
+    
+    F --> H["<b>7. Technical Level Detection</b><br/>getTechnicalLevel(userProfile)<br/>• student → 70% beginner, 30% intermediate<br/>• teacher → 80% intermediate, 20% advanced<br/>• staff → 33% each level<br/>• admin → 100% advanced"];
+    
+    H --> I["<b>8. Style Selection</b><br/>Random valinta teknisen tason mukaan:<br/>• Beginner: panic, confused, frustrated, brief<br/>• Intermediate: confused, frustrated, polite, brief<br/>• Advanced: frustrated, polite"];
+    
+    I --> J["<b>9. Dynamic Prompt Building</b><br/>buildSystemPrompt()<br/>• Technical level instructions<br/>• Style-specific guidance<br/>• Complexity requirements<br/>• Character limits (150-400)"];
+    
+    J --> K["<b>10. Single LLM Call</b><br/>Strukturoitu output JSON Schema:<br/>• title (max 50 chars)<br/>• description (level-based length)<br/>• device (empty if beginner)<br/>• additionalInfo<br/>• priority<br/>• style (tracking)<br/>• technicalAccuracy (0-1)"];
+    
+    K --> L["<b>11. Response Parsing</b><br/>Zod validation<br/>ModernTicketSchema.parse()"];
+    
+    L --> M["<b>12. Solution Generation</b><br/>generateSolutionForPreview()<br/>(sama kuin legacy)"];
+    
+    M --> N["<b>13. Return Preview</b><br/>• Tiketti data<br/>• Ratkaisu<br/>• Metadata (style, accuracy)"];
+    
+    N --> O["<b>14. UI Display</b><br/>Näyttää esikatselun<br/>käyttäjälle vahvistusta varten"];
+    
+    O --> P{"<b>15. User Decision</b>"};
+    
+    P -- "Confirm" --> Q["<b>16. Save to DB</b><br/>Tallenna tiketti ja ratkaisu"];
+    P -- "Regenerate" --> B;
+    P -- "Cancel" --> R["<b>17. Discard</b>"];
+
+    style F fill:#90EE90
+    style H fill:#FFE4B5
+    style I fill:#FFE4B5
+    style J fill:#FFE4B5
+```
+
+**Teknisen tason vaikutus outputtiin:**
+
+| Taso | Max pituus | Tekniset termit | Rakenne | Esimerkki |
+|------|------------|-----------------|---------|-----------|
+| **Beginner** | 150 merkkiä | Ei teknisiä termejä | Kaoottinen | "netti ei toimi, kokeilin sammuttaa mut ei auta" |
+| **Intermediate** | 250 merkkiä | WiFi, salasana, verkko | Semi-organisoitu | "WiFi yhdistää mutta Chrome sanoo ei yhteyttä" |
+| **Advanced** | 400 merkkiä | DNS, DHCP, IP, port | Organisoitu | "DNS-resoluutio epäonnistuu, ping 8.8.8.8 timeout" |
+
+**Kirjoitustyylit:**
+- **panic**: "APUA!! Kaikki on rikki!" (huutomerkit, kiire)
+- **confused**: "En ymmärrä mikä on vialla?" (kysymyksiä, epävarmuus)
+- **frustrated**: "Tämä ei taas toimi..." (ärtymys, toistuvuus)
+- **polite**: "Hei, voisitteko auttaa..." (muodollinen, kohtelias)
+- **brief**: "Netti ei toimi." (1-2 lausetta max)
 
 ### SummarizerAgent (Detailed)
 

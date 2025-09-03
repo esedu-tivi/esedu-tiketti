@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios'; // Use axios
 import { format } from 'date-fns';
 import { authService } from '../../services/authService'; // Import authService
-import { Loader2, AlertCircle, Table, List, MessageSquare, Calendar, User, Tag, Hash, Eye, ExternalLink, Filter, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Search, PieChart, CheckCircle } from 'lucide-react'; // Import Lucide icons
+import { useUsers } from '../../hooks/useUsers';
+import { useCategories } from '../../hooks/useCategories';
+import { Loader2, AlertCircle, Table, List, MessageSquare, Calendar, User, Tag, Hash, Eye, ExternalLink, Filter, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Search, PieChart, CheckCircle, RefreshCw } from 'lucide-react'; // Import Lucide icons
 import { debounce } from 'lodash'; // Import debounce
 import FilterDialog from './FilterDialog'; // Import the new dialog
 import PaginationControls from './PaginationControls'; // Import pagination controls
@@ -26,9 +28,13 @@ const AiTicketAnalysis = ({ onViewConversation, onOpenTicketDetails }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Use centralized hooks for data
+  const { data: categoriesData } = useCategories();
+  const { data: usersData } = useUsers();
+  
   // Keep state for filter options
-  const [categories, setCategories] = useState([]);
-  const [supportUsers, setSupportUsers] = useState([]);
+  const categories = categoriesData?.categories || categoriesData?.data || [];
+  const supportUsers = (usersData || []).filter(user => user.role === 'SUPPORT' || user.role === 'ADMIN');
   const [statuses] = useState(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']);
 
   // Consolidated state for applied filters
@@ -96,10 +102,11 @@ const AiTicketAnalysis = ({ onViewConversation, onOpenTicketDetails }) => {
           params: params 
         }
       );
-      // Expect response like { tickets: [], aggregates: {}, pagination: {} }
-      setTickets(response.data.tickets || []);
-      setAggregates(response.data.aggregates || null);
-      setPagination(response.data.pagination || null);
+      // Expect response like { data: { tickets: [], aggregates: {}, pagination: {} } }
+      const responseData = response.data.data || response.data;
+      setTickets(responseData.tickets || responseData || []);
+      setAggregates(responseData.aggregates || null);
+      setPagination(responseData.pagination || null);
 
     } catch (err) {
       console.error('Error fetching filtered AI analysis data:', err);
@@ -112,29 +119,10 @@ const AiTicketAnalysis = ({ onViewConversation, onOpenTicketDetails }) => {
     }
   }, 300), [activeFilters, sortBy, sortDirection, currentPage, pageSize]); // Add page dependencies
 
-  // Initial data fetch (options + initial tickets)
+  // Initial data fetch (tickets only, options come from hooks)
   useEffect(() => {
-    const fetchInitialData = async () => {
-      setLoading(true); 
-      setError(null);
-      try {
-        const token = await authService.acquireToken();
-        const [configResponse, usersResponse] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/ai/config`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${import.meta.env.VITE_API_URL}/users`, { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        setCategories(configResponse.data.categoryOptions || []);
-        const usersArray = Array.isArray(usersResponse.data) ? usersResponse.data : (usersResponse.data.users || []);
-        setSupportUsers(usersArray.filter(user => user.role === 'SUPPORT' || user.role === 'ADMIN'));
-        // Fetch initial tickets using the debounced function with default filters
-        fetchFilteredTickets(); 
-      } catch (err) {
-        console.error('Error fetching initial AI analysis options:', err);
-        setError('Failed to fetch filter options.');
-        setLoading(false); // Ensure loading stops on option fetch error
-      }
-    };
-    fetchInitialData();
+    // Fetch initial tickets using the debounced function with default filters
+    fetchFilteredTickets();
     return () => fetchFilteredTickets.cancel(); // Cleanup debounce
   }, []); // Run only once on mount
 
@@ -224,13 +212,24 @@ const AiTicketAnalysis = ({ onViewConversation, onOpenTicketDetails }) => {
       {/* Header with Title and Filter Button */}
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-800">AI-generoitujen tikettien analyysi</h2>
-        <button 
-          onClick={() => setIsFilterDialogOpen(true)}
-          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-5 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <Filter size={16} className="-ml-1 mr-2" />
-          Suodattimet
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => fetchFilteredTickets()}
+            disabled={loading}
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-5 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            title="Päivitä tiedot"
+          >
+            <RefreshCw size={16} className={`-ml-1 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Päivitä
+          </button>
+          <button 
+            onClick={() => setIsFilterDialogOpen(true)}
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm leading-5 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <Filter size={16} className="-ml-1 mr-2" />
+            Suodattimet
+          </button>
+        </div>
       </div>
       
       {/* --- Aggregate Statistics Section --- */}

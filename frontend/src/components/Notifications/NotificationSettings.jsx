@@ -1,36 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { getNotificationSettings, updateNotificationSettings } from '../../utils/api';
+import { updateNotificationSettings } from '../../utils/api';
+import { useNotificationSettings } from '../../hooks/useUserData';
+import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Bell, Mail, RefreshCw } from 'lucide-react';
 
 const NotificationSettings = () => {
+  const queryClient = useQueryClient();
+  const { data: fetchedSettings, isLoading: loading, refetch } = useNotificationSettings();
+  
   const [settings, setSettings] = useState({
-    emailNotifications: true,
     webNotifications: true,
     notifyOnAssigned: true,
     notifyOnStatusChange: true,
     notifyOnComment: true,
     notifyOnPriority: true,
     notifyOnMention: true,
-    notifyOnDeadline: true,
   });
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (fetchedSettings) {
+      setSettings(fetchedSettings);
+    }
+  }, [fetchedSettings]);
 
   const fetchSettings = async () => {
-    try {
-      const data = await getNotificationSettings();
-      setSettings(data);
-    } catch (error) {
-      console.error('Error fetching notification settings:', error);
-      toast.error('Ilmoitusasetusten hakeminen epäonnistui');
-    } finally {
-      setLoading(false);
-    }
+    refetch();
   };
 
   const handleChange = (field) => {
@@ -45,6 +41,8 @@ const NotificationSettings = () => {
     setSaving(true);
     try {
       await updateNotificationSettings(settings);
+      // Invalidate the cache to ensure fresh data
+      queryClient.invalidateQueries(['notification-settings']);
       toast.success('Ilmoitusasetukset päivitetty');
     } catch (error) {
       console.error('Error updating notification settings:', error);
@@ -55,8 +53,8 @@ const NotificationSettings = () => {
   };
 
   const renderToggle = (field, label, description, disabled = false, comingSoon = false) => {
-    const isDisabled = disabled || (!settings.webNotifications && field !== 'webNotifications' && field !== 'emailNotifications');
-    const tooltipText = !settings.webNotifications && field !== 'webNotifications' && field !== 'emailNotifications'
+    const isDisabled = disabled || (!settings.webNotifications && field !== 'webNotifications');
+    const tooltipText = !settings.webNotifications && field !== 'webNotifications'
       ? 'Ota ensin selainilmoitukset käyttöön'
       : '';
 

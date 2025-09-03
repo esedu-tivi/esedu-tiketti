@@ -73,7 +73,7 @@ class UserService {
           }
         );
         
-        const profilePicture = response.data.profilePicture;
+        const profilePicture = response.data.data?.profilePicture || response.data.profilePicture;
         this.profileCache.set(userEmail, profilePicture);
         return profilePicture;
       } catch (error) {

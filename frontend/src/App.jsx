@@ -12,6 +12,7 @@ import ProfileView from './pages/ProfileView';
 import TicketPage from './pages/TicketPage';
 import Layout from './components/Layout/Layout';
 import AITools from './pages/AITools';
+import DiscordSettings from './pages/DiscordSettings';
 
 function App() {
   const { userRole } = useAuth();
@@ -80,6 +81,15 @@ function App() {
             <AuthGuard requiredRole="ADMIN">
               <Layout>
                 <AITools />
+              </Layout>
+            </AuthGuard>
+          } />
+
+          {/* Discord-asetukset (vain admin) */}
+          <Route path="/discord-settings" element={
+            <AuthGuard requiredRole="ADMIN">
+              <Layout>
+                <DiscordSettings />
               </Layout>
             </AuthGuard>
           } />

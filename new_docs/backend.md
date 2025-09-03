@@ -1,6 +1,6 @@
 # Backend-sovellus (Node.js / Express)
 
-Tämä dokumentti kuvaa tikettijärjestelmän backend-sovelluksen arkkitehtuurin, käytetyt teknologiat, API-rakenteen, projektin hakemistorakenteen, Docker-käytön, tietokannan hallinnan, tuotantoon viennin, vianetsinnän ja muut keskeiset backend-toiminnallisuudet.
+Tämä dokumentti kuvaa tikettijärjestelmän backend-sovelluksen arkkitehtuurin, käytetyt teknologiat, API-rakenteen, projektin hakemistorakenteen, Docker-käytön, tietokannan hallinnan, tuotantoon viennin, vianetsinnän, token-seurannan ja muut keskeiset backend-toiminnallisuudet.
 
 ## Docker-konttien Käyttö (Backend & DB)
 
@@ -25,7 +25,10 @@ Järjestelmän PostgreSQL-tietokanta ajetaan tyypillisesti Docker-kontissa (`ese
     *   Käynnistää *vain* tietokantakontin (`esedu-tiketti-db`), jos se ei ole jo käynnissä (Docker Compose -logiikka `dev`-skriptissä).
     *   Ajaa migraatiot ja seedin.
     *   Käynnistää backend-palvelimen **host-koneella** nodemonilla (hot-reloading).
+    *   Käynnistää Prisma Studion rinnakkain.
     *   Backend yhdistää tietokantaan osoitteessa `localhost:5434` (portti mapattu `docker-compose.yml`:ssä).
+*   **`npm run dev:server`:** Käynnistää vain kehityspalvelimen ilman muita palveluita.
+*   **`npm run dev:studio`:** Käynnistää vain Prisma Studion.
 *   **`docker-compose up -d` (Backend ja DB Dockerissa):**
     *   Käynnistää *molemmat* kontit: `esedu-tiketti-db` ja `esedu-tiketti-backend`.
     *   Ajaa automaattisesti tietokannan migraatiot (`prisma migrate deploy`) backend-kontissa.
@@ -36,8 +39,11 @@ Järjestelmän PostgreSQL-tietokanta ajetaan tyypillisesti Docker-kontissa (`ese
 
 ### Huomioitavaa Docker-käytössä
 *   **Ympäristömuuttujat (`backend/.env`):**
+    *   Kopioi `.env.example` tiedosto `.env`:ksi ja muokkaa tarvittavat arvot.
     *   Kun ajat backendin **hostissa** (`npm run dev`), `DATABASE_URL` käyttää `localhost:5434`.
     *   Kun ajat backendin **kontissa** (`docker-compose up -d`), `DATABASE_URL` käyttää Docker-verkon sisäistä palvelunimeä, esim. `postgresql://admin:admin123@postgres:5432/esedu_tiketti_db?schema=public`.
+    *   **JWT_SECRET** pitää olla vähintään 32 merkkiä pitkä.
+    *   **OPENAI_API_KEY** on pakollinen AI-toimintojen käyttöön.
 *   **Tiedostojen Pysyvyys:** Tietokanta tallennetaan Docker volumeen (`postgres_data`). Ladatut tiedostot (`uploads`-kansio) tulisi myös tallentaa pysyvästi (volume tai bind mount, tarkista `docker-compose.yml`).
 
 ## Tietokannan Hallinta (Prisma)
@@ -47,6 +53,12 @@ Prisma hoitaa tietokantaskeeman hallinnan ja migraatiot.
 ### Migraatiot (`backend/prisma/migrations`)
 *   **Uuden migraation luonti (kehitys):** `npx prisma migrate dev --name muutoksen_nimi`
 *   **Migraatioiden ajo (tuotanto/docker):** `npx prisma migrate deploy` (ajetaan automaattisesti Docker-käynnistyksessä ja `npm start` -skriptissä)
+*   **Suorituskykyindeksit:** Uusimmat migraatiot sisältävät strategisia composite-indeksejä suorituskyvyn optimointiin:
+    - Tikettien suodatus statuksen ja prioriteetin mukaan
+    - Käsittelijäkohtaiset kyselyt
+    - Kategoriasuodatukset
+    - Päivämääräperusteiset haut ja järjestäminen
+    - Ilmoitusten ja AI-analytiikan optimointi
 
 ### Prisma Studio (Kehitys)
 Tarkastele ja muokkaa tietokantaa selaimessa:
@@ -98,6 +110,41 @@ Virheelliset syötteet hylätään, ja API palauttaa yleensä 400 Bad Request -v
 }
 ```
 
+## Token-käytön seuranta
+
+Backend sisältää kattavan token-käytön seurantajärjestelmän AI-agenttien käytön analysointiin:
+
+### TokenTrackingService (`services/tokenTrackingService.ts`)
+- Seuraa kaikkien AI-agenttien token-käyttöä automaattisesti
+- Laskee kustannukset OpenAI:n hinnoittelun mukaan
+- Tukee uusimpia malleja: GPT-5, GPT-4.1, O4 ja legacy-malleja
+- Tarjoaa kattavat analytiikkafunktiot:
+  - `trackTokenUsage()` - Tallentaa jokaisen AI-kutsun token-käytön
+  - `getTokenAnalytics()` - Hakee analytiikkadatan monipuolisilla suodattimilla
+  - `getDailyTokenUsage()` - Päivittäinen käyttödata kaavioita varten
+  - `getTopUsersByTokenUsage()` - Aktiivisimmat käyttäjät
+
+### TokenTrackingCallbackHandler (`utils/tokenCallbackHandler.ts`)
+- LangChain.js callback handler automaattiseen seurantaan
+- Kerää token-tiedot kaikista AI-kutsuista ilman manuaalista koodia
+- Tukee useita OpenAI response-formaatteja
+- Seuraa myös vastausaikoja ja virheitä
+- Integroituu saumattomasti kaikkiin AI-agentteihin
+
+### Token Analytics API (`controllers/tokenAnalyticsController.ts`)
+- `GET /ai/token-analytics` - Kattava analytiikka suodattimilla (päivämäärä, agentti, käyttäjä, tiketti)
+- `GET /ai/token-analytics/daily?days=30` - Päivittäinen käyttödata valitulta ajanjaksolta
+- `GET /ai/token-analytics/top-users?limit=10` - Top käyttäjät token-käytön mukaan
+- `GET /ai/token-analytics/summary` - Kuukausittainen yhteenveto vertailuineen
+
+### Tietokantamalli
+`AITokenUsage`-taulu tallentaa jokaisen AI-kutsun tiedot:
+- Agent- ja mallitiedot
+- Prompt/completion/total tokenit
+- Arvioitu kustannus USD:nä
+- Linkitys tikettiin ja käyttäjään
+- Vastausaika ja virheseuranta
+
 ## Vianetsintä (Backend)
 
 *   **Docker-kontti ei käynnisty:** Tarkista Docker Desktopin tila, porttivaraukset (3001, 5434/5432), ja `docker-compose logs -f backend` tai `docker-compose logs -f postgres`.
@@ -106,6 +153,7 @@ Virheelliset syötteet hylätään, ja API palauttaa yleensä 400 Bad Request -v
     *   `Database connection error`: Tarkista `DATABASE_URL` `.env`-tiedostossa ja tietokannan tila.
     *   `Migration errors`: Tarkista migraatiohistoria ja tietokannan tila. Kokeile `npx prisma migrate resolve --applied [migration_id]` tai kehityksessä `npm run db:reset`.
     *   `Prisma Client is not generated`: Aja `npx prisma generate`.
+    *   **Huom:** Backend käyttää nyt keskitettyä Prisma client singletonia (`src/lib/prisma.ts`) hot-reload-ongelmien välttämiseksi.
 *   **TypeScript-virheet:** Tarkista `tsconfig.json`, varmista että `npm install` on ajettu ja kokeile buildata: `npm run build`.
 *   **Autentikointivirheet:** Varmista `JWT_SECRET` ja Azure AD -asetukset (`AZURE_AD_CLIENT_ID`, `AZURE_AD_TENANT_ID`) `.env`-tiedostossa. Tarkista `authMiddleware.ts`:n tokenin validointilogiikka.
 *   **API-kutsut epäonnistuvat:** Tarkista backendin lokit (`npm run dev` tai `docker-compose logs -f backend`) tarkempien virheilmoitusten varalta.
@@ -121,6 +169,7 @@ Backend on rakennettu Node.js-ympäristöön käyttäen seuraavia teknologioita 
 *   **Tietokanta:** [PostgreSQL](https://www.postgresql.org/) - Tehokas ja avoimen lähdekoodin relaatiotietokanta.
 *   **Autentikointi & Auktorisointi:**
     *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) - Kirjasto JSON Web Token (JWT) -tokenien (Azure AD ID-token frontendistä) dekoodaukseen `authMiddleware`:ssa käyttäjätietojen saamiseksi.
+    *   `requireRole` middleware - Tukee sekä yksittäistä roolia että roolien taulukkoa parametrina: `requireRole(UserRole.ADMIN)` tai `requireRole([UserRole.ADMIN, UserRole.SUPPORT])`
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/) - Mahdollistaa reaaliaikaisen, kaksisuuntaisen ja tapahtumapohjaisen kommunikaation selaimen ja palvelimen välillä (esim. ilmoitukset).
 *   **Tekoälyintegraatio:**
     *   [LangChain.js](https://js.langchain.com/) - Framework tekoälymalleihin perustuvien sovellusten kehittämiseen, käytetään AI-agenttien ja promptien hallintaan.
@@ -146,6 +195,8 @@ src/
 ├── controllers/     # API-endpointtien käsittelijäfunktiot. Vastaavat requesteista ja responseista.
 │   ├── authController.ts
 │   ├── ticketController.ts # Tikettien ja kommenttien CRUD ym.
+│   ├── aiSettingsController.ts # AI-asetusten hallinta (mallit, vihjeet)
+│   ├── tokenAnalyticsController.ts # Token-käytön analytiikka
 │   ├── userController.ts
 │   ├── notificationController.ts
 │   ├── notificationSettingsController.ts
@@ -169,10 +220,14 @@ src/
 │   ├── aiRoutes.ts
 │   └── aiAnalyticsRoutes.ts   # AI-analytiikan API-reitit
 ├── services/        # Sovelluksen ydinlogiikka ja tietokantainteraktiot.
-
 │   ├── ticketService.ts # Tikettien CRUD-operaatiot ja muu logiikka. Vastaa myös kaikkien tikettiin liittyvien tietojen (liitteet, kommentit, ilmoitukset, AI-interaktiot, SupportAssistantConversation-tietueet) poistamisesta transaktiossa tiketöinnin poiston yhteydessä.
+│   ├── aiSettingsService.ts # AI-asetusten hallinta cachen kanssa
+│   ├── tokenTrackingService.ts # Token-käytön seuranta ja kustannuslaskenta
 │   ├── socketService.ts # Socket.IO-tapahtumien hallinta ja lähetys.
 │   └── ... (muut palvelut)
+├── utils/           # Apuohjelmat ja työkalut
+│   ├── tokenCallbackHandler.ts # LangChain callback handler token-seurantaan
+│   └── ... (muut työkalut)
 └── types/           # Jaetut TypeScript-tyyppimäärittelyt (esim. API-pyyntöjen ja vastausten tyypit).
 ```
 
@@ -199,8 +254,51 @@ Backend tarjoaa RESTful API:n, jota frontend-sovellus käyttää datan hallintaa
 
 *   **Alustus:** `index.ts` alustaa Socket.IO-palvelimen ja liittää sen HTTP-palvelimeen.
 *   **Yhteyden Hallinta:** `socketService.ts` hoitaa uusien client-yhteyksien vastaanottamisen, käyttäjien autentikoinnin ja käyttäjäkohtaisten socket-yhteyksien tallentamisen.
-*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka (todennäköisesti `ticketController`issa tai `ticketService`ssä) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
-*   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia (`socket.on('new_notification', ...)`).
+*   **JWT-autentikointi:** Socket-yhteydet varmistetaan JWT-tokenilla handshake-vaiheessa
+*   **Room-pohjainen reititys:** Käyttäjät liitetään user-specific roomiin (`user_${userId}`)
+*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. 
+    - `emitTicketCreated()` - Lähettää uuden tiketin kaikille
+    - `emitTicketUpdated()` - Lähettää tiketin päivityksen kaikille
+    - `emitTicketStatusChanged()` - Lähettää statuksen muutoksen kaikille
+    - `emitTicketDeleted()` - Lähettää poiston kaikille
+    - `emitCommentAdded()` - Lähettää uuden kommentin tiketin seuraajille
+*   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia singleton-patternia käyttäen.
+
+## AI Settings
+
+AI Settings on keskitetty järjestelmä tekoälyagenttien käyttäytymisen hallintaan. Se korvaa ympäristömuuttujapohjaisen konfiguroinnin tietokantapohjaisella ratkaisulla.
+
+### Tietokantamalli
+
+`AISettings` - Singleton-patternia noudattava taulu, jossa on vain yksi rivi:
+* `chatAgentVersion` - Käytettävä agenttiversio ("modern" tai "legacy")
+* `hintSystemEnabled` - Vihjesysteemin tila (päällä/pois)
+* `hintOnEarlyThreshold` - EARLY-tilojen määrä ennen vihjettä (oletus: 3)
+* `hintOnProgressThreshold` - PROGRESSING-tilojen määrä ennen vihjettä (null = pois käytöstä)
+* `hintOnCloseThreshold` - CLOSE-tilojen määrä ennen vihjettä (null = pois käytöstä)
+* `hintCooldownTurns` - Vuorojen määrä vihjeiden välillä (oletus: 0 = ei cooldownia)
+* `hintMaxPerConversation` - Maksimi vihjeiden määrä per keskustelu (oletus: 999 = rajaton)
+
+### Service (aiSettingsService.ts)
+
+`aiSettingsService.ts` tarjoaa välimuistitetun pääsyn AI-asetuksiin:
+* 1 minuutin välimuisti suorituskyvyn optimoimiseksi
+* Automaattinen oletusasetusten luonti jos asetuksia ei ole
+* Helper-metodit: `useModernChatAgent()`, `isHintSystemEnabled()`
+
+### Controller (aiSettingsController.ts)
+
+`aiSettingsController.ts` tarjoaa REST API:n asetusten hallintaan:
+* `getSettings` - Hakee nykyiset asetukset
+* `updateSettings` - Päivittää asetukset (Zod-validointi)
+* `resetSettings` - Palauttaa oletusasetukset
+
+### API-reitit
+
+Kaikki AI Settings -reitit löytyvät `/api/ai/settings` polun alta ja vaativat ADMIN-roolin:
+* `GET /api/ai/settings` - Hakee nykyiset asetukset
+* `PUT /api/ai/settings` - Päivittää asetukset
+* `POST /api/ai/settings/reset` - Palauttaa oletusasetukset
 
 ## AI Analytics
 
@@ -247,4 +345,75 @@ Tarkempi kuvaus näistä rajapinnoista löytyy dokumentista [`api-endpoints.md`]
 * `getFeedbackByTicket` - Hakee kaikki tiettyyn tikettiin liittyvät vuorovaikutukset, joille on annettu palaute.
 
 ### AI-Avustajan Keskusteluhistorian Parannukset (`aiController.ts`)
-*   **InteractionID:n Tallennus:** Kun AI-avustaja (`SupportAssistantAgent`) vastaa käyttäjälle, sen tuottaman vastauksen yhteydessä oleva yksilöllinen `interactionId` tallennetaan nyt osaksi keskusteluhistoriaa (`SupportAssistantConversation`-taulu). Tämä mahdollistaa myöhemmin yksittäisten viestien ja niihin liittyvän palautteen tarkemman seurannan ja kohdistamisen. 
+*   **InteractionID:n Tallennus:** Kun AI-avustaja (`SupportAssistantAgent`) vastaa käyttäjälle, sen tuottaman vastauksen yhteydessä oleva yksilöllinen `interactionId` tallennetaan nyt osaksi keskusteluhistoriaa (`SupportAssistantConversation`-taulu). Tämä mahdollistaa myöhemmin yksittäisten viestien ja niihin liittyvän palautteen tarkemman seurannan ja kohdistamisen.
+
+
+## Discord-integraatio
+
+Discord-integraatio mahdollistaa tikettien luomisen ja hallinnan suoraan Discordista ilman erillisiä käyttäjätilejä.
+
+### Discord Bot (`discord/bot.ts`)
+
+*   **Alustus:** Bot alustuu automaattisesti backendin käynnistyessä jos `DISCORD_BOT_TOKEN` ja `DISCORD_CLIENT_ID` on määritelty
+*   **Slash-komennot:** `/tiketti` - luo uuden tukipyynnön
+*   **Käyttäjien esto:** Tarkistaa `isBlocked`-kentän ennen tikettikanavan luontia
+*   **Tilan hallinta:** 
+    - Pyörivä status näyttää tikettien määrät (Avoimia, Käsittelyssä, Yhteensä)
+    - Vaihtoehtoinen status näyttää seuraavan siivouksen ajankohdan
+    - Event-driven päivitykset ilman tietokantakyselyitä
+    - Päivittää statuksen heti kun tikettejä luodaan/päivitetään/poistetaan
+*   **Globaali pääsy:** Bot saatavilla `(global as any).discordBot` kautta
+*   **Suorituskyky:** Ei toistuvia tietokantakyselyitä, täysin tapahtumapohjainen
+
+### Tikettien luonti (`discord/ticketConversation.ts`)
+
+*   **Keskustelupohjainen luonti:** Bot ohjaa käyttäjän läpi tiketin luomisen
+*   **Yksityinen kanava:** Luo automaattisesti yksityisen kanavan tikettikeskustelulle
+*   **Käyttäjähallinta:** Luo automaattisesti Discord-käyttäjän järjestelmään
+*   **Peruutusmahdollisuus:** Käyttäjä voi peruuttaa tiketin luonnin milloin tahansa
+*   **Estettyjen käyttäjien tarkistus:** Estää tikettien luonnin `isBlocked`-käyttäjiltä
+*   **Suomenkielinen:** Kaikki viestit ja ohjeet ovat suomeksi
+
+### Viestien synkronointi (`discord/messageSync.ts`)
+
+*   **Kaksisuuntainen synkronointi:** 
+    - Discord-viestit → Web-kommentit
+    - Web-kommentit → Discord-embedit
+*   **Tilan päivitykset:** Status-muutokset näkyvät molemmissa järjestelmissä
+*   **Oikeuksien hallinta:**
+    - OPEN/IN_PROGRESS: Käyttäjä voi lähettää viestejä
+    - RESOLVED/CLOSED: Vain luku -oikeudet
+*   **Liitetiedostot:** Kuvat ja videot synkronoituvat
+
+### Kanavien siivous (`discord/channelCleanup.ts`)
+
+*   **Automaattinen poisto:**
+    - Suljetut tiketit: 24 tunnin jälkeen (konfiguroitavissa)
+    - Passiiviset tiketit: 48 tunnin jälkeen (konfiguroitavissa)
+    - Hylätyt kanavat: 1 tunnin jälkeen (ilman tikettejä)
+*   **Tuntiajastin:** Siivous ajetaan kerran tunnissa samassa syklissä
+*   **Hylättyjen kanavien tunnistus:** `cleanupOrphanedChannels()` poistaa kanavat ilman tikettejä
+*   **Välitön poisto:** Kun tiketti poistetaan web-sovelluksesta
+*   **Status-näyttö:** Bot näyttää seuraavan siivouksen ajankohdan
+
+### Discord-asetukset (`discord/discordSettingsService.ts`)
+
+*   **Asetusten hallinta:** Singleton-pattern Discord-asetusten tallennukseen
+*   **Käyttäjähallinta:**
+    - `getDiscordUsers()` - Listaa Discord-käyttäjät tilastoineen
+    - `toggleBlockUser()` - Estää/poistaa eston käyttäjältä
+    - `deleteDiscordUser()` - Poistaa käyttäjän ja vapaaehtoisesti tiketit
+    - Poistaa Discord-kanavat käyttäjää poistettaessa
+*   **Tilastot:** Kerää Discord-tikettien tilastoja (käyttäjät, tiketit, vasteajat)
+*   **Välimuistitus:** Asetukset välimuistissa suorituskyvyn optimoimiseksi
+
+### Integraatio tikettijärjestelmään
+
+*   **ticketService.ts:** 
+    - Kutsuu `discordBot.onTicketChanged()` kaikissa tikettioperaatioissa
+    - Poistaa Discord-kanavan tiketin poiston yhteydessä
+    - Luo aikajana-merkinnän Discord-sulkemisille
+*   **ticketController.ts:**
+    - Lähettää kommentit Discord-kanavalle
+    - Päivittää Discord-botin statuksen tilan muutoksissa
+    - Välittää WebSocket-päivitykset kaikille näkymille 

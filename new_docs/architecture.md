@@ -19,13 +19,17 @@ Tämä dokumentti kuvaa tikettijärjestelmän teknisen arkkitehtuurin, käytetyt
     ```bash
     cd backend
     npm install
-    npm run dev
+    cp .env.example .env  # Kopioi ja muokkaa ympäristömuuttujat
+    npm run dev  # Käynnistää kaikki palvelut
     ```
-    *   Käynnistää PostgreSQL-tietokannan Docker-kontissa.
+    *   Käynnistää PostgreSQL-tietokannan Docker-kontissa (portti 5434).
     *   Ajaa tietokannan migraatiot ja seed-skriptin.
     *   Käynnistää Prisma Studion (http://localhost:5555).
     *   Käynnistää backend-palvelimen (http://localhost:3001).
-    *   (Vaihtoehtoisesti: `cd backend && docker-compose up -d` käynnistää backen+db konteissa)
+    *   Vaihtoehtoiset komennot:
+        - `npm run dev:server` - Vain kehityspalvelin
+        - `npm run dev:studio` - Vain Prisma Studio
+        - `docker-compose up -d` - Backend+DB konteissa
 
 4.  Asenna ja käynnistä frontend (uudessa terminaalissa):
     ```bash
@@ -33,7 +37,7 @@ Tämä dokumentti kuvaa tikettijärjestelmän teknisen arkkitehtuurin, käytetyt
     npm install
     npm run dev
     ```
-    *   Frontend käynnistyy osoitteeseen http://localhost:5173
+    *   Frontend käynnistyy osoitteeseen http://localhost:3000
 
 ## Kehitysympäristön Pystytys
 
@@ -62,8 +66,13 @@ PORT=3001
 
 FRONTEND_URL=http://localhost:3000
 
-# JWT-allekirjoitusavain
-JWT_SECRET=your-super-secret-key-here-change-me
+# Backend URL itseensä viittaaville API-kutsuille (tärkeä Dockerissa)
+# Dockerissa: http://backend:3001
+# Kehityksessä: http://localhost:3001
+BACKEND_URL=http://localhost:3001
+
+# JWT-allekirjoitusavain (vähintään 32 merkkiä)
+JWT_SECRET=your-super-secret-key-here-minimum-32-characters
 
 # Azure AD -asetukset 
 AZURE_AD_CLIENT_ID=your-azure-ad-client-id
@@ -74,13 +83,22 @@ AZURE_AD_REDIRECT_URI=http://localhost:3001/api/auth/openid/return # Backendin c
 # OpenAI API-avain (AI-ominaisuuksille)
 OPENAI_API_KEY=your_openai_api_key_here
 
-# Ympäristön tyyppi (development/production)
+# Ympäristön tyyppi (development/test/production)
+NODE_ENV=development
 ENVIRONMENT=development
+
+# Kehityskäyttöön (NEVER true in production)
+SKIP_JWT_VERIFICATION=false
+DEVELOPER_EMAILS=dev1@example.com,dev2@example.com
 
 OPENAI_API_KEY=sk-proj-1234567890
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_COMPLETION_MODEL=gpt-4o-mini
 OPENAI_ADVANCED_MODEL=gpt-4o-mini
+
+# Discord-integraatio (valinnainen)
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_CLIENT_ID=your_discord_client_id_here
 
 ```
 
@@ -102,11 +120,15 @@ VITE_ENVIRONMENT=development
 
 Kehitysympäristössä luodaan automaattisesti testidataa (`backend/prisma/seed.ts`), kun `npm run dev` tai `npx prisma db seed` ajetaan:
 
-*   **Käyttäjät:**
+*   **Käyttäjät:** Luodaan `upsert`-operaatiolla (ei duplikaattivirheitä)
     *   ADMIN: `admin@example.com`
     *   SUPPORT: `support@example.com`
     *   USER: `user@example.com`
 *   **Kategoriat:** "Tekniset ongelmat", "Yleinen"
+
+### Kehitystyökalut
+
+*   **JWT Token Generator**: `node backend/scripts/generateTestToken.js` - Luo testaustoken API-testausta varten
 
 **HUOM:** Komento `cd backend && npm run db:reset` tyhjentää tietokannan, ajaa migraatiot ja seed-skriptin. Käytä vain kehityksessä.
 
@@ -160,6 +182,20 @@ Kun projektiin tulee muutoksia (esim. Git-repositorioon), päivitä paikallinen 
     *   Käynnistä backend: `cd backend && npm run dev`
     *   Käynnistä frontend: `cd frontend && npm run dev`
 
+## Health Monitoring
+
+Järjestelmä sisältää kattavat terveystarkistuspäätepisteet:
+
+*   `GET /api/health` - Täysi järjestelmän terveys ja metriikat
+*   `GET /api/health/live` - Kubernetes liveness probe
+*   `GET /api/health/ready` - Readiness probe tietokantayhteyden tarkistuksella
+
+Monitorointi sisältää:
+*   Tietokantayhteyden tila
+*   Muistinkäyttö ja järjestelmäresurssit
+*   Ympäristötiedot
+*   Palvelimen uptime
+
 ## Teknologiapino
 
 Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
@@ -171,10 +207,18 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Tilan Hallinta:**
     *   Globaali tila: React Context API (esim. `AuthProvider` autentikoinnin hallintaan)
     *   Palvelimen tilan hallinta: [TanStack Query (React Query)](https://tanstack.com/query/latest) (datan nouto, välimuistitus, taustapäivitykset)
+        - Kaikki API-kutsut keskitetty custom hookeiksi
+        - Automaattinen request deduplication
+        - Optimistinen päivitys mutaatioissa
+        - Roolipohjainen pääsynhallinta hook-tasolla
 *   **Reititys:** [React Router](https://reactrouter.com/) (v6+)
 *   **Tyylit:** [Tailwind CSS](https://tailwindcss.com/)
 *   **API-kommunikaatio:** [Axios](https://axios-http.com/)
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO Client](https://socket.io/docs/v4/client-api/)
+    - Singleton-pohjainen yhteyden hallinta
+    - Automaattinen uudelleenyhdistys
+    - Event-pohjainen tilauksien hallinta
+    - Duplikaattien esto subscription-tasolla
 *   **Autentikointi (Client):** [MSAL React (@azure/msal-react)](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/lib/msal-react) Azure AD -integraatioon.
 *   **Build-työkalu:** [Vite](https://vitejs.dev/)
 *   **Ikonit:** [Lucide React](https://lucide.dev/)
@@ -187,16 +231,38 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Framework:** [Express.js](https://expressjs.com/)
 *   **Kieli:** [TypeScript](https://www.typescriptlang.org/)
 *   **Tietokannan ORM:** [Prisma](https://www.prisma.io/)
-*   **Tietokanta:** [PostgreSQL](https://www.postgresql.org/) (Ajetaan Docker-kontissa kehityksessä)
+*   **Tietokanta:** [PostgreSQL 16](https://www.postgresql.org/) (Docker-kontti kehityksessä, portti 5434)
+    *   Strategiset composite-indeksit suorituskyvyn optimointiin
+    *   Tikettien suodatus statuksen ja prioriteetin mukaan
+    *   Käyttäjäkohtaiset kyselyt ja kategoriasuodatukset
+    *   AI-analytiikan ja ilmoitusten optimointi
 *   **Tekoälyintegraatio:**
     *   [LangChain.js](https://js.langchain.com/): Framework AI-agenttien ja promptien hallintaan.
     *   OpenAI API: Yhteys OpenAI:n kielimalleihin.
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/)
+    - JWT-pohjainen autentikointi
+    - User-room -pohjainen viestien reititys
+    - Event-driven päivitykset (ei tietokantakyselyitä)
+    - Tuetut tapahtumat: ticketCreated, ticketUpdated, ticketStatusChanged, ticketDeleted, commentAdded
 *   **Autentikointi (Server):**
-    *   Vastaanotettujen JWT-tokenien (Azure AD ID-tokeneita frontendistä) dekoodaus käyttäen [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) -kirjastoa omassa `authMiddleware`-toteutuksessa käyttäjätietojen poimimiseksi.
+    *   JWT-tokenien validointi (tukee sekä Azure AD RS256 että local HS256)
+    *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) ja [jwks-rsa](https://github.com/auth0/node-jwks-rsa) kirjastot
+    *   Developer-tilien helpotukset kehityskäyttöön
 *   **Tiedostojen Lataus:** [Multer](https://github.com/expressjs/multer)
 *   **AI Analytics:** Sisältää tekoälyavustajan käytön tilastointiin ja analysointiin tarkoitetut palvelut, reitit ja kontrollerit (`aiAnalyticsController.ts`, `aiAnalyticsRoutes.ts`).
 *   **AI Keskusteluhistoria:** Tukihenkilöavustajan keskusteluhistorian tallentaminen ja hakeminen tietokannasta (`SupportAssistantConversation`-malli ja vastaavat päätepisteet).
+*   **Virheenkäsittely:** Keskitetty virheenkäsittely custom error-luokilla (`errorHandler.ts`)
+*   **Logging:** [Winston](https://github.com/winstonjs/winston) strukturoitu lokitus
+*   **Request Tracking:** UUID-pohjainen pyyntöjen seuranta (`requestId.ts`)
+*   **API Response Standardization:** Yhtenäiset API-vastaukset (`apiResponse.ts`)
+*   **Environment Validation:** [Zod](https://github.com/colinhacks/zod) ympäristömuuttujien validointi (`config/env.ts`)
+*   **Rate Limiting:** [express-rate-limit](https://github.com/nfriedly/express-rate-limit) (200 req/min yleinen, 5 req/15min auth)
+*   **Security:** [Helmet](https://helmetjs.github.io/) security headers
+*   **Discord Integration:** [Discord.js](https://discord.js.org/) 
+    - Bot status rotation with ticket counts
+    - Event-driven status updates (no polling)
+    - Private channel management for tickets
+    - Bidirectional message synchronization
 
 ## Hakemistorakenne
 
@@ -215,19 +281,33 @@ Projektin päärakenne:
 │   │   ├── migrations/  # Tietokannan migraatiotiedostot
 │   │   ├── schema.prisma # Tietokannan skeeman määrittely
 │   │   └── seed.ts      # Testidatan luontiskripti
+│   ├── scripts/       # Kehitystyökalut
+│   │   └── generateTestToken.js # JWT token generaattori testaukseen
 │   ├── src/           # Backendin lähdekoodi
 │   │   ├── ai/          # Tekoälyyn liittyvä logiikka
 │   │   │   ├── agents/    # AI-agenttien toteutukset (esim. TicketGenerator, ChatAgent)
 │   │   │   ├── config.ts  # AI-konfiguraatio (esim. mallinimet)
 │   │   │   └── prompts/   # Prompt-mallipohjat AI-agenteille
 │   │   ├── app.ts       # Express-sovelluksen alustus ja middlewaret
-│   │   ├── config/      # Yleiset konfiguraatiot (esim. tietokanta -tyhjä?)
+│   │   ├── config/      # Konfiguraatiot
+│   │   │   └── env.ts     # Zod-pohjainen ympäristömuuttujien validointi
 │   │   ├── controllers/ # Request/Response-logiikka (API-endpointien käsittelijät)
 │   │   ├── index.ts     # Backend-sovelluksen käynnistyspiste
-│   │   ├── middleware/  # Express-middlewaret (auth, roolit, validointi, upload)
+│   │   ├── lib/         # Jaetut kirjastot
+│   │   │   └── prisma.ts  # Prisma client singleton
+│   │   ├── middleware/  # Express-middlewaret
+│   │   │   ├── authMiddleware.ts  # JWT-autentikointi
+│   │   │   ├── errorHandler.ts    # Keskitetty virheenkäsittely
+│   │   │   ├── requestId.ts       # Request ID tracking
+│   │   │   └── ...                # Muut middlewaret
 │   │   ├── routes/      # API-reitityksen määrittelyt
+│   │   │   ├── healthRoutes.ts    # Health check endpoints
+│   │   │   └── ...                # Muut reitit
 │   │   ├── services/    # Sovelluksen ydinlogiikka (esim. ticketService, socketService)
-│   │   └── types/       # TypeScript-tyyppimäärittelyt
+│   │   ├── types/       # TypeScript-tyyppimäärittelyt
+│   │   └── utils/       # Apufunktiot
+│   │       ├── apiResponse.ts     # API vastausten standardointi
+│   │       └── logger.ts          # Winston logger
 │   └── tsconfig.json  # TypeScript-kääntäjän asetukset
 ├── docs/              # Vanha dokumentaatiohakemisto
 │   ├── ai-agents/     # Vanhat AI-agenttidokumentit

@@ -6,7 +6,7 @@ import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../Notifications/NotificationBell';
-import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon } from 'lucide-react';
+import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon, MessageSquare } from 'lucide-react';
 import NewTicketForm from '../Tickets/NewTicketForm';
 import ProfilePicture from '../User/ProfilePicture';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -113,13 +113,22 @@ export default function Header() {
                 )}
                 
                 {userRole === 'ADMIN' && (
-                  <Link
-                    to="/ai-tools"
-                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center"
-                  >
-                    <Sparkles size={16} className="mr-1 text-yellow-500" />
-                    Tekoälytyökalut
-                  </Link>
+                  <>
+                    <Link
+                      to="/ai-tools"
+                      className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center"
+                    >
+                      <Sparkles size={16} className="mr-1 text-yellow-500" />
+                      Tekoälytyökalut
+                    </Link>
+                    <Link
+                      to="/discord-settings"
+                      className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center"
+                    >
+                      <MessageSquare size={16} className="mr-1 text-indigo-500" />
+                      Discord
+                    </Link>
+                  </>
                 )}
               </nav>
             )}
@@ -184,11 +193,13 @@ export default function Header() {
         </div>
       </div>
 
-      {/* User Management Dialog */}
-      <UserManagementDialog
-        isOpen={isUserManagementOpen}
-        onClose={() => setIsUserManagementOpen(false)}
-      />
+      {/* User Management Dialog - Only render for admins */}
+      {userRole === 'ADMIN' && (
+        <UserManagementDialog
+          isOpen={isUserManagementOpen}
+          onClose={() => setIsUserManagementOpen(false)}
+        />
+      )}
 
       {/* New Ticket Dialog */}
       {isNewTicketOpen && (

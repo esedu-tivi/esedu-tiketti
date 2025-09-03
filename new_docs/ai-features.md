@@ -98,6 +98,58 @@ Järjestelmä sisältää seuraavat erikoistuneet AI-agentit ja työkalut:
     ```
     OPENAI_API_KEY=your_openai_api_key_here
     ```
+*   **Mallien valinta:** Jokainen AI-agentti voi käyttää eri OpenAI-mallia. Mallit konfiguroidaan AISettings-taulussa:
+    *   `chatAgentModel` - ChatAgentin käyttämä malli (oletus: gpt-4o-mini)
+    *   `supportAssistantModel` - Tukihenkilöavustajan malli (oletus: gpt-4o-mini)
+    *   `ticketGeneratorModel` - Tikettigeneraattorin malli (oletus: gpt-4o-mini)
+    *   `summarizerAgentModel` - Yhteenvetoagentin malli (oletus: gpt-4o-mini)
+
+## Token-käytön seuranta
+
+Järjestelmä seuraa automaattisesti kaikkien AI-agenttien token-käyttöä ja kustannuksia:
+
+### Seurannan ominaisuudet
+
+*   **Automaattinen laskenta:** Jokainen AI-kutsu seuraa prompt- ja completion-tokeneja
+*   **Kustannuslaskenta:** Reaaliaikainen kustannuslaskenta perustuen OpenAI:n hinnoitteluun
+*   **Agenttikohtainen seuranta:** Eritellyt tilastot jokaiselle agentille
+*   **Käyttäjäkohtainen seuranta:** Token-käyttö linkitetään käyttäjiin ja tiketteihin
+*   **Virheanalyysi:** Epäonnistuneet pyynnöt ja virheet seurataan erikseen
+
+### Token Analytics Dashboard
+
+Admin-käyttäjille on saatavilla kattava analytiikkanäkymä (AI Tools → Token-seuranta):
+
+*   **Päänäkymä:**
+    *   Yhteenvetotilastot (tokenit, kustannukset, pyynnöt, onnistumisprosentti)
+    *   Päivittäinen käyttökäyrä tokenien ja kustannusten osalta
+    *   Käyttö agenteittain (piirakkakaavio interaktiivisella valinnalla)
+    *   Top 5 aktiivisinta käyttäjää
+    *   Mallien käyttötilastot taulukossa
+
+*   **Syväanalyysi (klikkaa agenttia):**
+    *   Suorituskykytilastot (min/max/mediaani vastausajat)
+    *   Token-tehokkuus (min/max tokenit, prompt/completion-suhde)
+    *   Kustannusanalyysi (halvin/kallein pyyntö, ROI)
+    *   Käyttöhistoria viimeisille 20 pyynnölle
+    *   Pyyntötyyppien jakauma
+
+*   **Lisäanalyysit:**
+    *   Tuntikohtainen käyttöanalyysi (24h heatmap)
+    *   Virheanalyysi agenteittain
+    *   Vastausaikojen jakauma (0-1s, 1-3s, 3-5s, 5-10s, 10s+)
+    *   Yksityiskohtainen pyyntöhistoria hakutoiminnolla
+    *   Token/kustannus-tehokkuuden scatter plot malleittain
+
+### Hinnoittelu
+
+Järjestelmä tukee seuraavien malliperheiden hinnoittelua:
+*   GPT-5 mallit (gpt-5, gpt-5-mini, gpt-5-nano)
+*   GPT-4.1 mallit (gpt-4.1, gpt-4.1-mini, gpt-4.1-nano)
+*   O4 mallit (o4-mini)
+*   Legacy GPT-4 ja GPT-3.5 mallit
+
+Hinnat päivitetään `backend/src/services/tokenTrackingService.ts` tiedostossa.
 *   **Malliasetukset:** Tekoälymallien (esim. käytettävä GPT-malli) ja muiden AI-parametrien oletusasetuksia voidaan mahdollisesti säätää `backend/src/ai/config/aiConfig.ts` -tiedostossa (tai vastaavassa).
 
 ## Tulevat Ominaisuudet (Suunnitelmia)

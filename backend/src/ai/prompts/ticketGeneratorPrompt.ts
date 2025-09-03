@@ -17,7 +17,6 @@ Luotavan tiketin tulee sisältää:
 3. Ongelmaan liittyvät laitetiedot
 4. Ongelman vakavuuteen sopiva prioriteettitaso
 5. Mahdolliset lisätiedot, jotka tekevät skenaariosta realistisen
-6. Tarvittava vastausmuoto (TEKSTI, KUVA tai VIDEO)
 
 Ota KÄYTTÄJÄPROFIILI huomioon kuvauksen tyylissä ja teknisessä tarkkuudessa. Esimerkiksi opiskelijan tiketti voi olla epätarkempi ja sisältää vähemmän teknisiä termejä kuin IT-henkilökunnan jäsenen tiketti.
 
@@ -34,7 +33,7 @@ Muotoile vastauksesi JSON-objektina, jolla on seuraava rakenne:
   "device": "Tiedot laitteesta, jossa ongelma ilmenee",
   "additionalInfo": "Muut olennaiset tiedot",
   "priority": "LOW/MEDIUM/HIGH/CRITICAL",
-  "responseFormat": "TEKSTI/KUVA/VIDEO"
+  "responseFormat": "TEKSTI"
 }}
 
 MUISTA: 
@@ -45,4 +44,5 @@ MUISTA:
 - Älä sisällytä ongelmien ratkaisuja.
 - Kuvauksen tulee olla käyttäjän näkökulmasta, ikään kuin hän olisi kirjoittanut tiketin.
 - Mukauta tiketin kieli ja yksityiskohdat annettuun KÄYTTÄJÄPROFIILIIN sopivaksi.
+- TÄRKEÄÄ: Kaikki tiketit vaativat VAIN tekstipohjaisen vastauksen (responseFormat: "TEKSTI").
 `); 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios'; // Use axios
 import { format } from 'date-fns';
 import { authService } from '../../services/authService'; // Import authService
-import { Loader2, AlertCircle, X, MessageSquare, User, Bot, Calendar, Check, Zap, Activity, AlertTriangle, BookOpen, ChevronDown, ExternalLink, Info, FileText, MessageSquareText } from 'lucide-react'; // Import more icons for evaluation and new ones
+import { Loader2, AlertCircle, X, MessageSquare, User, Bot, Calendar, Check, Zap, Activity, AlertTriangle, BookOpen, ChevronDown, ExternalLink, Info, FileText, MessageSquareText, Heart, Brain, Lightbulb } from 'lucide-react'; // Import more icons for evaluation and new ones
 
 // Function to get styling for evaluation badges
 const getEvaluationBadgeStyle = (evaluation) => {
@@ -55,6 +55,42 @@ const getEvaluationExplanation = (evaluation) => {
       return 'Arviointia ei voitu suorittaa virheen vuoksi.';
     default:
       return 'Tuntematon arviointitila.';
+  }
+};
+
+// Helper function to get emoji for emotional state
+const getEmotionalStateEmoji = (state) => {
+  switch (state?.toLowerCase()) {
+    case 'frustrated':
+      return '😤'; // 😤
+    case 'hopeful':
+      return '🤔'; // 🤔
+    case 'excited':
+      return '😃'; // 😃
+    case 'satisfied':
+      return '😊'; // 😊
+    case 'confused':
+      return '😕'; // 😕
+    default:
+      return null;
+  }
+};
+
+// Helper function to get Finnish translation for emotional state
+const getEmotionalStateText = (state) => {
+  switch (state?.toLowerCase()) {
+    case 'frustrated':
+      return 'Turhautunut';
+    case 'hopeful':
+      return 'Toiveikas';
+    case 'excited':
+      return 'Innostunut';
+    case 'satisfied':
+      return 'Tyytyväinen';
+    case 'confused':
+      return 'Hämmentynyt';
+    default:
+      return state;
   }
 };
 
@@ -344,6 +380,21 @@ const ConversationModal = ({
                             </span>
                           </span>
                         )}
+                        {/* NEW: Emotional State Badge */}
+                        {comment.isAiGenerated && comment.emotionalState && (
+                          <span className="text-xs font-medium py-0.5 px-2 rounded-full inline-flex items-center flex-shrink-0 bg-purple-100 text-purple-700">
+                            <Heart size={12} className="mr-1"/>
+                            <span className="mr-1">{getEmotionalStateEmoji(comment.emotionalState)}</span>
+                            {getEmotionalStateText(comment.emotionalState)}
+                          </span>
+                        )}
+                        {/* NEW: Hint Indicator */}
+                        {comment.isAiGenerated && comment.shouldRevealHint && (
+                          <span className="text-xs font-medium py-0.5 px-2 rounded-full inline-flex items-center flex-shrink-0 bg-yellow-100 text-yellow-700">
+                            <Lightbulb size={12} className="mr-1"/>
+                            Vihje annettu
+                          </span>
+                        )}
                       </span>
                       <span className="text-xs text-gray-500 flex items-center flex-shrink-0 ml-2">
                         <Calendar size={12} className="mr-1"/>
@@ -353,6 +404,23 @@ const ConversationModal = ({
                     <p className="text-sm text-gray-700 whitespace-pre-wrap pl-5">
                       {comment.content}
                     </p>
+                    {/* NEW: Reasoning Section (Collapsible) */}
+                    {comment.isAiGenerated && comment.reasoning && (
+                      <details className="ml-5 mt-2 group/reason border border-gray-200 rounded-md overflow-hidden">
+                        <summary className="flex items-center justify-between px-3 py-1.5 cursor-pointer bg-gray-50 hover:bg-gray-100 list-none text-xs">
+                          <span className="font-medium text-gray-600 flex items-center">
+                            <Brain size={12} className="mr-1.5"/>
+                            AI:n sisäinen päättely
+                          </span>
+                          <ChevronDown size={12} className="text-gray-500 group-open/reason:rotate-180 transition-transform" />
+                        </summary>
+                        <div className="p-2 bg-gray-50 border-t border-gray-200">
+                          <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                            {comment.reasoning}
+                          </p>
+                        </div>
+                      </details>
+                    )}
                     {comment.mediaUrl && (
                       <p className="text-xs text-gray-400 mt-2 pl-5">
                         (Media: {comment.mediaType || 'link'} - Not displayed)

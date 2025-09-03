@@ -2,9 +2,10 @@ import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket, fetchSupportUsers } from '../utils/api';
+import { fetchTicket, addComment, addMediaComment, takeTicketIntoProcessing, releaseTicket, updateTicketStatusWithComment, transferTicket } from '../utils/api';
 import { useAuth } from '../providers/AuthProvider';
 import { useSocket } from '../hooks/useSocket';
+import { useUsers } from '../hooks/useUsers';
 
 import {
   Card,
@@ -40,6 +41,8 @@ import {
 
 import CommentSection from '../components/Tickets/CommentSection';
 import SupportAssistantChat from '../components/AI/SupportAssistantChat';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 
 const SUPPORT_COLOR = {
   bg: 'bg-[#92C01F]',
@@ -106,15 +109,18 @@ export default function TicketPage() {
     };
   }, [id, subscribe, queryClient]);
 
-  const { data: supportUsers } = useQuery({
-    queryKey: ['support-users'],
-    queryFn: async () => {
-      const data = await fetchSupportUsers();
-      // Näytetään kaikki tukihenkilöt paitsi tiketin nykyinen käsittelijä
-      return data.filter(u => u.id !== ticketData?.assignedToId);
-    },
-    enabled: showTransferDialog,
-  });
+  // Get ticket data early for use in hooks
+  const ticketData = ticket?.data || ticket?.ticket;
+  
+  const { data: allUsers } = useUsers();
+  const supportUsers = React.useMemo(() => {
+    if (!allUsers || !ticketData) return [];
+    // Näytetään kaikki tukihenkilöt paitsi tiketin nykyinen käsittelijä
+    return allUsers.filter(u => 
+      (u.role === 'SUPPORT' || u.role === 'ADMIN') && 
+      u.id !== ticketData?.assignedToId
+    );
+  }, [allUsers, ticketData]);
 
   const addCommentMutation = useMutation({
     mutationFn: async (commentData) => {
@@ -149,12 +155,12 @@ export default function TicketPage() {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', id]);
     },
   });
 
@@ -165,12 +171,12 @@ export default function TicketPage() {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', id]);
     },
   });
 
@@ -181,12 +187,12 @@ export default function TicketPage() {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', id]);
     },
   });
 
@@ -197,12 +203,12 @@ export default function TicketPage() {
         if (!oldData) return oldData;
         return {
           ...oldData,
-          ticket: data.ticket,
+          ticket: data.data || data.ticket,
         };
       });
+      // Only invalidate list queries - ticket data was already updated via setQueryData
       queryClient.invalidateQueries(['tickets']);
       queryClient.invalidateQueries(['my-tickets']);
-      queryClient.invalidateQueries(['ticket', id]);
       setShowTransferDialog(false);
     },
   });
@@ -445,7 +451,7 @@ export default function TicketPage() {
     );
   }
 
-  if (!ticket || !ticket.ticket) {
+  if (!ticket || (!ticket.data && !ticket.ticket)) {
     return (
       <div className="w-full max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg p-6 flex items-center gap-3">
@@ -456,7 +462,6 @@ export default function TicketPage() {
     );
   }
 
-  const ticketData = ticket.ticket;
   const category = ticketData?.category?.name || 'Ei määritelty';
   const priorityInfo = getPriorityInfo(ticketData?.priority || 'MEDIUM');
   const statusInfo = getStatusInfo(ticketData?.status || 'OPEN');
@@ -1009,7 +1014,7 @@ export default function TicketPage() {
                       >
                         <div className="relative">
                           <img 
-                            src={`http://localhost:3001${attachment.path}`} 
+                            src={`${API_BASE_URL}${attachment.path}`} 
                             alt={attachment.filename} 
                             className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -1022,7 +1027,7 @@ export default function TicketPage() {
                       </div>
                     ) : attachment.mimetype.startsWith('video/') ? (
                       <a 
-                        href={`http://localhost:3001${attachment.path}`} 
+                        href={`${API_BASE_URL}${attachment.path}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block"
@@ -1037,7 +1042,7 @@ export default function TicketPage() {
                       </a>
                     ) : (
                       <a 
-                        href={`http://localhost:3001${attachment.path}`} 
+                        href={`${API_BASE_URL}${attachment.path}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block"
@@ -1072,7 +1077,7 @@ export default function TicketPage() {
                   </button>
                 </div>
                 <img 
-                  src={`http://localhost:3001${selectedImage.path}`} 
+                  src={`${API_BASE_URL}${selectedImage.path}`} 
                   alt={selectedImage.filename} 
                   className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
                   onClick={(e) => e.stopPropagation()}

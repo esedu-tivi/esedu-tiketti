@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon, Loader2, Bot, Sparkles } from 'lucide-react';
+import { User, Calendar, ImageIcon, VideoIcon, Check, FileIcon, X, Send, Paperclip, MessageSquare, InfoIcon, Loader2, Bot, Sparkles, Lightbulb } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Label } from '../ui/Label';
 import MentionInput from '../MentionInput';
@@ -27,6 +27,9 @@ const formatCommentContent = (content) => {
   });
 };
 
+// Get API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+
 // Render media content based on type
 const MediaContent = ({ mediaUrl, mediaType, onClick }) => {
   if (!mediaUrl) return null;
@@ -34,7 +37,7 @@ const MediaContent = ({ mediaUrl, mediaType, onClick }) => {
   // Ensure mediaUrl has the full path to the backend
   const fullMediaUrl = mediaUrl.startsWith('http') 
     ? mediaUrl 
-    : `http://localhost:3001${mediaUrl}`;
+    : `${API_BASE_URL}${mediaUrl}`;
   
   // Handle image content
   if (mediaType === 'image') {
@@ -184,6 +187,11 @@ export default function CommentSection({
   };
 
   const canAddMediaComment = () => {
+    // Disable media comments for AI-generated tickets
+    if (ticket.isAiGenerated) {
+      return false;
+    }
+    
     if (ticket.createdById === user?.id) {
       return ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED';
     }
@@ -343,9 +351,18 @@ export default function CommentSection({
                     <Bot size={40} className="p-2 flex-shrink-0 rounded-full shadow-sm border border-indigo-300 bg-indigo-100 text-indigo-600" />
                     <div className="flex-1 min-w-0">
                       {/* AI Header */}
-                      <div className="flex items-center gap-2 mb-2 pb-1 border-b border-indigo-200/50">
+                      <div className="flex items-center gap-2 mb-2 pb-1 border-b border-indigo-200/50 flex-wrap">
                         <Sparkles size={16} className="text-indigo-500" />
                         <span className="text-xs font-semibold text-indigo-700">AI Agent Response</span>
+                        
+                        {/* Hint Indicator - Only show this to support students */}
+                        {comment.shouldRevealHint && (
+                          <span className="text-xs font-medium py-0.5 px-2 rounded-full inline-flex items-center bg-yellow-100 text-yellow-700">
+                            <Lightbulb size={12} className="mr-1"/>
+                            Vihje annettu
+                          </span>
+                        )}
+                        
                         {/* Timestamp moved here */}
                          <span className="text-xs text-gray-400 flex items-center flex-shrink-0 ml-auto">
                            <Calendar size={12} className="mr-1" />

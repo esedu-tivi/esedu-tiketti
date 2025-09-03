@@ -35,3 +35,5 @@ yarn-error.log*
 
 # AI Stuff
 .cursor
+CLAUDE.md
+.claude

@@ -93,16 +93,24 @@ const ChatMessage = ({ message, onCopy, onFeedback, feedbackStatus }) => {
                 : '0 2px 5px rgba(0, 0, 0, 0.03)'
             }}
           >
-            <div 
-              className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:text-xs prose-pre:p-2 prose-pre:rounded prose-code:text-xs prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-blockquote:border-l-2 prose-blockquote:border-gray-300 prose-blockquote:pl-2 prose-blockquote:my-1 leading-relaxed"
-              dangerouslySetInnerHTML={{ 
-                __html: message.text
+            <div className="relative">
+              <div 
+                className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:text-xs prose-pre:p-2 prose-pre:rounded prose-code:text-xs prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-blockquote:border-l-2 prose-blockquote:border-gray-300 prose-blockquote:pl-2 prose-blockquote:my-1 leading-relaxed"
+                dangerouslySetInnerHTML={{ 
+                  __html: message.text
                   .replace(/\n/g, '<br />')
                   .replace(/`([^`]+)`/g, '<code>$1</code>')
                   .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
                   .replace(/\*([^*]+)\*/g, '<em>$1</em>')
               }}
             />
+            {/* Streaming indicator */}
+            {message.isStreaming && (
+              <span className="inline-flex ml-1">
+                <span className="animate-pulse text-gray-400">●</span>
+              </span>
+            )}
+            </div>
             
             {/* Timestamp */}
             <div className={`text-[10px] ${isUser ? 'text-blue-200' : 'text-gray-400'} mt-1 text-right font-light`}>
@@ -491,59 +499,130 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
     
     // Track request start time for response time calculation
     const requestStartTime = performance.now();
+    
+    // Create AI message placeholder for streaming
+    const aiMessageId = Date.now();
+    let aiMessageAdded = false;
 
     try {
-      // Use the service instead of direct axios call
-      const response = await supportAssistantService.sendMessage(
+      let fullResponse = '';
+      let interactionId = null;
+      
+      // Use streaming service
+      await supportAssistantService.sendMessageStream(
         ticket.id,
         messageText,
-        user.id
-      );
-      
-      // Calculate response time in seconds
-      const responseTime = (performance.now() - requestStartTime) / 1000;
-      
-      const aiMessage = { 
-        sender: 'ai', 
-        text: response.response,
-        timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'})
-      };
-      
-      // Add the AI message to the conversation
-      setConversation(prev => [...prev, aiMessage]);
-      
-      // Check if backend already tracked the interaction (via interactionId)
-      if (response.interactionId) {
-        console.log('Interaction tracked by backend, ID:', response.interactionId);
-        setCurrentInteractionId(response.interactionId);
-      } else {
-        // Backend didn't track it, so track manually with the frontend service
-        try {
-          const analyticsData = {
-            ticketId: ticket.id,
-            userId: user.id,
-            query: messageText,
-            response: response.response,
-            responseTime: responseTime
-          };
+        user.id,
+        // onChunk callback - update the message as chunks arrive
+        (chunk) => {
+          fullResponse += chunk;
           
-          console.log('Tracking AI interaction via frontend:', analyticsData);
-          const interactionResponse = await aiAnalyticsService.trackInteraction(analyticsData);
-          
-          if (interactionResponse && interactionResponse.id) {
-            setCurrentInteractionId(interactionResponse.id);
+          // Add AI message on first chunk
+          if (!aiMessageAdded && chunk) {
+            const aiMessage = { 
+              id: aiMessageId,
+              sender: 'ai', 
+              text: fullResponse,
+              timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'}),
+              isStreaming: true
+            };
+            setConversation(prev => [...prev, aiMessage]);
+            aiMessageAdded = true;
+          } else {
+            // Update existing message
+            setConversation(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, text: fullResponse }
+                : msg
+            ));
           }
-        } catch (analyticsError) {
-          console.error('Error tracking interaction analytics:', analyticsError);
-          // Non-blocking error - don't show to user since the main functionality worked
+        },
+        // onComplete callback
+        (completeResponse, streamInteractionId) => {
+          // Calculate response time
+          const responseTime = (performance.now() - requestStartTime) / 1000;
+          
+          // Mark message as complete (no longer streaming)
+          setConversation(prev => prev.map(msg => 
+            msg.id === aiMessageId 
+              ? { ...msg, text: completeResponse, isStreaming: false }
+              : msg
+          ));
+          
+          // Handle interaction tracking
+          if (streamInteractionId) {
+            console.log('Interaction tracked by backend, ID:', streamInteractionId);
+            setCurrentInteractionId(streamInteractionId);
+            interactionId = streamInteractionId;
+          } else {
+            // Backend didn't track it, so track manually
+            try {
+              const analyticsData = {
+                ticketId: ticket.id,
+                userId: user.id,
+                query: messageText,
+                response: completeResponse,
+                responseTime: responseTime
+              };
+              
+              console.log('Tracking AI interaction via frontend:', analyticsData);
+              aiAnalyticsService.trackInteraction(analyticsData).then(interactionResponse => {
+                if (interactionResponse && interactionResponse.id) {
+                  setCurrentInteractionId(interactionResponse.id);
+                }
+              });
+            } catch (analyticsError) {
+              console.error('Error tracking interaction analytics:', analyticsError);
+            }
+          }
+          
+          setIsLoading(false);
+          textAreaRef.current?.focus();
+        },
+        // onError callback
+        (error) => {
+          console.error('Error in streaming assistant response:', error);
+          const errorText = error.message || 'Avustajan vastausta ei voitu hakea. Yritä uudestaan.';
+          
+          if (aiMessageAdded) {
+            // Update the AI message to show error
+            setConversation(prev => prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, text: errorText, isStreaming: false, isError: true }
+                : msg
+            ));
+          } else {
+            // Add error message if no AI message was added yet
+            const errorMessage = { 
+              sender: 'system_error', 
+              text: errorText,
+              timestamp: new Date().toLocaleTimeString('fi-FI', {hour: '2-digit', minute: '2-digit'})
+            };
+            setConversation(prev => [...prev, errorMessage]);
+          }
+          
+          setError(errorText);
+          setIsLoading(false);
+          
+          toast.error('Avustajan vastauksen hakeminen epäonnistui', {
+            duration: 4000
+          });
+          
+          textAreaRef.current?.focus();
         }
-      }
+      );
 
     } catch (err) {
-      console.error('Error getting assistant response:', err);
+      console.error('Error initializing assistant stream:', err);
       const errorText = err.response?.data?.details || 
                        err.response?.data?.error || 
+                       err.message ||
                        'Avustajan vastausta ei voitu hakea. Yritä uudestaan.';
+      
+      // Only try to remove/update if a message was added
+      if (aiMessageAdded) {
+        setConversation(prev => prev.filter(msg => msg.id !== aiMessageId));
+      }
       
       const errorMessage = { 
         sender: 'system_error', 
@@ -557,7 +636,7 @@ export default function SupportAssistantChat({ ticket, user, onClose }) {
       toast.error('Avustajan vastauksen hakeminen epäonnistui', {
         duration: 4000
       });
-    } finally {
+      
       setIsLoading(false);
       textAreaRef.current?.focus();
     }

@@ -69,9 +69,76 @@ Vaikka tämä projekti käyttää Viteä, jos käytössä olisi Create React App
 
 ### Reaaliaikainen Kommunikaatio (Socket.IO Client)
 *   **Hook:** `hooks/useSocket.js` muodostaa yhteyden backendin Socket.IO-palvelimeen käyttäjän JWT-tokenilla autentikoituen (`io(baseUrl, { auth: { token }})`).
-*   **Tapahtumien Kuuntelu:** Hook palauttaa `socket`-instanssin, jota komponentit (esim. `NotificationDropdown`) voivat käyttää kuunnellakseen tapahtumia (`socket.on('notification', handler)`).
-*   **Tilan Päivitys:** Vastaanotetut tapahtumat päivittävät relevanttia UI-tilaa (esim. lisäämällä ilmoituksen listaan, näyttämällä toastin).
-*   **Yhteyden Tila:** Hook voi myös palauttaa yhteyden tilan (connected/disconnected), jota UI voi hyödyntää.
+*   **Singleton Pattern:** Käyttää singleton-patternia välttääkseen useita yhteyksiä.
+    - Yksi globaali Socket-instanssi koko sovellukselle
+    - Automaattinen uudelleenyhdistys katkoksen jälkeen
+    - Duplikaattitilauksien esto subscription-avaimilla
+*   **Tapahtumien Kuuntelu:** Hook palauttaa `subscribe` ja `unsubscribe` funktiot.
+    - `subscribe(event, callback)` - Tilaa tapahtuman ja palauttaa cleanup-funktion
+    - Automaattinen cleanup komponentin unmountissa
+    - Estää duplikaattikuuntelijat samalle tapahtuma-callback -yhdistelmälle
+*   **Tuetut tapahtumat:** 
+    - `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`
+    - `ticketAssigned`, `ticketDeleted`, `ticketAssignedToYou`
+    - `newComment`, `newNotification`
+    - `typingStart`, `typingStop`
+*   **React Query -integraatio:** 
+    - WebSocket-tapahtumat kutsuvat `queryClient.invalidateQueries()`
+    - Automaattinen datan päivitys kaikissa näkymissä
+    - Ei tarvetta manuaaliselle tilan hallinnalle
+*   **Yhteyden Tila:** Hook hallitsee yhteyden tilaa sisäisesti
+    - Automaattinen token-päivitys autentikoinnin yhteydessä
+    - Sujuva uudelleenyhdistys ilman käyttäjän toimenpiteitä
+
+### React Query Hooks ja Tilan Hallinta
+
+Frontend käyttää laajasti React Query -kirjastoa palvelimen tilan hallintaan. Kaikki data-hakuoperaatiot on keskitetty custom hookeiksi, jotka sijaitsevat `hooks/`-hakemistossa:
+
+#### Perus Data Hooks
+*   **`useTickets`** - Tikettien haku, luonti, päivitys ja poisto
+    - Käyttää React Query:n `useQuery` ja `useMutation` funktioita
+    - Automaattinen välimuistin päivitys mutaatioiden jälkeen
+    - Tukee sivutusta ja suodatusta
+*   **`useUsers`** - Käyttäjälistan haku
+    - Roolipohjainen pääsynhallinta (vain ADMIN ja SUPPORT)
+    - Palauttaa tyhjän datan USER-roolille ilman API-kutsua
+    - Välimuistitus 5 minuutiksi
+*   **`useCategories`** - Kategorioiden keskitetty haku
+    - Pidempi välimuistiaika (10 min) koska kategoriat muuttuvat harvoin
+    - Estää duplikaatti API-kutsut
+*   **`useNotifications`** - Ilmoitusten haku ja hallinta
+    - Reaaliaikainen päivitys WebSocketin kautta
+    - Luku- ja poisto-operaatiot
+
+#### AI-toiminnallisuuksien Hooks
+*   **`useAIAnalytics`** - AI-analytiikan dashboard-data (vain ADMIN)
+    - Kokonaisstatistikat, käyttötilastot, agenttien suorituskyky
+    - Keskustelumetriikat ja onnistumisprosentit
+*   **`useAITicketGenerator`** - AI-tikettien generointi
+    - Esikatselu, luonti ja uudelleengenerointi
+    - Konfiguraation haku
+*   **`useConversation`** - AI-keskustelujen haku ja yhteenvedot
+    - Tikettien keskusteluhistoria
+    - Ratkaisuehdotukset
+    - Yhteenvetojen generointi
+*   **`useSupportAssistant`** - Tukiassistentti support-henkilökunnalle
+    - Kysymykset, historia ja palaute
+    - Streaming-vastaukset
+
+#### Roolien ja Käyttäjähallinta
+*   **`useRoleChange`** - Käyttäjäroolien päivitys
+    - Kehitystilan roolin vaihto
+    - Admin-käyttäjien roolihallinta
+*   **`useCanAccessUsers`** - Helper hook pääsynhallintaan
+    - Palauttaa boolean-arvon käyttäjän oikeuksista
+
+#### Hook-arkkitehtuurin Periaatteet
+1. **Keskitetty Data-haku:** Kaikki API-kutsut tehdään custom hookeissa, ei suoraan komponenteissa
+2. **Automaattinen Välimuistitus:** React Query hoitaa datan välimuistuksen ja päivitykset
+3. **Roolipohjainen Pääsynhallinta:** Hookit tarkistavat käyttäjän roolin ennen API-kutsuja
+4. **Virheenkäsittely:** Hookit käsittelevät 403-virheet hiljaisesti unauthorized-käyttäjille
+5. **Optimistinen Päivitys:** Mutaatiot päivittävät UI:n välittömästi ja rollback virhetilanteessa
+6. **Request Deduplication:** Identtiset pyynnöt yhdistetään automaattisesti
 
 ### Kommenttien @-maininta
 *   **Käyttäjälista:** Kirjoitettaessa `@` haetaan käyttäjälista backendistä (esim. `/api/users?search=...`) ehdotuksia varten.
@@ -157,6 +224,36 @@ src/
 *   **Reaaliaikaisuus:** `useSocket`-hook alustaa Socket.IO-yhteyden backend-palvelimeen käyttäjän autentikoinnin jälkeen. Hook tarjoaa funktiot tapahtumien kuunteluun (`socket.on`) ja lähettämiseen (`socket.emit`, jos tarpeen). Esimerkiksi kuunnellaan `new_notification`-tapahtumaa ja päivitetään ilmoituskomponentin tilaa tai näytetään toast-ilmoitus `React Hot Toast`:lla.
 *   **API-kommunikaatio:** `utils/api.js` luo ja konfiguroi keskitetyn Axios-instanssin, joka asettaa `baseURL`:n ja lisää automaattisesti JWT-tokenin `Authorization`-headeriin jokaiseen lähtevään pyyntöön (interceptorin avulla). `services`-kansion funktiot käyttävät tätä instanssia kommunikoidakseen backendin kanssa.
 
+### Reaaliaikaiset Päivitykset Näkymissä
+
+Frontend-sovelluksen eri näkymät päivittyvät automaattisesti reaaliajassa WebSocket-tapahtumien kautta:
+
+#### Admin-näkymä (`/admin`)
+*   Kuuntelee: `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`, `ticketDeleted`
+*   Päivittää tikettilistan automaattisesti ilman sivun päivitystä
+*   Näyttää kaikki tiketit järjestelmässä
+
+#### MyWork-näkymä (`/my-work`)
+*   Kuuntelee: `ticketAssigned`, `ticketStatusChanged`, `ticketDeleted`
+*   Näyttää tukihenkilölle osoitetut tiketit
+*   Päivittyy heti kun tiketti osoitetaan tai poistetaan
+
+#### MyTickets-näkymä (`/my-tickets`)
+*   Kuuntelee: `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`, `ticketDeleted`
+*   Näyttää vain käyttäjän omat tiketit
+*   Invalidoi kyselyt kaikissa tapahtumissa varmistaakseen ajantasaisen näkymän
+
+#### Tikettinäkymä (`/tickets/:id`)
+*   Kuuntelee: `newComment`, `ticketUpdated`, `ticketStatusChanged`
+*   Päivittää kommentit ja tiketin tiedot reaaliajassa
+*   Näyttää kirjoitusindikaattorin (`typingStart`, `typingStop`)
+
+#### Toteutustapa
+*   Jokainen näkymä käyttää `useSocket` hookia tapahtumien tilaamiseen
+*   WebSocket-tapahtuma kutsuu `queryClient.invalidateQueries()` 
+*   React Query hakee päivitetyn datan automaattisesti
+*   Ei manuaalista tilan hallintaa tai duplikaattikoodia
+
 ## Näkymät ja Polut
 
 Sovelluksen keskeiset näkymät (sivut) ja niitä vastaavat URL-polut:
@@ -168,7 +265,7 @@ Sovelluksen keskeiset näkymät (sivut) ja niitä vastaavat URL-polut:
 *   `/tickets/:id`: **Tiketin Yksityiskohtasivu** (`TicketDetailPage.jsx`) - Näyttää tietyn tiketin tiedot ja kommentit.
 *   `/my-work`: **Oma Työ -näkymä** (`MyWorkView.jsx`) - Tuki-/Admin-roolien dashboard, näyttää todennäköisesti heille osoitetut tiketit.
 *   `/admin` / `/admin/tickets`: **Admin Tiketinhallintasivu** (`Tickets.jsx`) - Näyttää kaikki tiketit, mahdollisesti laajennetuilla suodatus-/hallintatoiminnoilla Admin/Support-rooleille.
-*   `/ai-tools`: **AI-Työkalut -sivu** (`AITools.jsx`) - Käyttöliittymä AI-ominaisuuksille, kuten tikettien generointi ja analysointi (vain Admin).
+*   `/ai-tools`: **AI-Työkalut -sivu** (`AITools.jsx`) - Käyttöliittymä AI-ominaisuuksille, kuten tikettien generointi, analysointi ja asetukset (vain Admin).
 *   `/profile`: **Profiilisivu** (`ProfileView.jsx`) - Näyttää käyttäjän profiilitiedot.
 *   `*`: **Catch-all (Uudelleenohjaus)** - Ohjaa kaikki tuntemattomat polut juureen (`/`).
 
@@ -181,6 +278,81 @@ Sovelluksen keskeiset näkymät (sivut) ja niitä vastaavat URL-polut:
 *   **Ilmoitukset:** `react-hot-toast` -kirjastoa käytetään toast-ilmoitusten näyttämiseen.
 *   **Ikonit:** `lucide-react` -kirjastoa käytetään ikoneihin.
 *   **Datan Haku/Tila:** Käytetään todennäköisesti `axios`-kirjastoa API-kutsuihin ja `@tanstack/react-query` -kirjastoa palvelimen tilan hallintaan, välimuistitukseen ja taustapäivityksiin.
+
+## AI Settings
+
+AI Settings -komponentti tarjoaa käyttöliittymän tekoälyagenttien toiminnan konfigurointiin. Admineille se mahdollistaa AI:n käyttäytymisen hienosäädön ilman koodimuutoksia.
+
+### Sijainti Sovelluksessa
+Komponentti sijaitsee AI Tools -sivun "AI-asetukset"-välilehdellä (`/ai-tools` URL-polku, välilehti "AI-asetukset"). Se on saatavilla vain ADMIN-rooleille.
+
+### Komponentti (AISettings.jsx)
+`AISettings.jsx` tarjoaa seuraavat ominaisuudet:
+
+* **Chat Agent Version** - Valinta ModernChatAgentin ja perinteisen ChatAgentin välillä
+* **Mallivalinnat** - Erillinen mallivalinta jokaiselle AI-agentille:
+  * Chat Agent malli (dropdown)
+  * Support Assistant malli (dropdown)
+  * Ticket Generator malli (dropdown)
+  * Summarizer Agent malli (dropdown)
+* **Vihjesysteemi** - Kytkin vihjesysteemin päälle/pois kytkemiseen
+* **Vihjekynnykset** - Konfiguroitavat kynnysarvot EARLY, PROGRESSING ja CLOSE tiloille
+* **Lisäasetukset** - Cooldown-aika vihjeiden välillä ja maksimi vihjeiden määrä
+
+### Käyttöliittymän ominaisuudet:
+* **Reaaliaikainen muutosten seuranta** - Näyttää kun tallentamattomia muutoksia on
+* **Toggle-kytkimet** - Yhdenmukaiset NotificationSettings-komponentin kanssa
+* **Collapsible-osiot** - Lisäasetukset piilotettu oletuksena
+* **Toast-ilmoitukset** - Palaute toiminnoista react-hot-toastilla
+* **Validointi** - Numerokenttien min/max arvot tarkistetaan
+
+### Tiedonhallinta:
+* Hakee asetukset `GET /api/ai/settings` -rajapinnasta
+* Päivittää asetukset `PUT /api/ai/settings` -rajapintaan
+* Palauttaa oletukset `POST /api/ai/settings/reset` -rajapinnalla
+* Vertaa muutoksia alkuperäisiin arvoihin tunnistaakseen tallentamattomat muutokset
+
+## Token Analytics
+
+Token Analytics -komponentti tarjoaa kattavan näkymän AI-agenttien token-käytöstä ja kustannuksista.
+
+### Sijainti Sovelluksessa
+Komponentti sijaitsee AI Tools -sivun "Token-seuranta"-välilehdellä (`/ai-tools` URL-polku). Saatavilla vain ADMIN-rooleille.
+
+### Komponentti (TokenAnalytics.jsx)
+`TokenAnalytics.jsx` tarjoaa seuraavat ominaisuudet:
+
+#### Päänäkymä:
+* **KPI-kortit** - Tokenien kokonaismäärä, kustannukset, pyynnöt, onnistumisprosentti
+* **Päivittäinen käyttökaavio** - Line chart tokenien ja kustannusten kehityksestä
+* **Agenttien käyttö** - Interaktiivinen piirakkakaavio, klikkaa nähdäksesi syväanalyysin
+* **Top käyttäjät** - 5 aktiivisinta käyttäjää token-käytön mukaan
+* **Mallijakauma** - Taulukko eri mallien käytöstä ja tehokkuudesta
+
+#### Syväanalyysi (per agentti):
+* **Suorituskyky** - Min/max/mediaani vastausajat
+* **Token-tehokkuus** - Prompt/completion suhde, min/max tokenit
+* **Kustannusanalyysi** - Halvin/kallein pyyntö, ROI per 1000 tokenia
+* **Käyttöhistoria** - Viimeisten 20 pyynnön visualisointi
+* **Pyyntötyypit** - Jakauma eri pyyntötyypeistä
+
+#### Lisäanalyysit:
+* **Tuntikohtainen käyttö** - 24h heatmap käyttöajoista
+* **Virheanalyysi** - Epäonnistuneet pyynnöt agenteittain
+* **Vastausaikajakauma** - Pyynnöt ryhmiteltyinä vastausajan mukaan
+* **Yksityiskohtainen historia** - Hakusuodattimet ja taulukkonäkymä
+* **Tehokkuusanalyysi** - Scatter plot mallien tehokkuudesta
+
+### Tiedonhallinta:
+* Käyttää `useTokenAnalytics`, `useDailyTokenUsage`, `useTopUsersByTokenUsage` ja `useTokenUsageSummary` hookeja
+* Hakee datan `/ai/token-analytics` API-rajapinnoista
+* Reaaliaikainen päivitys React Query:n avulla
+* Suodattimet agentin, mallin ja pyyntötyypin mukaan
+
+### Numeroformatointi:
+* Tokenit näytetään tarkkana lukuna ilman pyöristyksiä
+* Tuhaterotin suomalaisella formaatilla (välilyönti)
+* Kustannukset 4 desimaalin tarkkuudella pienille summille
 
 ## AI Assistant Analytics
 
@@ -283,4 +455,42 @@ Komponentti sijaitsee AI Tools -sivun "Analytiikka"-välilehdellä (`/ai-tools` 
    * Näyttää sopivan yksikön (tunnit tai minuutit) ratkaisuajoille.
    * Käsittelee myös tapaukset, joissa AI-avustajan käyttö ei paranna ratkaisuaikaa.
 
-// ... existing code ... 
+## Discord-integraation komponentit
+
+### Discord-asetukset (`/src/pages/DiscordSettings.jsx`)
+*   **Välilehdet:** Neljä välilehteä Discord-integraation hallintaan
+*   **Reaaliaikaiset tilastot:** Hakee tilastot header-kortteihin
+*   **Komponentit:**
+    - Discord-käyttäjät - käyttäjien hallinta
+    - Botin asetukset - integraation konfigurointi
+    - Kanavien hallinta - siivousasetusten määritys
+    - Tilastot - analytiikkanäkymä
+
+### Discord-käyttäjälista (`/src/components/Discord/DiscordUsersList.jsx`)
+*   **Käyttäjähallinta:** Discord-käyttäjien listaus ja toiminnot
+*   **Esto/esto poisto:** `toggleBlockUser` toiminnallisuus
+*   **Pudotusvalikko:** React Portal -toteutus overflow-ongelmien välttämiseksi
+*   **Ominaisuudet:**
+    - Haku käyttäjänimellä tai Discord ID:llä
+    - Käyttäjätilastot (tiketit, kommentit)
+    - Synkronointi Discord-tietojen kanssa
+    - Käyttäjien poisto tiketteineen
+    - Kolmen pisteen valikko (`MoreVertical` ikoni)
+
+### Discord-botin asetukset (`/src/components/Discord/DiscordBotConfig.jsx`)
+*   **Asetusten hallinta:** Botin konfiguraation muokkaus
+*   **Reaaliaikaiset päivitykset:** Asetukset voimaan heti tallennuksen jälkeen
+*   **Integraation toggle:** Käynnistys/sammutus-kytkin
+
+### Discord-kanavien asetukset (`/src/components/Discord/DiscordChannelSettings.jsx`)
+*   **Siivousasetukset:** TTL-arvojen määritys
+*   **Aikarajat:** Suljettujen ja passiivisten tikettien käsittely
+*   **Käyttäjäoikeudet:** Tikettien sulkemisoikeuksien hallinta
+
+### Discord-tilastot (`/src/components/Discord/DiscordStatistics.jsx`)
+*   **Visuaalinen analytiikka:** Recharts-kirjaston kaaviot
+*   **Aktiviteettikaavio:** 7 päivän tikettimäärät pylväskaaviona
+*   **Tilajakauma:** Tikettien statukset ympyräkaaviona
+*   **Suorituskykymittarit:** Ratkaisuaste ja aktiivisuusaste
+*   **Viimeisimmät tiketit:** Taulukkonäkymä uusimmista tiketeistä
+*   **Yhtenäinen tyyli:** Sama ulkoasu kuin Token-analytiikka sivulla 

@@ -84,12 +84,46 @@ class AuthService {
       jobTitle: account.idTokenClaims?.jobTitle || null,
     };
 
+    console.log('Calling /auth/login with userData:', userData);
+    
     try {
       // Tarkista onko käyttäjä jo olemassa ja luo uusi jos ei ole
-      await axios.post(`${API_BASE_URL}/auth/login`, userData);
+      const token = await this.acquireToken();
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, userData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('Login successful, user created/updated:', response.data);
+      
+      // Return the user data from login response - no need for separate /me call
+      return response.data;
+      
     } catch (error) {
       console.error('Error syncing user data:', error);
-      throw error;
+      console.error('Error details:', error.response?.data || error.message);
+      
+      // If user is not authorized (401), immediately reject and logout
+      if (error.response?.status === 401) {
+        console.error('User not authorized - rejecting login immediately');
+        alert('Access denied: Your account is not authorized to access this system. Please contact an administrator.');
+        
+        // Clear any stored auth data
+        sessionStorage.clear();
+        localStorage.removeItem('lastProfilePictureRefresh');
+        
+        // Force logout
+        try {
+          await this.msalInstance.logoutRedirect();
+        } catch (logoutError) {
+          console.error('Logout failed:', logoutError);
+          window.location.href = '/login';
+        }
+        
+        // Throw error to stop further processing
+        throw new Error('User not authorized');
+      }
+      
+      // For other errors, don't throw - let the user continue
+      // The /me endpoint will handle user creation as a fallback
     }
   }
 

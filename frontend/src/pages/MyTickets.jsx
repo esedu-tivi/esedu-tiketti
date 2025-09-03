@@ -1,30 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../providers/AuthProvider';
-import { fetchMyTickets } from '../utils/api';
+import { useMyTickets } from '../hooks/useTickets';
 import TicketList from '../components/Tickets/TicketList';
 import TicketListView from '../components/Tickets/TicketListView';
 import { Alert } from '../components/ui/Alert';
 import FilterMenu from './FilterMenu';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { List, Grid } from 'lucide-react';
 import { useViewMode } from '../hooks/useViewMode';
+import { useSocket } from '../hooks/useSocket';
 
 export default function MyTickets() {
   const { user } = useAuth();
   const [filters, setFilters] = useState({});
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useViewMode('myTickets', 'card');
+  const queryClient = useQueryClient();
+  const { subscribe } = useSocket();
 
   const {
     data: ticketsData,
     isLoading,
     error
-  } = useQuery({
-    queryKey: ['my-tickets', filters],
-    queryFn: () => fetchMyTickets(filters),
-    enabled: !!user,
-    refetchInterval: 30000, // Päivitä tiketit automaattisesti 30 sekunnin välein
-  });
+  } = useMyTickets();
+
+  // Set up WebSocket listeners for updates to user's tickets
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribers = [];
+
+    // Listen for ticket events that might affect user's tickets
+    const handleTicketUpdate = (ticketData) => {
+      // Always invalidate queries when any ticket changes
+      // The query will filter to show only the user's tickets anyway
+      queryClient.invalidateQueries(['my-tickets']);
+    };
+
+    // Subscribe to ticket events
+    subscribe('ticketCreated', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketUpdated', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketStatusChanged', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+    subscribe('ticketDeleted', handleTicketUpdate).then(unsub => unsubscribers.push(unsub));
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribers.forEach(unsub => unsub && unsub());
+    };
+  }, [user, subscribe, queryClient]);
 
   // Suodattimien päivitys
   const handleFilterChange = (newFilters) => {
@@ -40,7 +63,7 @@ export default function MyTickets() {
     );
   }
 
-  const tickets = ticketsData?.tickets || [];
+  const tickets = ticketsData?.data || ticketsData?.tickets || [];
 
   return (
     <>

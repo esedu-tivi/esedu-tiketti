@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
+import { } from '@prisma/client';
+import { asyncHandler, AuthenticationError } from '../middleware/errorHandler.js';
 
-const prisma = new PrismaClient();
 
 // Get user's notification settings
-export const getNotificationSettings = async (req: Request, res: Response) => {
-  try {
+export const getNotificationSettings = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -19,31 +19,51 @@ export const getNotificationSettings = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized: User not found' });
     }
 
-    // Then find or create notification settings
-    const settings = await (prisma as any).notificationSettings.findUnique({
-      where: { userId: user.id }
-    });
-
-    if (!settings) {
-      // Create default settings if none exist
-      const newSettings = await (prisma as any).notificationSettings.create({
-        data: {
-          userId: user.id
+    // Find or create notification settings with retry logic for race conditions
+    let settings;
+    let retries = 3;
+    
+    while (retries > 0) {
+      try {
+        settings = await (prisma as any).notificationSettings.upsert({
+          where: { userId: user.id },
+          update: {}, // Don't update if exists, just return it
+          create: {
+            userId: user.id,
+            webNotifications: true,
+            notifyOnAssigned: true,
+            notifyOnStatusChange: true,
+            notifyOnComment: true,
+            notifyOnPriority: true,
+            notifyOnMention: true
+          }
+        });
+        break; // Success, exit loop
+      } catch (error: any) {
+        // P2002 is Prisma's unique constraint violation error
+        if (error.code === 'P2002' && retries > 1) {
+          retries--;
+          // Wait a bit before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 100 * (4 - retries)));
+          // Try to find existing settings
+          settings = await (prisma as any).notificationSettings.findUnique({
+            where: { userId: user.id }
+          });
+          if (settings) {
+            break; // Found existing settings, exit loop
+          }
+          // Otherwise continue to retry
+        } else {
+          throw error; // Re-throw if not a unique constraint error or out of retries
         }
-      });
-      return res.json(newSettings);
+      }
     }
 
     res.json(settings);
-  } catch (error) {
-    console.error('Error fetching notification settings:', error);
-    res.status(500).json({ error: 'Failed to fetch notification settings' });
-  }
-};
+});
 
 // Update notification settings
-export const updateNotificationSettings = async (req: Request, res: Response) => {
-  try {
+export const updateNotificationSettings = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
       return res.status(401).json({ error: 'Unauthorized: User email not found' });
     }
@@ -61,31 +81,23 @@ export const updateNotificationSettings = async (req: Request, res: Response) =>
         userId: user.id
       },
       update: {
-        emailNotifications: req.body.emailNotifications,
         webNotifications: req.body.webNotifications,
         notifyOnAssigned: req.body.notifyOnAssigned,
         notifyOnStatusChange: req.body.notifyOnStatusChange,
         notifyOnComment: req.body.notifyOnComment,
         notifyOnPriority: req.body.notifyOnPriority,
-        notifyOnMention: req.body.notifyOnMention,
-        notifyOnDeadline: req.body.notifyOnDeadline
+        notifyOnMention: req.body.notifyOnMention
       },
       create: {
         userId: user.id,
-        emailNotifications: req.body.emailNotifications ?? true,
         webNotifications: req.body.webNotifications ?? true,
         notifyOnAssigned: req.body.notifyOnAssigned ?? true,
         notifyOnStatusChange: req.body.notifyOnStatusChange ?? true,
         notifyOnComment: req.body.notifyOnComment ?? true,
         notifyOnPriority: req.body.notifyOnPriority ?? true,
-        notifyOnMention: req.body.notifyOnMention ?? true,
-        notifyOnDeadline: req.body.notifyOnDeadline ?? true
+        notifyOnMention: req.body.notifyOnMention ?? true
       }
     });
 
     res.json(settings);
-  } catch (error) {
-    console.error('Error updating notification settings:', error);
-    res.status(500).json({ error: 'Failed to update notification settings' });
-  }
-}; 
+}); 

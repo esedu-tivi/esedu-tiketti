@@ -1,18 +1,23 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger.js';
 import { ticketService } from '../services/ticketService.js';
 import { TypedRequest, CreateTicketDTO, UpdateTicketDTO } from '../types/index.js';
-import { PrismaClient, TicketStatus, Priority, UserRole } from '@prisma/client';
+import { TicketStatus, Priority, UserRole } from '@prisma/client';
 import { createNotification } from './notificationController.js';
 import axios from 'axios';
 import { getSocketService } from '../services/socketService.js';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma.js';
+import { successResponse, errorResponse, paginatedResponse, parsePaginationParams, createPaginationMeta, errorResponses } from '../utils/apiResponse.js';
+import { asyncHandler, NotFoundError, ValidationError, AuthorizationError } from '../middleware/errorHandler.js';
+import { sendMessageToDiscord, sendStatusUpdateToDiscord } from '../discord/messageSync.js';
 
 export const ticketController = {
   // Haetaan kaikki tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
-  getAllTickets: async (req: Request, res: Response) => {
-    try {
-      const { status, priority, category, subject, user, device, startDate, endDate } = req.query;
+  getAllTickets: asyncHandler(async (req: Request, res: Response) => {
+      const { status, priority, category, subject, user, device, startDate, endDate, page, limit } = req.query;
+      
+      // Parse pagination parameters using our utility
+      const { page: pageNumber, limit: limitNumber, skip } = parsePaginationParams(page as string, limit as string, 100, 25);
       
       // Muutetaan priority oikeiksi enum-arvoiksi
       const priorityEnum = Array.isArray(priority)
@@ -42,28 +47,35 @@ export const ticketController = {
       const today = new Date();
       today.setHours(23, 59, 59, 999);
       if (endDateObj && endDateObj > today) {
-        return res.status(400).json({ error: 'End date can not be in the future!' });
+        return errorResponses.badRequest(res, 'End date cannot be in the future!');
       }
       if (startDateObj && endDateObj && startDateObj > endDateObj) {
-        return res.status(400).json({ error: 'Start date can not be after end date!' });
+        return errorResponses.badRequest(res, 'Start date cannot be after end date!');
       }
+      
+      // Common where clause for filtering
+      const whereClause = {
+        ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
+        ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
+        ...(categoryArray && categoryArray.length > 0 && { 
+          category: { 
+              name: { in: categoryArray, mode: 'insensitive' as const }
+          }
+      }), // Suodatus kategorian mukaan
+        ...(subject && { title: { contains: subject as string, mode: 'insensitive' as const } }), // Suodatus aiheen mukaan
+        ...(user && { createdBy: { name: { contains: user as string, mode: 'insensitive' as const } } }), // Suodatus käyttäjän mukaan
+        ...(device && { device: { contains: device as string, mode: 'insensitive' as const } }), // Suodatus laitteen mukaan
+        ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
+        ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
+      };
   
-      // Haetaan tiketit suodattimilla, jos ne on määritelty
+      // Get total count for pagination
+      const totalItems = await prisma.ticket.count({ where: whereClause });
+      const totalPages = Math.ceil(totalItems / limitNumber);
+      
+      // Haetaan tiketit suodattimilla ja sivutuksella
       const tickets = await prisma.ticket.findMany({
-        where: {
-          ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
-          ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
-          ...(categoryArray && categoryArray.length > 0 && { 
-            category: { 
-                name: { in: categoryArray, mode: 'insensitive' }
-            }
-        }), // Suodatus kategorian mukaan
-          ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
-          ...(user && { createdBy: { name: { contains: user as string, mode: 'insensitive' } } }), // Suodatus käyttäjän mukaan
-          ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
-          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
-          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
-        },
+        where: whereClause,
         include: {
           createdBy: true,
           assignedTo: true,
@@ -73,37 +85,35 @@ export const ticketController = {
               author: true
             }
           }
+        },
+        skip,
+        take: limitNumber,
+        orderBy: {
+          createdAt: 'desc'
         }
       });
-      //console.log('Tickets fetched:', tickets);
+      //logger.info('Tickets fetched:', tickets);
+      
+      // Build pagination metadata using our utility
+      const pagination = createPaginationMeta(pageNumber, limitNumber, totalItems);
   
-      res.json({ tickets });
-    } catch (error) {
-      console.error('Error fetching tickets:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+      return paginatedResponse(res, tickets, pagination, 'Tickets retrieved successfully');
+  }),
 
   // Hae yksittäinen tiketti
-  getTicketById: async (req: Request, res: Response) => {
-    try {
+  getTicketById: asyncHandler(async (req: Request, res: Response) => {
       const ticket = await ticketService.getTicketById(req.params.id);
       if (!ticket) {
-        return res.status(404).json({ error: 'Ticket not found' });
+        throw new NotFoundError('Ticket not found');
       }
-      res.json({ ticket });
-    } catch (error) {
-      console.error('Error fetching ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+      return successResponse(res, ticket, 'Ticket retrieved successfully');
+  }),
 
   // Luo uusi tiketti
-  createTicket: async (req: TypedRequest<CreateTicketDTO>, res: Response) => {
-    try {
+  createTicket: asyncHandler(async (req: TypedRequest<CreateTicketDTO>, res: Response) => {
       // Debug lokitus
-      console.log('Create ticket request user:', req.user);
-      console.log('Create ticket request headers:', req.headers);
+      logger.info('Create ticket request user:', req.user);
+      logger.info('Create ticket request headers:', req.headers);
 
       if (!req.user?.email) {
         return res.status(401).json({ error: 'Unauthorized: User email not found' });
@@ -136,41 +146,41 @@ export const ticketController = {
 
       // Käytetään autentikoidun käyttäjän ID:tä
       const ticket = await ticketService.createTicket(req.body, user.id);
+      
+      // Emit WebSocket event for new ticket
+      const socketService = getSocketService();
+      socketService.emitTicketCreated(ticket);
+      
       res.status(201).json({ ticket });
-    } catch (error) {
-      console.error('Error creating ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Päivitä tiketti
-  updateTicket: async (req: TypedRequest<UpdateTicketDTO>, res: Response) => {
-    try {
+  updateTicket: asyncHandler(async (req: TypedRequest<UpdateTicketDTO>, res: Response) => {
       const ticket = await ticketService.updateTicket(req.params.id, req.body);
       if (!ticket) {
-        return res.status(404).json({ error: 'Ticket not found' });
+        throw new NotFoundError('Ticket not found');
       }
+      
+      // Emit WebSocket event for ticket update
+      const socketService = getSocketService();
+      socketService.emitTicketUpdated(ticket);
+      
       res.json({ ticket });
-    } catch (error) {
-      console.error('Error updating ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Poista tiketti
-  deleteTicket: async (req: Request, res: Response) => {
-    try {
+  deleteTicket: asyncHandler(async (req: Request, res: Response) => {
       await ticketService.deleteTicket(req.params.id);
+      
+      // Emit WebSocket event for ticket deletion
+      const socketService = getSocketService();
+      socketService.emitTicketDeleted(req.params.id);
+      
       res.status(204).send();
-    } catch (error) {
-      console.error('Error deleting ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Haetaan kaikki omat tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
-  getMyTickets: async (req: Request, res: Response) => {
-    try {
+  getMyTickets: asyncHandler(async (req: Request, res: Response) => {
       if (!req.user?.email) {
         return res.status(401).json({ error: 'Unauthorized: User email not found' });
       }
@@ -183,7 +193,12 @@ export const ticketController = {
         return res.status(401).json({ error: 'Unauthorized: User not found' });
       }
 
-      const { category, priority, status, subject, device, startDate, endDate } = req.query;
+      const { category, priority, status, subject, device, startDate, endDate, page, limit } = req.query;
+      
+      // Parse pagination parameters
+      const pageNumber = Math.max(1, parseInt(page as string) || 1);
+      const limitNumber = Math.min(100, Math.max(1, parseInt(limit as string) || 25));
+      const skip = (pageNumber - 1) * limitNumber;
 
       // Muutetaan priority oikeiksi enum-arvoiksi (tuetaan monivalintaa)
       const priorityEnum = Array.isArray(priority)
@@ -213,28 +228,35 @@ export const ticketController = {
       const today = new Date();
       today.setHours(23, 59, 59, 999);
       if (endDateObj && endDateObj > today) {
-        return res.status(400).json({ error: 'End date can not be in the future!' });
+        return errorResponses.badRequest(res, 'End date cannot be in the future!');
       }
       if (startDateObj && endDateObj && startDateObj > endDateObj) {
-        return res.status(400).json({ error: 'Start date can not be after end date!' });
+        return errorResponses.badRequest(res, 'Start date cannot be after end date!');
       }
+      
+      // Common where clause for filtering user's tickets
+      const whereClause = {
+        createdById: user.id, // Haetaan vain käyttäjän omat tiketit
+        ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
+        ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
+        ...(categoryArray && categoryArray.length > 0 && { 
+          category: { 
+              name: { in: categoryArray, mode: 'insensitive' as const }
+          }
+      }), // Suodatus kategorian mukaan
+        ...(subject && { title: { contains: subject as string, mode: 'insensitive' as const } }), // Suodatus aiheen mukaan
+        ...(device && { device: { contains: device as string, mode: 'insensitive' as const } }), // Suodatus laitteen mukaan
+        ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
+        ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
+      };
+      
+      // Get total count for pagination
+      const totalItems = await prisma.ticket.count({ where: whereClause });
+      const totalPages = Math.ceil(totalItems / limitNumber);
 
-      // Rakennetaan Prisma-kysely, jossa suodattimet otetaan huomioon
+      // Rakennetaan Prisma-kysely, jossa suodattimet ja sivutus otetaan huomioon
       const tickets = await prisma.ticket.findMany({
-        where: {
-          createdById: user.id, // Haetaan vain käyttäjän omat tiketit
-          ...(statusEnum && statusEnum.length > 0 && { status: { in: statusEnum } }), // Suodatus tilan mukaan
-          ...(priorityEnum && priorityEnum.length > 0 && { priority: { in: priorityEnum } }), // Suodatus prioriteetin mukaan
-          ...(categoryArray && categoryArray.length > 0 && { 
-            category: { 
-                name: { in: categoryArray, mode: 'insensitive' }
-            }
-        }), // Suodatus kategorian mukaan
-          ...(subject && { title: { contains: subject as string, mode: 'insensitive' } }), // Suodatus aiheen mukaan
-          ...(device && { device: { contains: device as string, mode: 'insensitive' } }), // Suodatus laitteen mukaan
-          ...(startDateObj && { createdAt: { gte: startDateObj } }), // Suodatus päivämäärän mukaan (alku)
-          ...(endDateObj && { createdAt: { lte: endDateObj } }), // Suodatus päivämäärän mukaan (loppu)
-        },
+        where: whereClause,
         include: {
           category: true,
           createdBy: {
@@ -252,22 +274,32 @@ export const ticketController = {
             }
           }
         },
+        skip,
+        take: limitNumber,
         orderBy: {
           createdAt: 'desc'
         }
       });
-      //console.log('Tickets fetched:', tickets);
+      //logger.info('Tickets fetched:', tickets);
+      
+      // Build pagination metadata
+      const pagination = {
+        currentPage: pageNumber,
+        totalPages,
+        totalItems,
+        limit: limitNumber,
+        hasNext: pageNumber < totalPages,
+        hasPrev: pageNumber > 1
+      };
 
-      res.json({ tickets });
-    } catch (error) {
-      console.error('Error fetching user tickets with filters:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+      res.json({ 
+        data: tickets,
+        pagination
+      });
+  }),
 
   // Aseta tiketin tila (vain admin)
-  updateTicketStatus: async (req: Request, res: Response) => {
-    try {
+  updateTicketStatus: asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params;
       const { status } = req.body;
 
@@ -275,9 +307,33 @@ export const ticketController = {
         return res.status(400).json({ error: 'Invalid status' });
       }
 
+      // Get the old status before updating
+      const oldTicket = await prisma.ticket.findUnique({
+        where: { id },
+        select: { status: true, discordChannelId: true }
+      });
+
       const ticket = await ticketService.updateTicketStatus(id, status);
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket not found' });
+      }
+
+      // Send status update to Discord if applicable
+      if (oldTicket?.discordChannelId && oldTicket.status !== status) {
+        const updatedBy = req.user?.email ? 
+          await prisma.user.findUnique({ 
+            where: { email: req.user.email },
+            select: { name: true }
+          }) : null;
+        
+        if (updatedBy) {
+          await sendStatusUpdateToDiscord(
+            ticket.id,
+            oldTicket.status,
+            status,
+            updatedBy.name
+          );
+        }
       }
 
       // Create notification for the ticket creator
@@ -288,16 +344,16 @@ export const ticketController = {
         ticket.id
       );
 
+      // Emit WebSocket event for status change
+      const socketService = getSocketService();
+      socketService.emitTicketStatusChanged(ticket);
+      socketService.emitTicketUpdated(ticket); // Also emit general update event
+
       res.json({ ticket });
-    } catch (error) {
-      console.error('Error updating ticket status:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Aseta tiketin käsittelijä (vain admin)
-  assignTicket: async (req: Request, res: Response) => {
-    try {
+  assignTicket: asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params;
       const { assignedToId } = req.body;
 
@@ -318,12 +374,17 @@ export const ticketController = {
         ticket.id
       );
 
+      // Emit WebSocket event for assignment
+      const socketService = getSocketService();
+      // Get assigned user's email for targeted notification
+      const assignedUser = await prisma.user.findUnique({ 
+        where: { id: assignedToId },
+        select: { email: true }
+      });
+      socketService.emitTicketAssigned(ticket, assignedUser?.email);
+
       res.json({ ticket });
-    } catch (error) {
-      console.error('Error assigning ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Tiketin kommentin lisääminen
   addCommentToTicket: async (req: Request, res: Response) => {
@@ -357,7 +418,7 @@ export const ticketController = {
         const mentionsIterator = content.matchAll(mentionRegex);
         const mentionedNames = Array.from(mentionsIterator, (match: RegExpMatchArray) => match[1].trim());
 
-        console.log('Found mentions:', mentionedNames);
+        logger.info('Found mentions:', mentionedNames);
 
         // Hae mainitut käyttäjät
         const mentionedUsers = await prisma.user.findMany({
@@ -365,13 +426,13 @@ export const ticketController = {
             OR: mentionedNames.map((name: string) => ({
               name: {
                 equals: name,
-                mode: 'insensitive'  // Case-insensitive haku
+                mode: 'insensitive' as const  // Case-insensitive haku
               }
             }))
           }
         });
 
-        console.log('Found mentioned users:', mentionedUsers);
+        logger.info('Found mentioned users:', mentionedUsers);
 
         // Hae tiketti ennen kommentin luontia (include assignedTo and createdBy for socket emission)
         const ticket = await prisma.ticket.findUnique({
@@ -422,7 +483,7 @@ export const ticketController = {
           }
         });
 
-        console.log('Created comment:', comment);
+        logger.info('Created comment:', comment);
 
         // Store AI generation details if needed
         let aiGenerationNeeded = false;
@@ -438,14 +499,31 @@ export const ticketController = {
           user.id !== ticketDetails.createdById
         ) {
           aiGenerationNeeded = true;
-          aiApiUrl = process.env.FRONTEND_URL || 'http://localhost:3000'; // Assuming API route is accessible via frontend URL structure
+          // Use BACKEND_URL for self-referential API calls (important for Docker)
+          const port = process.env.PORT || 3001;
+          aiApiUrl = process.env.BACKEND_URL || `http://localhost:${port}`;
           aiToken = req.headers.authorization?.split(' ')[1] || '';
           aiPayload = {
             ticketId: id,
             commentText: content, // The user comment text
             supportUserId: user.id
           };
-          console.log('AI response generation will be triggered for ticket:', id);
+          logger.info('AI response generation will be triggered for ticket:', id);
+        }
+
+        // Send to Discord if ticket originated there
+        if (ticketDetails.discordChannelId && !user.isDiscordUser) {
+          try {
+            await sendMessageToDiscord(
+              ticketDetails.id,
+              content,
+              user.name,
+              user.role
+            );
+            logger.info(`Comment sent to Discord for ticket ${ticketDetails.id}`);
+          } catch (error) {
+            logger.error('Error sending comment to Discord:', error);
+          }
         }
 
         // Respond to the client first
@@ -466,7 +544,7 @@ export const ticketController = {
                 id,
                 { commentId: comment.id }
               );
-              console.log('Created notification for ticket creator:', creatorNotification);
+              logger.info('Created notification for ticket creator:', creatorNotification);
             }
 
             // Add assigned user if they exist and are not the commenter
@@ -479,7 +557,7 @@ export const ticketController = {
             for (const mentionedUser of mentionedUsers) {
               if (mentionedUser.email !== user.email) {
                 recipients.add(mentionedUser.email);
-                console.log('Creating mention notification for user:', mentionedUser.email);
+                logger.info('Creating mention notification for user:', mentionedUser.email);
                 const mentionNotification = await createNotification(
                   mentionedUser.id,
                   'MENTIONED',
@@ -491,7 +569,7 @@ export const ticketController = {
                     mentionedByEmail: user.email
                   }
                 );
-                console.log('Created mention notification:', mentionNotification);
+                logger.info('Created mention notification:', mentionNotification);
               }
             }
             
@@ -501,14 +579,14 @@ export const ticketController = {
             });
 
         } catch (socketError) {
-          console.error('[Socket/Notification Error] Failed to send updates:', socketError);
+          logger.error('[Socket/Notification Error] Failed to send updates:', socketError);
         }
         // --- Notifications and Socket Emission END ---
 
         // Trigger AI generation *after* responding and sending updates, if needed
         if (aiGenerationNeeded && aiToken) {
           try {
-            console.log('Triggering background AI response generation...');
+            logger.info('Triggering background AI response generation...');
             // Use a non-blocking call, but without setTimeout to avoid race condition
             axios.post(
               `${aiApiUrl}/api/ai/tickets/${id}/generate-response`,
@@ -522,19 +600,19 @@ export const ticketController = {
                 timeout: 30000 // e.g., 30 seconds
               }
             ).then(response => {
-              console.log('Background AI response generation successful:', response.status);
+              logger.info('Background AI response generation successful:', response.status);
             }).catch(aiError => {
               // Log the error for background task failure
-              console.error('Error during background AI response generation:', aiError.response?.data || aiError.message);
+              logger.error('Error during background AI response generation:', aiError.response?.data || aiError.message);
             });
           } catch (error) {
             // Catch potential immediate errors from initiating the axios call
-             console.error('Error initiating background AI response generation call:', error);
+             logger.error('Error initiating background AI response generation call:', error);
           }
         }
 
       } catch (error) { // Inner catch for processing logic
-        console.error('Error during comment processing logic:', error);
+        logger.error('Error during comment processing logic:', error);
         // Ensure a response is sent if not already handled
         if (!res.headersSent) {
            if (error instanceof Error) {
@@ -548,7 +626,7 @@ export const ticketController = {
         }
       }
     } catch (error) { // Outer catch for general/unexpected errors
-      console.error('Virhe kommentin lisäämisessä (outer catch):', error);
+      logger.error('Virhe kommentin lisäämisessä (outer catch):', error);
       // Ensure a response is sent if not already handled by inner logic/catches
       if (!res.headersSent) {
           res.status(500).json({ error: 'Kommentin lisääminen epäonnistui' });
@@ -633,6 +711,23 @@ export const ticketController = {
         }
       });
 
+      // Send to Discord if ticket originated there
+      if (ticket.discordChannelId && !user.isDiscordUser) {
+        try {
+          await sendMessageToDiscord(
+            ticket.id,
+            content,
+            user.name,
+            user.role,
+            mediaUrl,
+            mediaType
+          );
+          logger.info(`Media comment sent to Discord for ticket ${ticket.id}`);
+        } catch (error) {
+          logger.error('Error sending media comment to Discord:', error);
+        }
+      }
+
       // Respond to client first
       res.status(201).json(comment);
       
@@ -665,13 +760,13 @@ export const ticketController = {
         const mentionedNames = Array.from(mentionsIterator, (match: RegExpMatchArray) => match[1].trim());
       
         if (mentionedNames.length > 0) {
-          console.log('Found media comment mentions:', mentionedNames);
+          logger.info('Found media comment mentions:', mentionedNames);
           const mentionedUsers = await prisma.user.findMany({
             where: {
               OR: mentionedNames.map((name: string) => ({
                 name: {
                   equals: name,
-                  mode: 'insensitive'
+                  mode: 'insensitive' as const
                 }
               }))
             }
@@ -702,12 +797,12 @@ export const ticketController = {
         });
 
       } catch(socketError) {
-        console.error('[Socket/Notification Error] Failed to send media comment updates:', socketError);
+        logger.error('[Socket/Notification Error] Failed to send media comment updates:', socketError);
       }
        // --- Notifications and Socket Emission END ---
       
     } catch (error) {
-      console.error('Virhe media-kommentin lisäämisessä:', error);
+      logger.error('Virhe media-kommentin lisäämisessä:', error);
        if (!res.headersSent) {
           // Handle specific business errors
           if (error instanceof Error && (error.message.includes('Vain tukihenkilöt') || error.message.includes('Et voi lisätä mediasisältöä'))) {
@@ -719,8 +814,7 @@ export const ticketController = {
   },
 
   // Ota tiketti käsittelyyn
-  takeTicketIntoProcessing: async (req: Request, res: Response) => {
-    try {
+  takeTicketIntoProcessing: asyncHandler(async (req: Request, res: Response) => {
       if (!req.user?.email) {
         return res.status(401).json({ error: 'Unauthorized: User email not found' });
       }
@@ -777,6 +871,12 @@ export const ticketController = {
           break;
       }
 
+      // Get the ticket's Discord channel before updating
+      const oldTicket = await prisma.ticket.findUnique({
+        where: { id: req.params.id },
+        select: { discordChannelId: true, status: true }
+      });
+
       // Päivitä tiketin tila ja aseta käsittelijä
       const [updatedTicket, comment] = await prisma.$transaction([
         prisma.ticket.update({
@@ -815,19 +915,36 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (oldTicket?.discordChannelId && oldTicket.status !== TicketStatus.IN_PROGRESS) {
+        await sendStatusUpdateToDiscord(
+          updatedTicket.id,
+          oldTicket.status,
+          TicketStatus.IN_PROGRESS,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot && oldTicket && oldTicket.status !== TicketStatus.IN_PROGRESS) {
+        await discordBot.onTicketChanged('statusChanged', oldTicket.status, TicketStatus.IN_PROGRESS);
+      }
+
       // Don't create a notification when user takes the ticket themselves
       // The notification is unnecessary since they initiated the action
       
+      // Emit WebSocket event for ticket taken into processing
+      const socketService = getSocketService();
+      socketService.emitTicketStatusChanged(updatedTicket);
+      socketService.emitTicketAssigned(updatedTicket, user.email);
+      socketService.emitTicketUpdated(updatedTicket); // Also emit general update
+      
       res.json({ ticket: updatedTicket });
-    } catch (error) {
-      console.error('Error taking ticket into processing:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Vapauta tiketti käsittelystä
-  releaseTicket: async (req: Request, res: Response) => {
-    try {
+  releaseTicket: asyncHandler(async (req: Request, res: Response) => {
       if (!req.user?.email) {
         return res.status(401).json({ error: 'Unauthorized: User email not found' });
       }
@@ -901,6 +1018,22 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (ticket.discordChannelId) {
+        await sendStatusUpdateToDiscord(
+          ticket.id,
+          TicketStatus.IN_PROGRESS,
+          TicketStatus.OPEN,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot) {
+        await discordBot.onTicketChanged('statusChanged', TicketStatus.IN_PROGRESS, TicketStatus.OPEN);
+      }
+
       // Create notification for the ticket creator
       await createNotification(
         ticket.createdById,
@@ -909,16 +1042,17 @@ export const ticketController = {
         ticket.id
       );
 
+      // Emit WebSocket event for ticket release
+      const socketService = getSocketService();
+      socketService.emitTicketStatusChanged(updatedTicket);
+      socketService.emitTicketAssigned(updatedTicket); // No email because unassigned
+      socketService.emitTicketUpdated(updatedTicket); // Also emit general update
+
       res.json({ ticket: updatedTicket });
-    } catch (error) {
-      console.error('Error releasing ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Päivitä tiketin tila ja lisää automaattinen kommentti
-  updateTicketStatusWithComment: async (req: Request, res: Response) => {
-    try {
+  updateTicketStatusWithComment: asyncHandler(async (req: Request, res: Response) => {
       const { id } = req.params;
       const { status } = req.body;
 
@@ -1039,6 +1173,22 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (ticket.discordChannelId) {
+        await sendStatusUpdateToDiscord(
+          ticket.id,
+          ticket.status,
+          status,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot && ticket.status !== status) {
+        await discordBot.onTicketChanged('statusChanged', ticket.status, status);
+      }
+
       // Create notification for the ticket creator
       await createNotification(
         ticket.createdById,
@@ -1047,16 +1197,16 @@ export const ticketController = {
         ticket.id
       );
 
+      // Emit WebSocket events for real-time updates
+      const socketService = getSocketService();
+      socketService.emitTicketStatusChanged(updatedTicket);
+      socketService.emitTicketUpdated(updatedTicket);
+
       res.json({ ticket: updatedTicket });
-    } catch (error) {
-      console.error('Error updating ticket status:', error);
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  },
+  }),
 
   // Siirrä tiketti toiselle tukihenkilölle
-  transferTicket: async (req: Request, res: Response) => {
-    try {
+  transferTicket: asyncHandler(async (req: Request, res: Response) => {
       if (!req.user?.email) {
         return res.status(401).json({ error: 'Unauthorized: User email not found' });
       }
@@ -1168,6 +1318,20 @@ export const ticketController = {
       // Lisää uudet kommentit tiketin tietoihin
       updatedTicket.comments.push(userComment, systemComment);
 
+      // Send transfer notification to Discord if applicable
+      if (ticket.discordChannelId) {
+        try {
+          await sendMessageToDiscord(
+            ticket.id,
+            `Tiketti siirretty: ${user.name} → ${targetUser.name}`,
+            'Järjestelmä',
+            'ADMIN'
+          );
+        } catch (error) {
+          logger.error('Error sending transfer notification to Discord:', error);
+        }
+      }
+
       // Create notification for the assigned user
       await createNotification(
         targetUserId,
@@ -1177,11 +1341,83 @@ export const ticketController = {
       );
 
       res.json({ ticket: updatedTicket });
-    } catch (error) {
-      console.error('Error transferring ticket:', error);
-      res.status(500).json({ error: 'Internal server error' });
+  }),
+
+  // Optimized endpoint for MyWorkView - fetches all work-related tickets in one call
+  getMyWorkTickets: asyncHandler(async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    
+    if (!user.id) {
+      return errorResponses.unauthorized(res, 'User ID not found');
     }
-  },
+
+    // Fetch all three data sets in parallel
+    const [inProgressTickets, unassignedTickets, historyTickets] = await Promise.all([
+      // Tickets in progress assigned to current user
+      prisma.ticket.findMany({
+        where: {
+          status: TicketStatus.IN_PROGRESS,
+          assignedToId: user.id
+        },
+        include: {
+          createdBy: true,
+          assignedTo: true,
+          category: true,
+          comments: {
+            include: {
+              author: true
+            }
+          }
+        },
+        orderBy: { updatedAt: 'desc' }
+      }),
+      
+      // Open tickets with no assignee
+      prisma.ticket.findMany({
+        where: {
+          status: TicketStatus.OPEN,
+          assignedToId: null
+        },
+        include: {
+          createdBy: true,
+          assignedTo: true,
+          category: true,
+          comments: {
+            include: {
+              author: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      
+      // Resolved/closed tickets handled by current user (limit to recent 50)
+      prisma.ticket.findMany({
+        where: {
+          status: { in: [TicketStatus.RESOLVED, TicketStatus.CLOSED] },
+          assignedToId: user.id
+        },
+        include: {
+          createdBy: true,
+          assignedTo: true,
+          category: true,
+          comments: {
+            include: {
+              author: true
+            }
+          }
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 50 // Limit history to recent 50 tickets
+      })
+    ]);
+    
+    return successResponse(res, {
+      inProgress: inProgressTickets,
+      unassigned: unassignedTickets,
+      history: historyTickets
+    }, 'Work tickets retrieved successfully');
+  }),
 
 
 };

@@ -2,41 +2,19 @@ import React, { useState, useEffect } from 'react';
 import NotificationSettings from '../components/Notifications/NotificationSettings';
 import { useAuth } from '../providers/AuthProvider';
 import { UserCircle, LogOut, Mail, User, Award, Edit, Settings, Briefcase, Github, Linkedin } from 'lucide-react';
-import axios from 'axios';
-import { authService } from '../services/authService';
 import ProfilePicture from '../components/User/ProfilePicture';
 import { userService } from '../services/userService';
+import { useUserData } from '../hooks/useUserData';
+import { useRoleChange } from '../hooks/useRoleChange';
 import eseduLogo from '../assets/esedu-tiketti.png';
 
 const ProfileView = () => {
   const { user, userRole, logout } = useAuth();
-  const [isChangingRole, setIsChangingRole] = useState(false);
-  const [userData, setUserData] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0); // Used to force re-render of ProfilePicture
   
-  // Fetch full user data including jobTitle
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const token = await authService.acquireToken();
-        const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/users/me`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        setUserData(response.data);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
-    
-    if (user) {
-      fetchUserData();
-    }
-  }, [user]);
+  // Use centralized hooks
+  const { data: userData } = useUserData();
+  const { mutate: changeRole, isLoading: isChangingRole } = useRoleChange();
   
   // Load profile picture, but only fetch from Microsoft if needed
   useEffect(() => {
@@ -99,27 +77,8 @@ const ProfileView = () => {
     }
   };
 
-  const handleRoleChange = async (newRole) => {
-    try {
-      setIsChangingRole(true);
-      const token = await authService.acquireToken();
-      await axios.put(
-        `${import.meta.env.VITE_API_URL}/users/role`,
-        { role: newRole },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-      // Päivitä sivu roolin vaihtamisen jälkeen
-      window.location.reload();
-    } catch (error) {
-      console.error('Error changing role:', error);
-      alert('Roolin vaihto epäonnistui');
-    } finally {
-      setIsChangingRole(false);
-    }
+  const handleRoleChange = (newRole) => {
+    changeRole(newRole);
   };
 
   return (

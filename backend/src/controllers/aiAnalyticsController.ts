@@ -1,8 +1,10 @@
-import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger.js';
+import { prisma } from '../lib/prisma.js';
+import { } from '@prisma/client';
 import { subDays, startOfDay, endOfDay, parseISO, format } from 'date-fns';
+import { asyncHandler, ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 
-const prisma = new PrismaClient();
 
 // Helper function to get date range based on range parameter
 const getDateRange = (range: string) => {
@@ -71,12 +73,11 @@ interface AgentStat {
 
 export const aiAnalyticsController = {
   // Track a new AI assistant interaction
-  async trackInteraction(req: Request, res: Response) {
-    try {
+  trackInteraction: asyncHandler(async (req: Request, res: Response) => {
       const { ticketId, query, response, responseTime, userId } = req.body;
       
       if (!query || !response || responseTime === undefined || !userId) {
-        return res.status(400).json({ error: 'Missing required fields' });
+        throw new ValidationError('Missing required fields');
       }
       
       const interaction = await prisma.aIAssistantInteraction.create({
@@ -158,20 +159,15 @@ export const aiAnalyticsController = {
       }
       
       return res.status(201).json(interaction);
-    } catch (error) {
-      console.error('Error tracking AI interaction:', error);
-      return res.status(500).json({ error: 'Failed to track AI interaction' });
-    }
-  },
+  }),
   
   // Submit feedback/rating for an interaction
-  async submitFeedback(req: Request, res: Response) {
-    try {
+  submitFeedback: asyncHandler(async (req: Request, res: Response) => {
       const { interactionId } = req.params;
       const { rating, feedback } = req.body;
       
       if (!interactionId || rating === undefined) {
-        return res.status(400).json({ error: 'Missing required fields' });
+        throw new ValidationError('Missing required fields');
       }
       
       // Update the interaction with feedback
@@ -211,15 +207,10 @@ export const aiAnalyticsController = {
       }
       
       return res.status(200).json(updatedInteraction);
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      return res.status(500).json({ error: 'Failed to submit feedback' });
-    }
-  },
+  }),
   
   // Get usage statistics for a specific time range
-  async getUsageStats(req: Request, res: Response) {
-    try {
+  getUsageStats: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
@@ -278,15 +269,10 @@ export const aiAnalyticsController = {
           avgRating
         }
       });
-    } catch (error) {
-      console.error('Error getting usage stats:', error);
-      return res.status(500).json({ error: 'Failed to get usage statistics' });
-    }
-  },
+  }),
   
   // Get category distribution stats
-  async getCategoryStats(req: Request, res: Response) {
-    try {
+  getCategoryStats: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
@@ -319,19 +305,14 @@ export const aiAnalyticsController = {
       }));
       
       return res.status(200).json(formattedData);
-    } catch (error) {
-      console.error('Error getting category stats:', error);
-      return res.status(500).json({ error: 'Failed to get category statistics' });
-    }
-  },
+  }),
   
   // Get agent usage statistics (who's using the AI assistant)
-  async getAgentUsageStats(req: Request, res: Response) {
-    try {
+  getAgentUsageStats: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
-      // Get interactions grouped by support agent
+      // Get interactions grouped by support agent with user details in a single query
       const agentStats = await prisma.aIAssistantInteraction.groupBy({
         by: ['userId'],
         where: {
@@ -348,35 +329,41 @@ export const aiAnalyticsController = {
         }
       });
       
-      // Get user details for each agent
-      const agentDetails = await Promise.all(
-        agentStats.map(async (stat) => {
-          const user = await prisma.user.findUnique({
-            where: { id: stat.userId },
-            select: { name: true }
-          });
-          
-          return {
-            name: user?.name || 'Unknown User',
-            count: stat._count.id,
-            rating: stat._avg.rating || 0
-          };
-        })
-      );
+      // Extract all user IDs from the grouped results
+      const userIds = agentStats.map(stat => stat.userId);
+      
+      // Fetch all user details in a single query
+      const users = await prisma.user.findMany({
+        where: {
+          id: { in: userIds }
+        },
+        select: {
+          id: true,
+          name: true
+        }
+      });
+      
+      // Create a lookup map for user details
+      const userMap = new Map(users.map(user => [user.id, user]));
+      
+      // Combine stats with user details
+      const agentDetails = agentStats.map(stat => {
+        const user = userMap.get(stat.userId);
+        return {
+          name: user?.name || 'Unknown User',
+          count: stat._count.id,
+          rating: stat._avg.rating || 0
+        };
+      });
       
       // Sort by usage count (descending)
       const sortedAgentDetails = agentDetails.sort((a: {count: number}, b: {count: number}) => b.count - a.count);
       
       return res.status(200).json(sortedAgentDetails);
-    } catch (error) {
-      console.error('Error getting agent usage stats:', error);
-      return res.status(500).json({ error: 'Failed to get agent usage statistics' });
-    }
-  },
+  }),
   
   // Get response time percentile data
-  async getResponseTimeStats(req: Request, res: Response) {
-    try {
+  getResponseTimeStats: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
@@ -427,15 +414,10 @@ export const aiAnalyticsController = {
         fastestResponseTime: `${fastest.toFixed(1)}s`,
         percentileData
       });
-    } catch (error) {
-      console.error('Error getting response time stats:', error);
-      return res.status(500).json({ error: 'Failed to get response time statistics' });
-    }
-  },
+  }),
   
   // Compare resolution times with and without AI assistant
-  async getResolutionTimeComparison(req: Request, res: Response) {
-    try {
+  getResolutionTimeComparison: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
@@ -505,15 +487,10 @@ export const aiAnalyticsController = {
         improvement: withoutAssistant > 0 ? 
           ((withoutAssistant - withAssistant) / withoutAssistant * 100).toFixed(1) : '0'
       });
-    } catch (error) {
-      console.error('Error getting resolution time comparison:', error);
-      return res.status(500).json({ error: 'Failed to get resolution time comparison' });
-    }
-  },
+  }),
   
   // Get overall AI assistant statistics
-  async getOverallStats(req: Request, res: Response) {
-    try {
+  getOverallStats: asyncHandler(async (req: Request, res: Response) => {
       const { range = 'all' } = req.query;
       let dateFilter = {};
       
@@ -571,15 +548,10 @@ export const aiAnalyticsController = {
         ticketsResolvedFaster: '62%',
         knowledgeArticlesUsed: 85
       });
-    } catch (error) {
-      console.error('Error getting overall stats:', error);
-      return res.status(500).json({ error: 'Failed to get overall statistics' });
-    }
-  },
+  }),
   
   // Get all analytics data in a single request (for dashboard)
-  async getDashboardData(req: Request, res: Response) {
-    try {
+  getDashboardData: asyncHandler(async (req: Request, res: Response) => {
       const { range = '14d' } = req.query;
       
       // Create mock response objects to collect the returned data from each function
@@ -611,13 +583,15 @@ export const aiAnalyticsController = {
       const overallStatsRes = createMockResponse();
       
       // Use Promise.all to run all queries in parallel
+      // Since these are now asyncHandler wrapped, we need to call the inner function
+      const next = () => {}; // Dummy next function for asyncHandler
       await Promise.all([
-        getUsageStats(req, usageStatsRes as unknown as Response),
-        getCategoryStats(req, categoryStatsRes as unknown as Response),
-        getAgentUsageStats(req, agentUsageRes as unknown as Response),
-        getResponseTimeStats(req, responseTimeRes as unknown as Response),
-        getResolutionTimeComparison(req, resolutionRes as unknown as Response),
-        getOverallStats(req, overallStatsRes as unknown as Response)
+        getUsageStats(req, usageStatsRes as unknown as Response, next as any),
+        getCategoryStats(req, categoryStatsRes as unknown as Response, next as any),
+        getAgentUsageStats(req, agentUsageRes as unknown as Response, next as any),
+        getResponseTimeStats(req, responseTimeRes as unknown as Response, next as any),
+        getResolutionTimeComparison(req, resolutionRes as unknown as Response, next as any),
+        getOverallStats(req, overallStatsRes as unknown as Response, next as any)
       ]);
       
       // Extract data from each mock response using the getData method
@@ -657,21 +631,16 @@ export const aiAnalyticsController = {
           knowledgeArticlesUsed: 0
         }
       });
-    } catch (error) {
-      console.error('Error getting dashboard data:', error);
-      return res.status(500).json({ error: 'Failed to get dashboard data' });
-    }
-  },
+  }),
   
   // Get detailed statistics for a specific agent
-  async getAgentDetails(req: Request, res: Response) {
-    try {
+  getAgentDetails: asyncHandler(async (req: Request, res: Response) => {
       const { agentId } = req.params;
       const { range = '14d' } = req.query;
       const { start, end } = getDateRange(range as string);
       
       if (!agentId) {
-        return res.status(400).json({ error: 'Agent ID is required' });
+        throw new ValidationError('Agent ID is required');
       }
 
       // Find the user by ID or name
@@ -686,28 +655,20 @@ export const aiAnalyticsController = {
       });
 
       if (!user) {
-        return res.status(404).json({ error: 'Agent not found' });
+        throw new NotFoundError('Agent not found');
       }
 
-      // Get total interactions for this agent
-      const totalInteractions = await prisma.aIAssistantInteraction.count({
+      // Combine total interactions count and average response time in a single aggregate query
+      const basicStats = await prisma.aIAssistantInteraction.aggregate({
         where: {
           userId: user.id,
           createdAt: {
             gte: start,
             lte: end
           }
-        }
-      });
-
-      // Get average response time
-      const avgResponseTime = await prisma.aIAssistantInteraction.aggregate({
-        where: {
-          userId: user.id,
-          createdAt: {
-            gte: start,
-            lte: end
-          }
+        },
+        _count: {
+          id: true
         },
         _avg: {
           responseTime: true
@@ -739,9 +700,8 @@ export const aiAnalyticsController = {
         };
       });
 
-      // Get interactions by day
-      const dailyInteractions = await prisma.aIAssistantInteraction.groupBy({
-        by: ['createdAt'],
+      // Get interactions for daily formatting (more efficient than groupBy on timestamp)
+      const dailyInteractionData = await prisma.aIAssistantInteraction.findMany({
         where: {
           userId: user.id,
           createdAt: {
@@ -749,24 +709,26 @@ export const aiAnalyticsController = {
             lte: end
           }
         },
-        _count: {
-          id: true
+        select: {
+          createdAt: true
         }
       });
 
-      // Format daily interaction data
+      // Format daily interaction data by aggregating in JavaScript
+      const dailyCountMap = new Map<string, number>();
+      dailyInteractionData.forEach(interaction => {
+        const dateKey = format(interaction.createdAt, 'dd.MM');
+        dailyCountMap.set(dateKey, (dailyCountMap.get(dateKey) || 0) + 1);
+      });
+
       const interactionsByDay = Array.from({ length: parseInt(range as string) }, (_, i) => {
         const date = new Date(end);
         date.setDate(date.getDate() - i);
         const formattedDate = format(date, 'dd.MM');
         
-        const dayData = dailyInteractions.find((d: { createdAt: Date, _count: { id: number } }) => 
-          format(d.createdAt, 'dd.MM') === formattedDate
-        );
-        
         return {
           date: formattedDate,
-          count: dayData ? dayData._count.id : 0
+          count: dailyCountMap.get(formattedDate) || 0
         };
       }).reverse();
 
@@ -789,25 +751,20 @@ export const aiAnalyticsController = {
       });
 
       return res.status(200).json({
-        totalInteractions,
-        averageResponseTime: `${avgResponseTime._avg.responseTime?.toFixed(1) || 0}s`,
+        totalInteractions: basicStats._count.id,
+        averageResponseTime: `${basicStats._avg.responseTime?.toFixed(1) || 0}s`,
         responseRatings,
         interactionsByDay,
         commonQueries: commonQueries.map((q: { query: string }) => q.query)
       });
-    } catch (error) {
-      console.error('Error getting agent details:', error);
-      return res.status(500).json({ error: 'Failed to get agent details' });
-    }
-  },
+  }),
   
   // Get feedback by ticket ID
-  async getFeedbackByTicket(req: Request, res: Response) {
-    try {
+  getFeedbackByTicket: asyncHandler(async (req: Request, res: Response) => {
       const { ticketId } = req.params;
       
       if (!ticketId) {
-        return res.status(400).json({ error: 'Missing required parameter: ticketId' });
+        throw new ValidationError('Missing required parameter: ticketId');
       }
       
       // Get all interactions for this ticket that have feedback (rating is not null)
@@ -838,9 +795,5 @@ export const aiAnalyticsController = {
           timestamp: interaction.createdAt
         }))
       });
-    } catch (error) {
-      console.error('Error getting feedback by ticket ID:', error);
-      return res.status(500).json({ error: 'Failed to get feedback by ticket ID' });
-    }
-  },
+  }),
 }; 

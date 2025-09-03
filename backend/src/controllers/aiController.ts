@@ -1,91 +1,151 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import logger from '../utils/logger.js';
+import { asyncHandler, ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 import { ticketGenerator } from '../ai/agents/ticketGeneratorAgent.js';
+import { modernTicketGenerator } from '../ai/agents/modernTicketGeneratorAgent.js';
 import { chatAgent } from '../ai/agents/chatAgent.js';
-import { PrismaClient, TicketStatus, Comment, User, Category } from '@prisma/client';
+import { modernChatAgent, ConversationStateMachine } from '../ai/agents/modernChatAgent.js';
+import { enhancedModernChatAgent } from '../ai/agents/enhancedModernChatAgent.js';
+import { TicketStatus, Comment, User, Category, Prisma } from '@prisma/client';
 import { ticketService } from '../services/ticketService.js';
 import { CreateTicketDTO } from '../types/index.js';
-import { Prisma } from '@prisma/client';
 import { summarizerAgent } from '../ai/agents/summarizerAgent.js';
 import { getSocketService } from '../services/socketService.js';
 import { supportAssistantAgent } from '../ai/agents/supportAssistantAgent.js';
+import { prisma } from '../lib/prisma.js';
+import { aiSettingsService } from '../services/aiSettingsService.js';
 
-const prisma = new PrismaClient();
+// In-memory storage for conversation states
+// Maps ticketId -> ConversationStateMachine instance
+const conversationStates = new Map<string, ConversationStateMachine>();
+
+// Helper to get or create state machine for a ticket
+const getOrCreateStateMachine = (ticketId: string): ConversationStateMachine => {
+  let stateMachine = conversationStates.get(ticketId);
+  if (!stateMachine) {
+    stateMachine = new ConversationStateMachine();
+    conversationStates.set(ticketId, stateMachine);
+    logger.info(`🆕 [StateMachine] Created new state machine for ticket ${ticketId}`);
+  }
+  return stateMachine;
+};
+
+// Clean up state machine after conversation ends
+const cleanupStateMachine = (ticketId: string): void => {
+  if (conversationStates.delete(ticketId)) {
+    logger.info(`🧹 [StateMachine] Cleaned up state machine for ticket ${ticketId}`);
+  }
+};
 
 export const aiController = {
   /**
+   * Check if OpenAI API is configured
+   */
+  checkConfiguration: asyncHandler(async (req: Request, res: Response) => {
+    const hasApiKey = !!process.env.OPENAI_API_KEY;
+    const isValidFormat = process.env.OPENAI_API_KEY?.startsWith('sk-') || false;
+    
+    res.json({
+      success: true,
+      data: {
+        isConfigured: hasApiKey && isValidFormat,
+        details: {
+          hasApiKey,
+          isValidFormat
+        }
+      }
+    });
+  }),
+
+  /**
    * Generate a *preview* of a training ticket without saving it.
    */
-  generateTrainingTicketPreview: async (req: Request, res: Response) => {
-    try {
-      const { complexity, category, userProfile, assignToId, responseFormat } = req.body;
+  generateTrainingTicketPreview: asyncHandler(async (req: Request, res: Response) => {
+      const { complexity, category, userProfile, assignToId, manualStyle, manualTechnicalLevel } = req.body;
       
-      console.log('Received request to generate training ticket preview:', req.body);
+      logger.info('Received request to generate training ticket preview:', req.body);
       
       // Validate the required parameters
       if (!complexity || !category || !userProfile) {
-        return res.status(400).json({
-          error: 'Missing required parameters',
-          details: 'complexity, category, and userProfile are required'
-        });
+        throw new ValidationError('complexity, category, and userProfile are required');
       }
       
+      // Get the requesting user's ID for token tracking
+      let userId: string | undefined;
+      if (req.user?.email) {
+        const user = await prisma.user.findUnique({
+          where: { email: req.user.email }
+        });
+        userId = user?.id;
+      }
+      
+      // Check which ticket generator to use
+      const useModernGenerator = await aiSettingsService.useModernTicketGenerator();
+      const generator = useModernGenerator ? modernTicketGenerator : ticketGenerator;
+      
+      logger.info(`Using ${useModernGenerator ? 'modern' : 'legacy'} ticket generator for preview`);
+      
       // Generate ticket data using the AI agent but DO NOT save it yet
-      console.log('Calling ticket generator for preview with parameters:', { complexity, category, userProfile, assignToId, responseFormat });
-      const ticketData = await ticketGenerator.generateTicket({
+      logger.info('Calling ticket generator for preview with parameters:', { 
+        complexity, category, userProfile, assignToId, userId,
+        manualStyle, manualTechnicalLevel 
+      });
+      const ticketData = await generator.generateTicket({
         complexity,
         category,
         userProfile,
         assignToId, // Pass assignToId so it's included in the preview data
-        responseFormat
+        userId, // Pass userId for token tracking
+        manualStyle, // Pass manual style override if provided
+        manualTechnicalLevel // Pass manual technical level override if provided
       });
       
-      console.log('Successfully generated ticket preview data');
+      logger.info('Successfully generated ticket preview data');
+      
+      // Log metadata if using modern generator
+      if (ticketData.metadata) {
+        logger.info('📊 [Ticket Metadata]:', {
+          generatorVersion: ticketData.metadata.generatorVersion,
+          writingStyle: ticketData.metadata.writingStyle,
+          technicalLevel: ticketData.metadata.technicalLevel,
+          technicalAccuracy: ticketData.metadata.technicalAccuracy
+        });
+      }
       
       // ALSO generate the solution during preview
-      console.log('Generating solution for preview...');
+      logger.info('Generating solution for preview...');
       // We need some details from ticketData to generate the solution
       // Note: ticketData.id doesn't exist yet, so we call generateSolution with raw data
       // Assuming generateSolution can handle raw data or we adapt it slightly
       // For now, let's pass the necessary components. We might need to adjust ticketGeneratorAgent if this fails.
-      const solution = await ticketGenerator.generateSolutionForPreview({
+      const solution = await generator.generateSolutionForPreview({
         title: ticketData.title,
         description: ticketData.description,
         device: ticketData.device,
         categoryId: ticketData.categoryId, // We need category ID to find the name
+        userId // Pass userId for token tracking
       });
-      console.log('Successfully generated solution for preview');
+      logger.info('Successfully generated solution for preview');
       
       // Return the generated data AND the solution for confirmation
       res.status(200).json({ 
         ticketData: ticketData, // Send the raw generated ticket data
         solution: solution      // Send the generated solution text
       });
-      
-    } catch (error: any) {
-      console.error('Error generating training ticket preview:', error);
-      res.status(500).json({ 
-        error: 'Failed to generate training ticket preview',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
 
   /**
    * Confirm and create a training ticket after preview.
    */
-  confirmTrainingTicketCreation: async (req: Request, res: Response) => {
-    try {
+  confirmTrainingTicketCreation: asyncHandler(async (req: Request, res: Response) => {
       // Receive the ticket data AND the pre-generated solution
       const { ticketData, complexity, solution } = req.body; // Added solution
       
-      console.log('Received request to confirm training ticket creation:', req.body);
+      logger.info('Received request to confirm training ticket creation:', req.body);
       
       // Validate the received ticket data (basic check)
       if (!ticketData || !ticketData.title || !ticketData.description || !ticketData.categoryId || !ticketData.createdById || !complexity || !solution) { // Added check for solution
-        return res.status(400).json({
-          error: 'Invalid ticket data provided for confirmation',
-          details: 'Essential ticket data, complexity, or solution is missing' // Updated details
-        });
+        throw new ValidationError('Invalid ticket data provided for confirmation. Essential ticket data, complexity, or solution is missing');
       }
       
       // Create the ticket with standard fields from the confirmed data
@@ -96,25 +156,31 @@ export const aiController = {
         additionalInfo: ticketData.additionalInfo,
         priority: ticketData.priority,
         categoryId: ticketData.categoryId,
-        responseFormat: ticketData.responseFormat,
+        responseFormat: 'TEKSTI',  // Always text-only
         userProfile: ticketData.userProfile,
         attachments: [],
       };
       
       // Create the ticket using the service
-      console.log('Creating ticket in database with confirmed data:', createTicketData);
+      logger.info('Creating ticket in database with confirmed data:', createTicketData);
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
-      console.log('Ticket created with ID:', ticket.id);
+      logger.info('Ticket created with ID:', ticket.id);
       
-      // Explicitly mark the ticket as AI-generated after creation
+      // Update ticket with AI-generated flag and metadata if from ModernTicketGenerator
+      const updateData: any = { isAiGenerated: true };
+      if (ticketData.metadata && ticketData.metadata.generatorVersion === 'modern') {
+        updateData.generatorMetadata = ticketData.metadata;
+        logger.info('Storing ModernTicketGenerator metadata:', ticketData.metadata);
+      }
+      
       await prisma.ticket.update({
         where: { id: ticket.id! }, 
-        data: { isAiGenerated: true },
+        data: updateData,
       });
-      console.log('Marked ticket as AI-generated');
+      logger.info('Marked ticket as AI-generated with metadata');
       
       // Store the PRE-GENERATED solution (received from frontend) in a knowledge base entry
-      console.log('Storing pre-generated solution for ticket ID:', ticket.id);
+      logger.info('Storing pre-generated solution for ticket ID:', ticket.id);
       await prisma.knowledgeArticle.create({
         data: {
           // Use the received solution text
@@ -126,13 +192,13 @@ export const aiController = {
           isAiGenerated: true
         }
       });
-      console.log('Knowledge article created for solution');
+      logger.info('Knowledge article created for solution');
       
       let finalTicket = ticket; // Use the initially created ticket by default
       
       // If assignToId is specified in the confirmed data, update the ticket
       if (ticketData.assignedToId) {
-        console.log('Assigning ticket to user ID:', ticketData.assignedToId);
+        logger.info('Assigning ticket to user ID:', ticketData.assignedToId);
         await ticketService.updateTicket(ticket.id!, {
           assignedToId: ticketData.assignedToId,
           status: 'IN_PROGRESS' as TicketStatus
@@ -142,13 +208,13 @@ export const aiController = {
         const updatedTicket = await ticketService.getTicketById(ticket.id!);
         if (updatedTicket) {
           finalTicket = updatedTicket; // Use the updated ticket if assignment was successful
-          console.log('Ticket successfully assigned');
+          logger.info('Ticket successfully assigned');
         } else {
-           console.warn('Failed to fetch updated ticket after assignment, returning original ticket');
+           logger.warn('Failed to fetch updated ticket after assignment, returning original ticket');
         }
       }
       
-      console.log('Training ticket creation confirmed and completed.');
+      logger.info('Training ticket creation confirmed and completed.');
       // Include the solution content in the response (as it was received)
       res.status(201).json({ 
         ticket: finalTicket, 
@@ -156,14 +222,7 @@ export const aiController = {
         isAiGenerated: true
       });
       
-    } catch (error: any) {
-      console.error('Error confirming training ticket creation:', error);
-      res.status(500).json({ 
-        error: 'Failed to confirm training ticket creation',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
 
   /**
    * Generate a training ticket for IT support students
@@ -174,14 +233,13 @@ export const aiController = {
    * Generate a simulated user response to a support comment
    * This makes AI-generated tickets interactive for training purposes
    */
-  generateUserResponse: async (req: Request, res: Response) => {
+  generateUserResponse: asyncHandler(async (req: Request, res: Response) => {
     const ticketId = req.params.id || req.body.ticketId;
     const { commentText, supportUserId } = req.body;
     let supportUserEmail: string | null = null;
     const socketService = getSocketService(); // Get socket service instance
 
-    try {
-      console.log(`Received request to generate AI chat response for ticket ${ticketId}`);
+      logger.info(`Received request to generate AI chat response for ticket ${ticketId}`);
       
       // Validate parameters
       if (!ticketId || !commentText || !supportUserId) {
@@ -199,7 +257,7 @@ export const aiController = {
       supportUserEmail = supportUser?.email || null;
 
       if (!supportUserEmail) {
-         console.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI typing status.`);
+         logger.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI typing status.`);
          // Proceed without sending typing status if user not found, but maybe log?
       }
       
@@ -232,11 +290,11 @@ export const aiController = {
         }
       });
       
-      console.log('Using ChatAgent to generate interactive response');
+      logger.info('Using ChatAgent to generate interactive response');
       
       // Get userProfile from the fetched ticket
       const userProfile = ticket.userProfile || 'student'; 
-      console.log(`Using userProfile from ticket: ${userProfile}`);
+      logger.info(`Using userProfile from ticket: ${userProfile}`);
 
       // Translate user profile
       let userProfileFinnish: string;
@@ -256,42 +314,244 @@ export const aiController = {
         default:
           userProfileFinnish = userProfile; // Fallback
       }
-      console.log(`Translated userProfile to Finnish for ChatAgent: ${userProfileFinnish}`);
+      logger.info(`Translated userProfile to Finnish for ChatAgent: ${userProfileFinnish}`);
 
       // --- Emit AI Typing Start ---
       if (supportUserEmail) {
-        console.log(`[Socket] Emitting AI typing start to support user: ${supportUserEmail}`);
+        logger.info(`[Socket] Emitting AI typing start to support user: ${supportUserEmail}`);
         socketService.emitTypingStatus(supportUserEmail, { isTyping: true, ticketId });
       }
       // -------------------------
       
-      // Generate AI response as the ticket creator using the chat agent
-      const { responseText, evaluation } = await chatAgent.generateChatResponse({
-        ticket: {
-          id: ticket.id,
-          title: ticket.title,
-          description: ticket.description,
-          device: ticket.device || '',
-          priority: ticket.priority,
-          categoryId: ticket.categoryId,
-          userProfile: userProfileFinnish, // Use the translated Finnish profile
-          createdById: ticket.createdById,
-          additionalInfo: ticket.additionalInfo || ''
-        },
-        comments: ticket.comments.map(comment => ({
-          // Map Prisma Comment to expected structure (text, userId, ticketId)
-          id: comment.id,
-          text: comment.content, 
-          userId: comment.authorId,
-          ticketId: comment.ticketId,
-          createdAt: comment.createdAt
-        })),
-        newSupportComment: commentText,
-        supportUserId,
-        solution: solution?.content || null
-      });
+      let responseText: string;
+      let evaluation: string;
+      let emotionalState: string | undefined;
+      let reasoning: string | undefined;
+      let shouldRevealHint: boolean = false;
       
-      console.log(`Chat response generated successfully. Evaluation: ${evaluation}`);
+      // Get AI settings to determine which chat agent to use
+      const aiSettings = await aiSettingsService.getSettings();
+      const useModernAgent = aiSettings.chatAgentVersion === 'modern';
+      const useEnhancedSync = aiSettings.chatAgentSyncWithGenerator && aiSettings.ticketGeneratorVersion === 'modern';
+      
+      if (useModernAgent) {
+        if (useEnhancedSync) {
+          logger.info('✨🚀 ============================================');
+          logger.info('✨🚀 Using ENHANCED MODERN ChatAgent with style sync');
+          logger.info('✨🚀 ============================================');
+          logger.info('✨ [EnhancedAgent] Syncing with ModernTicketGenerator');
+        } else {
+          logger.info('🚀 ============================================');
+          logger.info('🚀 Using MODERN ChatAgent for response generation');
+          logger.info('🚀 ============================================');
+          logger.info('🔍 [ModernAgent] Standard modern implementation');
+        }
+        
+        // Get the ticket creator details
+        const ticketCreator = await prisma.user.findUnique({
+          where: { id: ticket.createdById }
+        });
+        logger.info(`👤 [ModernAgent] Ticket creator: ${ticketCreator?.name || 'Unknown'}`);
+        
+        // Get category details
+        const category = await prisma.category.findUnique({
+          where: { id: ticket.categoryId }
+        });
+        logger.info(`📁 [ModernAgent] Category: ${category?.name || 'Unknown'}`);
+        
+        // Map technical level based on complexity/priority
+        const technicalLevel = ticket.priority === 'LOW' ? 'beginner' : 
+                               ticket.priority === 'MEDIUM' ? 'intermediate' : 
+                               'advanced';
+        logger.info(`🎓 [ModernAgent] Technical level mapped: ${technicalLevel} (from priority: ${ticket.priority})`);
+        
+        logger.info('📊 [ModernAgent] Preparing context for modern agent:', JSON.stringify({
+          hasCreator: !!ticketCreator,
+          hasCategory: !!category,
+          hasSolution: !!solution,
+          commentCount: ticket.comments.length,
+          priority: ticket.priority
+        }, null, 2));
+        
+        // Get state machine to check if we should force hints
+        const stateMachine = getOrCreateStateMachine(ticket.id);
+        const hintResult = stateMachine.shouldProvideHint({
+          enabled: aiSettings.hintSystemEnabled,
+          earlyThreshold: aiSettings.hintOnEarlyThreshold,
+          progressThreshold: aiSettings.hintOnProgressThreshold,
+          closeThreshold: aiSettings.hintOnCloseThreshold,
+          cooldownTurns: aiSettings.hintCooldownTurns,
+          maxHints: aiSettings.hintMaxPerConversation
+        });
+        
+        // Build hint instruction if StateMachine decided to give hint
+        const hintInstruction = hintResult.shouldHint ? {
+          giveHint: true,
+          hintType: hintResult.triggerType,
+          hintNumber: stateMachine.getHintsGiven() + 1,
+          stuckDuration: stateMachine.getStuckCounter()
+        } : undefined;
+        
+        // Choose which agent to use based on sync settings
+        let response: any;
+        
+        if (useEnhancedSync) {
+          // Extract metadata from ticket's generatorMetadata field
+          let extractedWritingStyle: string | undefined;
+          let extractedTechnicalLevel: string | undefined;
+          
+          if (ticket.generatorMetadata && typeof ticket.generatorMetadata === 'object') {
+            const metadata = ticket.generatorMetadata as any;
+            if (metadata.generatorVersion === 'modern') {
+              extractedWritingStyle = metadata.writingStyle;
+              extractedTechnicalLevel = metadata.technicalLevel;
+              logger.info('📊 [EnhancedAgent] Using metadata from ModernTicketGenerator:', {
+                writingStyle: extractedWritingStyle,
+                technicalLevel: extractedTechnicalLevel,
+                technicalAccuracy: metadata.technicalAccuracy
+              });
+            }
+          }
+          
+          // Use enhanced chat agent with writing style sync
+          response = await enhancedModernChatAgent.respond(
+            {
+              title: ticket.title,
+              description: ticket.description,
+              device: ticket.device || undefined,
+              category: category?.name || 'Unknown',
+              additionalInfo: ticket.additionalInfo || undefined,
+              solution: solution?.content || 'Ei tietoa ratkaisusta',
+              userProfile: {
+                name: ticketCreator?.name || 'Käyttäjä',
+                role: userProfile === 'student' ? 'student' : 
+                      userProfile === 'teacher' ? 'teacher' : 
+                      'staff' as "student" | "teacher" | "staff",
+                technicalLevel: (extractedTechnicalLevel || technicalLevel) as "beginner" | "intermediate" | "advanced"
+              },
+              // Pass extracted writing style if available from metadata
+              initialWritingStyle: extractedWritingStyle as any
+            },
+            ticket.comments.map(comment => ({
+              role: comment.authorId === ticket.createdById ? 'user' : 'support',
+              content: comment.content,
+              timestamp: comment.createdAt
+            })),
+            commentText,
+            hintInstruction, // Pass hint instruction if needed
+            supportUserId,
+            ticketId
+          );
+        } else {
+          // Use standard modern chat agent
+          response = await modernChatAgent.respond(
+            {
+              title: ticket.title,
+              description: ticket.description,
+              device: ticket.device || undefined,
+              category: category?.name || 'Unknown',
+              additionalInfo: ticket.additionalInfo || undefined,
+              solution: solution?.content || 'Ei tietoa ratkaisusta',
+              userProfile: {
+                name: ticketCreator?.name || 'Käyttäjä',
+                role: userProfile === 'student' ? 'student' : 
+                      userProfile === 'teacher' ? 'teacher' : 
+                      'staff' as "student" | "teacher" | "staff",
+                technicalLevel: technicalLevel as "beginner" | "intermediate" | "advanced"
+              }
+            },
+            ticket.comments.map(comment => ({
+              role: comment.authorId === ticket.createdById ? 'user' : 'support',
+              content: comment.content,
+              timestamp: comment.createdAt
+            })),
+            commentText,
+            hintInstruction, // Pass hint instruction if needed
+            supportUserId,
+            ticketId
+          );
+        }
+        
+        responseText = response.response;
+        evaluation = response.evaluation;
+        emotionalState = response.emotionalState;
+        reasoning = response.reasoning;
+        // Use hintGiven from response to track if hint was actually given
+        shouldRevealHint = response.hintGiven;
+        
+        // Update state machine AFTER getting response
+        stateMachine.transition(evaluation as "EARLY" | "PROGRESSING" | "CLOSE" | "SOLVED");
+        
+        // Log if we forced a hint
+        if (hintResult.shouldHint) {
+          logger.info('💡 [StateMachine] Hint was provided to the AI (stuck for ' + stateMachine.getStuckCounter() + ' turns)');
+          logger.info('💡 [StateMachine] Hint was given by AI: ' + shouldRevealHint);
+          logger.info('💡 [StateMachine] Hint trigger type: ' + hintResult.triggerType);
+          reasoning = (reasoning || '') + '\n[StateMachine: Hint provided - ' + hintResult.triggerType + ' threshold triggered]';
+        }
+        
+        // Add state machine info to reasoning
+        reasoning = (reasoning || '') + `\n[State: ${stateMachine.getState()}, Turn: ${stateMachine.getTurnCount()}, StuckCounter: ${stateMachine.getStuckCounter()}]`;
+        
+        // Check if conversation is resolved
+        if (stateMachine.getState() === 'resolved') {
+          logger.info('🎉 [StateMachine] Conversation marked as resolved!');
+          // Clean up the state machine after resolution
+          cleanupStateMachine(ticket.id);
+        }
+        
+        logger.info('✅ [ModernAgent] Response generated successfully!');
+        logger.info('📊 [ModernAgent] Results:', JSON.stringify({
+          evaluation: evaluation,
+          emotionalState: response.emotionalState,
+          responsePreview: responseText.substring(0, 100) + '...',
+          shouldRevealHint: shouldRevealHint,
+          stateInfo: {
+            state: stateMachine.getState(),
+            turnCount: stateMachine.getTurnCount(),
+            stuckCounter: stateMachine.getStuckCounter()
+          }
+        }, null, 2));
+        logger.info('🚀 ============================================');
+        logger.info('🚀 Modern ChatAgent completed successfully');
+        logger.info('🚀 ============================================');
+        
+      } else {
+        logger.info('🔄 ============================================');
+        logger.info('🔄 Using LEGACY ChatAgent for response generation');
+        logger.info('🔄 ============================================');
+        
+        // Use legacy chat agent (existing implementation)
+        const legacyResponse = await chatAgent.generateChatResponse({
+          ticket: {
+            id: ticket.id,
+            title: ticket.title,
+            description: ticket.description,
+            device: ticket.device || '',
+            priority: ticket.priority,
+            categoryId: ticket.categoryId,
+            userProfile: userProfileFinnish, // Use the translated Finnish profile
+            createdById: ticket.createdById,
+            additionalInfo: ticket.additionalInfo || ''
+          },
+          comments: ticket.comments.map(comment => ({
+            // Map Prisma Comment to expected structure (text, userId, ticketId)
+            id: comment.id,
+            text: comment.content, 
+            userId: comment.authorId,
+            ticketId: comment.ticketId,
+            createdAt: comment.createdAt
+          })),
+          newSupportComment: commentText,
+          supportUserId,
+          solution: solution?.content || null
+        });
+        
+        responseText = legacyResponse.responseText;
+        evaluation = legacyResponse.evaluation;
+        
+        logger.info(`Legacy chat response generated successfully. Evaluation: ${evaluation}`);
+      }
       
       // Create the comment from the AI user
       const comment = await prisma.comment.create({
@@ -300,7 +560,10 @@ export const aiController = {
           ticketId: ticket.id,
           authorId: ticket.createdById,
           isAiGenerated: true,
-          evaluationResult: evaluation
+          evaluationResult: evaluation,
+          emotionalState: emotionalState || null,
+          reasoning: reasoning || null,
+          shouldRevealHint: shouldRevealHint
         },
         include: { 
           author: true
@@ -311,17 +574,17 @@ export const aiController = {
       if (supportUserEmail) {
          try {
            // Emit that AI stopped typing *before* sending the comment
-           console.log(`[Socket] Emitting AI stopped typing to support user: ${supportUserEmail}`);
+           logger.info(`[Socket] Emitting AI stopped typing to support user: ${supportUserEmail}`);
            socketService.emitTypingStatus(supportUserEmail, { isTyping: false, ticketId: ticket.id });
 
            // Emit the actual comment
-           console.log(`[Socket] Emitting AI comment back to support user: ${supportUserEmail}`);
+           logger.info(`[Socket] Emitting AI comment back to support user: ${supportUserEmail}`);
            socketService.emitNewCommentToUser(supportUserEmail, comment);
          } catch (socketError) {
-           console.error('[Socket Error] Failed to send AI comment update/stop typing:', socketError);
+           logger.error('[Socket Error] Failed to send AI comment update/stop typing:', socketError);
          }
       } else {
-          console.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI comment update.`);
+          logger.warn(`[Socket] Could not find email for support user ID ${supportUserId} to send AI comment update.`);
       }
       // --- Emit AI Typing Stop & New Comment END ---
       
@@ -330,32 +593,12 @@ export const aiController = {
         comment,
         isAiGenerated: true  
       });
-      
-    } catch (error: any) {
-       // --- Emit AI Typing Stop on Error --- 
-       if (supportUserEmail) {
-         try {
-            console.log(`[Socket] Emitting AI stopped typing due to error for user: ${supportUserEmail}`);
-            socketService.emitTypingStatus(supportUserEmail, { isTyping: false, ticketId });
-         } catch (emitError) {
-            console.error('[Socket Error] Failed to emit stop typing on error:', emitError);
-         }
-       }
-      // -----------------------------------
-
-      console.error('Error generating chat response:', error);
-      res.status(500).json({
-        error: 'Failed to generate chat response',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
   
   /**
    * Get AI agent configuration
    */
-  getAgentConfig: async (req: Request, res: Response) => {
-    try {
+  getAgentConfig: asyncHandler(async (req: Request, res: Response) => {
       // Get all categories for the dropdown
       const categories = await prisma.category.findMany();
       
@@ -365,18 +608,13 @@ export const aiController = {
         categoryOptions: categories.map(c => ({ id: c.id, name: c.name })),
         userProfileOptions: ['student', 'teacher', 'staff', 'administrator'],
       });
-    } catch (error: any) {
-      console.error('Error fetching AI agent configuration:', error);
-      res.status(500).json({ error: 'Failed to fetch AI agent configuration' });
-    }
-  },
+  }),
   
   /**
    * Get all AI-generated solutions for a ticket
    * This is used to reveal solutions after a support person has attempted to solve the ticket
    */
-  getTicketSolution: async (req: Request, res: Response) => {
-    try {
+  getTicketSolution: asyncHandler(async (req: Request, res: Response) => {
       const { ticketId } = req.params;
       
       // Check if the ticket exists and is AI-generated
@@ -431,15 +669,7 @@ export const aiController = {
       }
       
       return res.json({ solution });
-      
-    } catch (error: any) {
-      console.error('Error retrieving ticket solution:', error);
-      res.status(500).json({
-        error: 'Failed to retrieve ticket solution',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
 
   // --- New Analysis Functions --- 
 
@@ -448,7 +678,7 @@ export const aiController = {
    * @route GET /api/ai/analysis/tickets
    * @access Admin
    */
-  getAiAnalysisTickets: async (req: Request, res: Response) => {
+  getAiAnalysisTickets: asyncHandler(async (req: Request, res: Response) => {
     const { 
       category: filterCategory,
       agent: filterAgent, 
@@ -473,7 +703,6 @@ export const aiController = {
     const minInteractionsNum = minInteractions && parseInt(minInteractions as string, 10);
     const hasMinInteractionsFilter = typeof minInteractionsNum === 'number' && !isNaN(minInteractionsNum) && minInteractionsNum >= 0;
 
-    try {
       // --- Build Where Clause --- 
       const whereClause: Prisma.TicketWhereInput = {
         isAiGenerated: true,
@@ -485,13 +714,13 @@ export const aiController = {
         // Add time component (start of day) to make it inclusive
         try {
            createdAtFilter.gte = new Date(startDate + 'T00:00:00.000Z');
-        } catch (e) { console.error("Invalid start date format"); }
+        } catch (e) { logger.error("Invalid start date format"); }
       }
       if (endDate && typeof endDate === 'string') {
         // Add time component (end of day) to make it inclusive
          try {
            createdAtFilter.lte = new Date(endDate + 'T23:59:59.999Z');
-         } catch (e) { console.error("Invalid end date format"); }
+         } catch (e) { logger.error("Invalid end date format"); }
       }
       // Add date filter to whereClause if it has keys
       if (Object.keys(createdAtFilter).length > 0) {
@@ -632,20 +861,15 @@ export const aiController = {
             totalPages: Math.ceil(totalCountAfterFilters / take)
          }
       });
-    } catch (error: any) {
-      console.error('Error fetching AI analysis tickets:', error);
-      res.status(500).json({ message: 'Error fetching AI analysis tickets', error: error.message });
-    }
-  },
+  }),
   
   /**
    * Gets the conversation history for a specific AI ticket, including any saved summary.
    * @route GET /api/ai/analysis/tickets/:ticketId/conversation
    * @access Admin, Support
    */
-  getAiTicketConversation: async (req: Request, res: Response) => {
+  getAiTicketConversation: asyncHandler(async (req: Request, res: Response) => {
     const { ticketId } = req.params;
-    try {
       const comments = await prisma.comment.findMany({
         where: { ticketId: ticketId },
         include: { author: true }, // Include author details
@@ -663,22 +887,17 @@ export const aiController = {
         comments: comments,
         aiSummary: ticket?.aiSummary || null // Return summary or null
       });
-    } catch (error: any) {
-      console.error(`Error fetching conversation for ticket ${ticketId}:`, error);
-      res.status(500).json({ message: 'Error fetching conversation', error: error.message });
-    }
-  },
+  }),
   
   /**
    * Generate OR Regenerate a summary for a given ticket conversation
    * @route POST /api/ai/tickets/:id/summarize
    * @access Admin, Support
    */
-  summarizeConversation: async (req: Request, res: Response) => {
+  summarizeConversation: asyncHandler(async (req: Request, res: Response) => {
     const { ticketId } = req.params; 
-    console.log(`Received request to generate/regenerate summary for ticket ${ticketId}`);
+    logger.info(`Received request to generate/regenerate summary for ticket ${ticketId}`);
     
-    try {
       // 1. Fetch Ticket and Conversation Data
       const ticket = await prisma.ticket.findUnique({
         where: { id: ticketId },
@@ -702,11 +921,11 @@ export const aiController = {
       };
       
       // 2. Call the Summarizer Agent (will generate and save)
-      console.log(`Calling SummarizerAgent for ticket ${ticketId}...`);
+      logger.info(`Calling SummarizerAgent for ticket ${ticketId}...`);
       const summary = await summarizerAgent.summarizeConversation({ 
          ticket: ticket as FetchedTicketType 
       });
-      console.log(`SummarizerAgent generated and saved summary for ticket ${ticketId}.`);
+      logger.info(`SummarizerAgent generated and saved summary for ticket ${ticketId}.`);
 
       // 3. Check for agent error message
       if (summary === 'Virhe yhteenvedon luonnissa.') {
@@ -715,28 +934,18 @@ export const aiController = {
 
       // 4. Return the NEWLY generated summary
       res.status(200).json({ summary });
-
-    } catch (error: any) {
-      // Catch errors during data fetching or unexpected agent errors
-      console.error(`Error summarizing conversation for ticket ${ticketId}:`, error);
-      res.status(500).json({ 
-        message: 'Error summarizing conversation', 
-        error: error.message 
-      });
-    }
-  },
+  }),
   
   // --- End New Analysis Functions ---
 
   /**
    * Get support assistant response to a specific query about a ticket
    */
-  getSupportAssistantResponse: async (req: Request, res: Response) => {
+  getSupportAssistantResponse: asyncHandler(async (req: Request, res: Response) => {
     const ticketId = req.params.ticketId;
     const { supportQuestion, supportUserId } = req.body;
     
-    try {
-      console.log(`Received request for support assistant on ticket ${ticketId}`);
+      logger.info(`Received request for support assistant on ticket ${ticketId}`);
       
       // Validate parameters
       if (!ticketId || !supportQuestion || !supportUserId) {
@@ -795,10 +1004,10 @@ export const aiController = {
       
       let conversationHistory = conversation?.conversationHistory || '';
       
-      console.log(`SupportAssistant: ${conversation ? 'Found existing' : 'No existing'} conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      logger.info(`SupportAssistant: ${conversation ? 'Found existing' : 'No existing'} conversation history for ticket ${ticketId} and user ${supportUserId}`);
       if (conversation) {
-        console.log(`SupportAssistant: Conversation history length: ${conversationHistory.length} characters`);
-        console.log(`SupportAssistant: Conversation history created at: ${conversation.createdAt}, last updated: ${conversation.updatedAt}`);
+        logger.info(`SupportAssistant: Conversation history length: ${conversationHistory.length} characters`);
+        logger.info(`SupportAssistant: Conversation history created at: ${conversation.createdAt}, last updated: ${conversation.updatedAt}`);
       }
       
       // Generate response using the support assistant agent
@@ -830,13 +1039,13 @@ export const aiController = {
       
       // Update or create the conversation record
       const updatedConversationHistory = conversationHistory + newExchange;
-      console.log(`SupportAssistant: Adding new exchange to conversation history. New content length: ${newExchange.length} characters`);
-      console.log(`SupportAssistant: First 50 chars of message: "${supportQuestion.substring(0, 50)}${supportQuestion.length > 50 ? '...' : ''}"`);
-      console.log(`SupportAssistant: First 50 chars of response: "${result.response.substring(0, 50)}${result.response.length > 50 ? '...' : ''}"`);
+      logger.info(`SupportAssistant: Adding new exchange to conversation history. New content length: ${newExchange.length} characters`);
+      logger.info(`SupportAssistant: First 50 chars of message: "${supportQuestion.substring(0, 50)}${supportQuestion.length > 50 ? '...' : ''}"`);
+      logger.info(`SupportAssistant: First 50 chars of response: "${result.response.substring(0, 50)}${result.response.length > 50 ? '...' : ''}"`);
       
       if (conversation) {
         // Update existing conversation
-        console.log(`SupportAssistant: Updating existing conversation (ID: ${conversation.id}) with new exchange`);
+        logger.info(`SupportAssistant: Updating existing conversation (ID: ${conversation.id}) with new exchange`);
         await prisma.supportAssistantConversation.update({
           where: { id: conversation.id },
           data: {
@@ -844,10 +1053,10 @@ export const aiController = {
             updatedAt: new Date()
           }
         });
-        console.log(`SupportAssistant: Conversation updated, total history length now: ${updatedConversationHistory.length} characters`);
+        logger.info(`SupportAssistant: Conversation updated, total history length now: ${updatedConversationHistory.length} characters`);
       } else {
         // Create new conversation record
-        console.log(`SupportAssistant: Creating new conversation record for ticket ${ticketId} and user ${supportUserId}`);
+        logger.info(`SupportAssistant: Creating new conversation record for ticket ${ticketId} and user ${supportUserId}`);
         const newConversation = await prisma.supportAssistantConversation.create({
           data: {
             ticketId: ticketId,
@@ -855,15 +1064,15 @@ export const aiController = {
             conversationHistory: newExchange
           }
         });
-        console.log(`SupportAssistant: New conversation created with ID: ${newConversation.id}`);
+        logger.info(`SupportAssistant: New conversation created with ID: ${newConversation.id}`);
       }
       
       // Log activity
-      console.log(`Support assistant generated response for ticket ${ticketId}, requested by user ${supportUserId}`);
-      console.log(`Response time: ${result.responseTime.toFixed(2)} seconds`);
+      logger.info(`Support assistant generated response for ticket ${ticketId}, requested by user ${supportUserId}`);
+      logger.info(`Response time: ${result.responseTime.toFixed(2)} seconds`);
       
       // Log activity details for monitoring usage
-      console.log('Support assistant usage details:', JSON.stringify({
+      logger.info('Support assistant usage details:', JSON.stringify({
         ticketId,
         supportUserId,
         timestamp: new Date().toISOString(),
@@ -882,25 +1091,16 @@ export const aiController = {
         responseTime: result.responseTime,
         hasConversationHistory: true // Let frontend know there's history
       });
-      
-    } catch (error: any) {
-      console.error('Error generating support assistant response:', error);
-      res.status(500).json({
-        error: 'Failed to generate support assistant response',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
   
   /**
    * Retrieve conversation history between a student and the support assistant for a specific ticket
    */
-  getSupportAssistantConversationHistory: async (req: Request, res: Response) => {
+  getSupportAssistantConversationHistory: asyncHandler(async (req: Request, res: Response) => {
     const ticketId = req.params.ticketId;
     const supportUserId = req.params.supportUserId;
     
-    try {
-      console.log(`Fetching support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      logger.info(`Fetching support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
       
       // Validate parameters
       if (!ticketId || !supportUserId) {
@@ -933,25 +1133,16 @@ export const aiController = {
         history: conversation.conversationHistory,
         hasHistory: true
       });
-      
-    } catch (error: any) {
-      console.error('Error fetching support assistant conversation history:', error);
-      res.status(500).json({
-        error: 'Failed to fetch conversation history',
-        details: error.message || 'Unknown error'
-      });
-    }
-  },
+  }),
   
   /**
    * Clear conversation history between a student and the support assistant for a specific ticket
    */
-  clearSupportAssistantConversationHistory: async (req: Request, res: Response) => {
+  clearSupportAssistantConversationHistory: asyncHandler(async (req: Request, res: Response) => {
     const ticketId = req.params.ticketId;
     const supportUserId = req.params.supportUserId;
     
-    try {
-      console.log(`Clearing support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
+      logger.info(`Clearing support assistant conversation history for ticket ${ticketId} and user ${supportUserId}`);
       
       // Validate parameters
       if (!ticketId || !supportUserId) {
@@ -974,12 +1165,168 @@ export const aiController = {
         message: 'Conversation history cleared successfully'
       });
       
-    } catch (error: any) {
-      console.error('Error clearing support assistant conversation history:', error);
-      res.status(500).json({
-        error: 'Failed to clear conversation history',
-        details: error.message || 'Unknown error'
+  }),
+
+  /**
+   * Get streaming support assistant response using Server-Sent Events
+   */
+  getSupportAssistantResponseStream: async (req: Request, res: Response) => {
+    const ticketId = req.params.ticketId;
+    const { supportQuestion, supportUserId } = req.body;
+    
+    logger.info(`Received request for streaming support assistant on ticket ${ticketId}`);
+    
+    // Check if user is authenticated (req.user should be set by authMiddleware)
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        details: 'Authentication required'
       });
+    }
+    
+    // Validate parameters
+    if (!ticketId || !supportQuestion || !supportUserId) {
+      return res.status(400).json({
+        error: 'Missing required parameters',
+        details: 'ticketId, supportQuestion and supportUserId are required'
+      });
+    }
+    
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // Disable proxy buffering for nginx
+      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'http://localhost:3000',
+      'Access-Control-Allow-Credentials': 'true'
+    });
+    
+    try {
+      // Fetch the ticket with its comments
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: {
+          comments: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  role: true
+                }
+              }
+            }
+          }
+        }
+      });
+      
+      if (!ticket) {
+        res.write(`data: ${JSON.stringify({ error: `No ticket found with ID ${ticketId}` })}\n\n`);
+        res.end();
+        return;
+      }
+      
+      // Format comments for the agent
+      const comments = ticket.comments.map(comment => ({
+        id: comment.id,
+        text: comment.content,
+        userId: comment.authorId,
+        ticketId: comment.ticketId,
+        createdAt: comment.createdAt,
+        author: comment.author
+      }));
+      
+      // Get existing conversation history
+      const conversation = await prisma.supportAssistantConversation.findUnique({
+        where: {
+          ticketId_supportUserId: {
+            ticketId: ticketId,
+            supportUserId: supportUserId
+          }
+        }
+      });
+      
+      const conversationHistory = conversation?.conversationHistory || '';
+      
+      logger.info(`SupportAssistant Streaming: ${conversation ? 'Found existing' : 'No existing'} conversation history`);
+      
+      // Start streaming response
+      const responseGenerator = supportAssistantAgent.generateAssistantResponseStream({
+        ticket: {
+          id: ticket.id,
+          title: ticket.title,
+          description: ticket.description,
+          device: ticket.device || '',
+          priority: ticket.priority,
+          categoryId: ticket.categoryId,
+          additionalInfo: ticket.additionalInfo || ''
+        },
+        comments,
+        supportQuestion,
+        supportUserId,
+        studentAssistantConversationHistory: conversationHistory
+      });
+      
+      let fullResponse = '';
+      let interactionId: string | undefined;
+      
+      // Stream chunks to client
+      for await (const data of responseGenerator) {
+        if (data.chunk) {
+          fullResponse += data.chunk;
+          res.write(`data: ${JSON.stringify({ chunk: data.chunk })}\n\n`);
+        }
+        
+        if (data.done) {
+          interactionId = data.interactionId;
+          res.write(`data: ${JSON.stringify({ done: true, interactionId: data.interactionId })}\n\n`);
+        }
+        
+        if (data.error) {
+          res.write(`data: ${JSON.stringify({ error: data.error })}\n\n`);
+        }
+      }
+      
+      // Update conversation history after streaming completes
+      if (fullResponse && !res.writableEnded) {
+        const timestamp = new Date().toLocaleString('fi-FI');
+        const interactionTag = interactionId ? ` [interaction:${interactionId}]` : '';
+        const newExchange = `[${timestamp}] Student: ${supportQuestion}\n\n[${timestamp}] Assistant: ${fullResponse}${interactionTag}\n\n`;
+        
+        const updatedConversationHistory = conversationHistory + newExchange;
+        
+        if (conversation) {
+          await prisma.supportAssistantConversation.update({
+            where: { id: conversation.id },
+            data: {
+              conversationHistory: updatedConversationHistory,
+              updatedAt: new Date()
+            }
+          });
+          logger.info(`SupportAssistant Streaming: Updated conversation history`);
+        } else {
+          await prisma.supportAssistantConversation.create({
+            data: {
+              ticketId: ticketId,
+              supportUserId: supportUserId,
+              conversationHistory: newExchange
+            }
+          });
+          logger.info(`SupportAssistant Streaming: Created new conversation`);
+        }
+      }
+      
+      res.end();
+      
+    } catch (error: any) {
+      logger.error('Error in streaming support assistant response:', error);
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ error: 'Stream error: ' + error.message })}\n\n`);
+        res.end();
+      }
     }
   },
 }; 

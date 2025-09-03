@@ -1,6 +1,7 @@
 import React from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { createTicket, fetchCategories } from '../../utils/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createTicket } from '../../utils/api';
+import { useCategories } from '../../hooks/useCategories';
 import {
   Card,
   CardHeader,
@@ -62,10 +63,7 @@ export default function NewTicketForm({ onClose }) {
     contentType: null
   });
 
-  const { data: categories, isLoading: categoriesLoading } = useQuery({
-    queryKey: ['categories'],
-    queryFn: fetchCategories,
-  });
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
 
   const [error, setError] = React.useState(null);
   const [isDragging, setIsDragging] = React.useState(false);
@@ -374,7 +372,7 @@ export default function NewTicketForm({ onClose }) {
                       <SelectValue placeholder="Valitse kategoria" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {categories?.categories?.map((category) => (
+                      {(categories || []).map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
                         </SelectItem>

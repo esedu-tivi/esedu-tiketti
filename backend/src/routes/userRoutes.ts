@@ -1,20 +1,20 @@
-import express from 'express';
-import { PrismaClient, UserRole } from '@prisma/client';
+import express, { Request, Response } from 'express';
+import { UserRole } from '@prisma/client';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import { requireRole } from '../middleware/roleMiddleware.js';
+import { prisma } from '../lib/prisma.js';
 import { getProfilePicture, getProfilePictureByEmail, updateProfilePictureFromMicrosoft } from '../controllers/userController.js';
+import { asyncHandler, AuthenticationError, NotFoundError, ValidationError, AuthorizationError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-// Hae kirjautuneen käyttäjän tiedot
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
+// Hae kirjautuneen käyttäjän tiedot (auto-create if doesn't exist)
+router.get('/me', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
     if (!req.user?.email) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      throw new AuthenticationError('Unauthorized');
     }
 
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { email: req.user.email },
       select: {
         id: true,
@@ -25,21 +25,35 @@ router.get('/me', authMiddleware, async (req, res) => {
       }
     });
 
+    // Auto-create user if they don't exist (happens when /auth/login fails or hasn't been called yet)
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      console.log('[/me] User not found, auto-creating:', req.user.email);
+      user = await prisma.user.create({
+        data: {
+          email: req.user.email,
+          name: req.user.name || req.user.email.split('@')[0], // Use name from token or email prefix
+          role: UserRole.USER // Default role
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          jobTitle: true,
+          role: true
+        }
+      });
+      console.log('[/me] User auto-created successfully:', user.id);
     }
 
     res.json(user);
-  } catch (error) {
-    console.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+}));
 
-// Hae kaikki käyttäjät (vain admin)
-router.get('/', authMiddleware, requireRole(UserRole.ADMIN), async (req, res) => {
-  try {
+// Hae kaikki käyttäjät (admin ja support) - exclude Discord users
+router.get('/', authMiddleware, requireRole([UserRole.ADMIN, UserRole.SUPPORT]), asyncHandler(async (req: Request, res: Response) => {
     const users = await prisma.user.findMany({
+      where: {
+        isDiscordUser: false // Exclude Discord users from user management
+      },
       select: {
         id: true,
         email: true,
@@ -52,15 +66,10 @@ router.get('/', authMiddleware, requireRole(UserRole.ADMIN), async (req, res) =>
       }
     });
     res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+}));
 
 // Päivitä käyttäjän rooli (vain admin)
-router.put('/:id/role', authMiddleware, requireRole(UserRole.ADMIN), async (req, res) => {
-  try {
+router.put('/:id/role', authMiddleware, requireRole(UserRole.ADMIN), asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { role } = req.body;
 
@@ -95,22 +104,17 @@ router.put('/:id/role', authMiddleware, requireRole(UserRole.ADMIN), async (req,
     });
 
     res.json(updatedUser);
-  } catch (error) {
-    console.error('Error updating user role:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+}));
 
 // Vaihda käyttäjän rooli (vain development-ympäristössä)
-router.put('/role', authMiddleware, async (req, res) => {
+router.put('/role', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
   // Tarkistetaan että ollaan development-ympäristössä
   if (process.env.ENVIRONMENT === 'production') {
-    return res.status(403).json({ error: 'Role switching is only available in development environment' });
+    throw new AuthorizationError('Role switching is only available in development environment');
   }
 
-  try {
     if (!req.user?.email) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      throw new AuthenticationError('Unauthorized');
     }
 
     const { role } = req.body;
@@ -132,20 +136,20 @@ router.put('/role', authMiddleware, async (req, res) => {
     });
 
     res.json(updatedUser);
-  } catch (error) {
-    console.error('Error updating user role:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+}));
 
-// Hae kaikki tukihenkilöt (sallittu tukihenkilöille ja admineille)
-router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.ADMIN]), async (req, res) => {
-  try {
+// Hae kaikki tukihenkilöt (sallittu tukihenkilöille ja admineille) - exclude Discord users
+router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.ADMIN]), asyncHandler(async (req: Request, res: Response) => {
     const users = await prisma.user.findMany({
       where: {
-        OR: [
-          { role: UserRole.SUPPORT },
-          { role: UserRole.ADMIN }
+        AND: [
+          {
+            OR: [
+              { role: UserRole.SUPPORT },
+              { role: UserRole.ADMIN }
+            ]
+          },
+          { isDiscordUser: false } // Exclude Discord users
         ]
       },
       select: {
@@ -160,11 +164,7 @@ router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.A
       }
     });
     res.json(users);
-  } catch (error) {
-    console.error('Error fetching support users:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+}));
 
 // Profile picture routes - using Microsoft Graph API
 router.post('/profile-picture/microsoft', authMiddleware, updateProfilePictureFromMicrosoft);

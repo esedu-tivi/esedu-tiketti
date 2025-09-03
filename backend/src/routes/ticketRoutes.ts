@@ -13,6 +13,8 @@ const router = express.Router();
 router.get('/', authMiddleware, ticketController.getAllTickets);
 // Käyttäjän omat tiketit - this MUST be BEFORE the /:id route
 router.get('/my-tickets', authMiddleware, ticketController.getMyTickets);
+// Optimized endpoint for MyWorkView - fetches all work-related tickets in one call
+router.get('/my-work', authMiddleware, requireRole(UserRole.SUPPORT), ticketController.getMyWorkTickets);
 
 // Path param routes must come after specific routes
 router.get('/:id', authMiddleware, requireOwnership, ticketController.getTicketById);
