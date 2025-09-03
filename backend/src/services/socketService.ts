@@ -100,8 +100,16 @@ class SocketService {
                   issuer: [`https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0`, 
                            `https://sts.windows.net/${AZURE_TENANT_ID}/`]
                 }, (err, decoded) => {
-                  if (err) reject(err);
-                  else resolve(decoded as JWTPayload);
+                  if (err) {
+                    logger.error('WebSocket token verification failed', {
+                      error: err.message,
+                      audience: decodedForCheck?.aud,
+                      expectedAudience: AZURE_CLIENT_ID
+                    });
+                    reject(err);
+                  } else {
+                    resolve(decoded as JWTPayload);
+                  }
                 });
               });
             }

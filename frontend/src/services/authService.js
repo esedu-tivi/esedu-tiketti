@@ -139,13 +139,15 @@ class AuthService {
         ...loginRequest,
         account,
       });
-      return response.accessToken;
+      // Use idToken instead of accessToken - it has the correct audience for our backend
+      return response.idToken;
     } catch (error) {
       if (error instanceof InteractionRequiredAuthError) {
         try {
           await this.ensureInitialized();
           const response = await this.msalInstance.acquireTokenRedirect(loginRequest);
-          return response.accessToken;
+          // Use idToken for redirect flow as well
+          return response.idToken;
         } catch (err) {
           console.error('Error acquiring token:', err);
           throw err;
