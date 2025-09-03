@@ -254,8 +254,15 @@ Backend tarjoaa RESTful API:n, jota frontend-sovellus käyttää datan hallintaa
 
 *   **Alustus:** `index.ts` alustaa Socket.IO-palvelimen ja liittää sen HTTP-palvelimeen.
 *   **Yhteyden Hallinta:** `socketService.ts` hoitaa uusien client-yhteyksien vastaanottamisen, käyttäjien autentikoinnin ja käyttäjäkohtaisten socket-yhteyksien tallentamisen.
-*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka (todennäköisesti `ticketController`issa tai `ticketService`ssä) kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. Esimerkiksi `socketService.emitToUser(userId, 'new_notification', notificationData)`.
-*   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia (`socket.on('new_notification', ...)`).
+*   **JWT-autentikointi:** Socket-yhteydet varmistetaan JWT-tokenilla handshake-vaiheessa
+*   **Room-pohjainen reititys:** Käyttäjät liitetään user-specific roomiin (`user_${userId}`)
+*   **Tapahtumien Lähetys:** Kun backendissä tapahtuu jotain relevanttia (esim. uusi kommentti, tiketin tila muuttuu), vastaava logiikka kutsuu `socketService`:ä lähettämään tapahtuman (`emit`) relevanteille käyttäjille. 
+    - `emitTicketCreated()` - Lähettää uuden tiketin kaikille
+    - `emitTicketUpdated()` - Lähettää tiketin päivityksen kaikille
+    - `emitTicketStatusChanged()` - Lähettää statuksen muutoksen kaikille
+    - `emitTicketDeleted()` - Lähettää poiston kaikille
+    - `emitCommentAdded()` - Lähettää uuden kommentin tiketin seuraajille
+*   **Frontend Kuuntelee:** Frontendin `useSocket`-hook kuuntelee näitä tapahtumia singleton-patternia käyttäen.
 
 ## AI Settings
 
@@ -338,4 +345,75 @@ Tarkempi kuvaus näistä rajapinnoista löytyy dokumentista [`api-endpoints.md`]
 * `getFeedbackByTicket` - Hakee kaikki tiettyyn tikettiin liittyvät vuorovaikutukset, joille on annettu palaute.
 
 ### AI-Avustajan Keskusteluhistorian Parannukset (`aiController.ts`)
-*   **InteractionID:n Tallennus:** Kun AI-avustaja (`SupportAssistantAgent`) vastaa käyttäjälle, sen tuottaman vastauksen yhteydessä oleva yksilöllinen `interactionId` tallennetaan nyt osaksi keskusteluhistoriaa (`SupportAssistantConversation`-taulu). Tämä mahdollistaa myöhemmin yksittäisten viestien ja niihin liittyvän palautteen tarkemman seurannan ja kohdistamisen. 
+*   **InteractionID:n Tallennus:** Kun AI-avustaja (`SupportAssistantAgent`) vastaa käyttäjälle, sen tuottaman vastauksen yhteydessä oleva yksilöllinen `interactionId` tallennetaan nyt osaksi keskusteluhistoriaa (`SupportAssistantConversation`-taulu). Tämä mahdollistaa myöhemmin yksittäisten viestien ja niihin liittyvän palautteen tarkemman seurannan ja kohdistamisen.
+
+
+## Discord-integraatio
+
+Discord-integraatio mahdollistaa tikettien luomisen ja hallinnan suoraan Discordista ilman erillisiä käyttäjätilejä.
+
+### Discord Bot (`discord/bot.ts`)
+
+*   **Alustus:** Bot alustuu automaattisesti backendin käynnistyessä jos `DISCORD_BOT_TOKEN` ja `DISCORD_CLIENT_ID` on määritelty
+*   **Slash-komennot:** `/tiketti` - luo uuden tukipyynnön
+*   **Käyttäjien esto:** Tarkistaa `isBlocked`-kentän ennen tikettikanavan luontia
+*   **Tilan hallinta:** 
+    - Pyörivä status näyttää tikettien määrät (Avoimia, Käsittelyssä, Yhteensä)
+    - Vaihtoehtoinen status näyttää seuraavan siivouksen ajankohdan
+    - Event-driven päivitykset ilman tietokantakyselyitä
+    - Päivittää statuksen heti kun tikettejä luodaan/päivitetään/poistetaan
+*   **Globaali pääsy:** Bot saatavilla `(global as any).discordBot` kautta
+*   **Suorituskyky:** Ei toistuvia tietokantakyselyitä, täysin tapahtumapohjainen
+
+### Tikettien luonti (`discord/ticketConversation.ts`)
+
+*   **Keskustelupohjainen luonti:** Bot ohjaa käyttäjän läpi tiketin luomisen
+*   **Yksityinen kanava:** Luo automaattisesti yksityisen kanavan tikettikeskustelulle
+*   **Käyttäjähallinta:** Luo automaattisesti Discord-käyttäjän järjestelmään
+*   **Peruutusmahdollisuus:** Käyttäjä voi peruuttaa tiketin luonnin milloin tahansa
+*   **Estettyjen käyttäjien tarkistus:** Estää tikettien luonnin `isBlocked`-käyttäjiltä
+*   **Suomenkielinen:** Kaikki viestit ja ohjeet ovat suomeksi
+
+### Viestien synkronointi (`discord/messageSync.ts`)
+
+*   **Kaksisuuntainen synkronointi:** 
+    - Discord-viestit → Web-kommentit
+    - Web-kommentit → Discord-embedit
+*   **Tilan päivitykset:** Status-muutokset näkyvät molemmissa järjestelmissä
+*   **Oikeuksien hallinta:**
+    - OPEN/IN_PROGRESS: Käyttäjä voi lähettää viestejä
+    - RESOLVED/CLOSED: Vain luku -oikeudet
+*   **Liitetiedostot:** Kuvat ja videot synkronoituvat
+
+### Kanavien siivous (`discord/channelCleanup.ts`)
+
+*   **Automaattinen poisto:**
+    - Suljetut tiketit: 24 tunnin jälkeen (konfiguroitavissa)
+    - Passiiviset tiketit: 48 tunnin jälkeen (konfiguroitavissa)
+    - Hylätyt kanavat: 1 tunnin jälkeen (ilman tikettejä)
+*   **Tuntiajastin:** Siivous ajetaan kerran tunnissa samassa syklissä
+*   **Hylättyjen kanavien tunnistus:** `cleanupOrphanedChannels()` poistaa kanavat ilman tikettejä
+*   **Välitön poisto:** Kun tiketti poistetaan web-sovelluksesta
+*   **Status-näyttö:** Bot näyttää seuraavan siivouksen ajankohdan
+
+### Discord-asetukset (`discord/discordSettingsService.ts`)
+
+*   **Asetusten hallinta:** Singleton-pattern Discord-asetusten tallennukseen
+*   **Käyttäjähallinta:**
+    - `getDiscordUsers()` - Listaa Discord-käyttäjät tilastoineen
+    - `toggleBlockUser()` - Estää/poistaa eston käyttäjältä
+    - `deleteDiscordUser()` - Poistaa käyttäjän ja vapaaehtoisesti tiketit
+    - Poistaa Discord-kanavat käyttäjää poistettaessa
+*   **Tilastot:** Kerää Discord-tikettien tilastoja (käyttäjät, tiketit, vasteajat)
+*   **Välimuistitus:** Asetukset välimuistissa suorituskyvyn optimoimiseksi
+
+### Integraatio tikettijärjestelmään
+
+*   **ticketService.ts:** 
+    - Kutsuu `discordBot.onTicketChanged()` kaikissa tikettioperaatioissa
+    - Poistaa Discord-kanavan tiketin poiston yhteydessä
+    - Luo aikajana-merkinnän Discord-sulkemisille
+*   **ticketController.ts:**
+    - Lähettää kommentit Discord-kanavalle
+    - Päivittää Discord-botin statuksen tilan muutoksissa
+    - Välittää WebSocket-päivitykset kaikille näkymille 

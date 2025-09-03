@@ -10,9 +10,6 @@ import { Priority, ResponseFormat } from '@prisma/client';
 import { z } from "zod";
 import { StructuredOutputParser } from "langchain/output_parsers";
 
-// Define the response format enum values as a tuple to satisfy zod's type requirements
-const responseFormatEnum = AI_CONFIG.trainingTickets.responseFormats as [string, ...string[]];
-
 // Define the output schema for our ticket generator
 const ticketOutputSchema = z.object({
   title: z.string().min(5).max(100),
@@ -20,7 +17,7 @@ const ticketOutputSchema = z.object({
   device: z.string().max(100),
   additionalInfo: z.string().max(1000).optional(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]),
-  responseFormat: z.enum(responseFormatEnum),
+  responseFormat: z.literal('TEKSTI'),  // Always text-only responses
 });
 
 // Create structured parser for the output
@@ -38,6 +35,13 @@ interface GeneratedTicket {
   categoryId: string;
   createdById: string;
   assignedToId: string | null;
+  // Metadata about generation
+  metadata?: {
+    writingStyle: string;
+    technicalLevel: string;
+    technicalAccuracy: number;
+    generatorVersion: 'modern' | 'legacy';
+  };
 }
 
 /**
@@ -46,19 +50,32 @@ interface GeneratedTicket {
  */
 export class TicketGeneratorAgent {
   private model: ChatOpenAI | null = null;
+  private currentModelName: string | null = null;
   
   constructor() {
     logger.debug('TicketGeneratorAgent: Created - model will be initialized on first use'); // DEBUG LOG
   }
   
   private async initializeModel(): Promise<void> {
-    if (this.model) return;
-    
     const modelName = await aiSettingsService.getModelForAgent('generator');
+    
+    // Check if model needs to be reinitialized due to settings change
+    if (this.model && this.currentModelName === modelName) {
+      return; // Model is already initialized with correct settings
+    }
+    
+    // Initialize or reinitialize the model
+    logger.debug('TicketGeneratorAgent: Initializing model', { 
+      previousModel: this.currentModelName, 
+      newModel: modelName,
+      isReinitializing: !!this.model
+    }); // DEBUG LOG
+    
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
       model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
+    this.currentModelName = modelName;
     logger.debug('TicketGeneratorAgent: Model initialized:', { model: modelName }); // DEBUG LOG
   }
 
@@ -70,7 +87,6 @@ export class TicketGeneratorAgent {
     category?: string;
     userProfile?: string;
     assignToId?: string; // Optional: Assign ticket to a specific support person
-    responseFormat?: string; // Optional: Specify the desired response format
     userId?: string; // Optional: User ID for token tracking
   }): Promise<GeneratedTicket> {
     // Ensure model is initialized
@@ -83,15 +99,8 @@ export class TicketGeneratorAgent {
       const complexity = params.complexity || 'moderate';
       const category = params.category || 'Tekniset ongelmat';
       const userProfile = params.userProfile || 'student';
-      const userProvidedResponseFormat = params.responseFormat; // Store to use later
       
-      // logger.info('TicketGeneratorAgent: Using effective parameters:', { // DEBUG LOG
-      //   complexity, 
-      //   category, 
-      //   userProfile,
-      //   responseFormat: userProvidedResponseFormat 
-      // });
-      logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Effective Params', { complexity, category, userProfile, userProvidedResponseFormat }); // DEBUG LOG
+      logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Effective Params', { complexity, category, userProfile }); // DEBUG LOG
       
       // Ensure all required prompt variables are provided and valid
       if (!complexity || !category || !userProfile) {
@@ -105,13 +114,6 @@ export class TicketGeneratorAgent {
         // logger.error('TicketGeneratorAgent: Invalid complexity level:', complexity); // DEBUG LOG
         logger.error('[DEBUG] TicketGeneratorAgent.generateTicket - ERROR: Invalid complexity', { complexity }); // DEBUG LOG
         throw new Error(`Invalid complexity level. Must be one of: ${AI_CONFIG.trainingTickets.complexityLevels.join(', ')}`);
-      }
-      
-      // Validate responseFormat if provided
-      if (userProvidedResponseFormat && !AI_CONFIG.trainingTickets.responseFormats.includes(userProvidedResponseFormat)) {
-        // logger.error('TicketGeneratorAgent: Invalid response format:', userProvidedResponseFormat); // DEBUG LOG
-        logger.error('[DEBUG] TicketGeneratorAgent.generateTicket - ERROR: Invalid response format', { userProvidedResponseFormat }); // DEBUG LOG
-        throw new Error(`Invalid response format. Must be one of: ${AI_CONFIG.trainingTickets.responseFormats.join(', ')}`);
       }
       
       // Find the category - either by ID (if UUID) or by name
@@ -279,20 +281,9 @@ export class TicketGeneratorAgent {
         }
       }
       
-      // If user provided a responseFormat parameter, use it instead of the AI-generated one
-      if (userProvidedResponseFormat) {
-        // logger.info(`TicketGeneratorAgent: Overriding AI-generated response format with user-provided format: ${userProvidedResponseFormat}`); // DEBUG LOG
-        logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Overriding response format with user input.', { aiFormat: parsedTicketData.responseFormat, userFormat: userProvidedResponseFormat }); // DEBUG LOG
-        parsedTicketData.responseFormat = userProvidedResponseFormat;
-      } 
-      // Otherwise ensure response format from AI is valid
-      else if (!parsedTicketData.responseFormat || 
-          !AI_CONFIG.trainingTickets.responseFormats.includes(parsedTicketData.responseFormat)) {
-        // Default to TEKSTI if invalid
-        logger.warn('[DEBUG] TicketGeneratorAgent.generateTicket - Response format missing or invalid in LLM response, using default TEKSTI.', { parsedFormat: parsedTicketData.responseFormat }); // DEBUG LOG
-        parsedTicketData.responseFormat = 'TEKSTI';
-        // logger.info(`TicketGeneratorAgent: Using default response format: ${parsedTicketData.responseFormat}`); // DEBUG LOG
-      }
+      // Always use TEKSTI as the response format (text-only responses)
+      parsedTicketData.responseFormat = 'TEKSTI';
+      logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Using text-only response format (TEKSTI)'); // DEBUG LOG
       
       // Trim description if it exceeds maxDescriptionLength
       if (parsedTicketData.description && 
@@ -316,6 +307,8 @@ export class TicketGeneratorAgent {
         categoryId: categoryRecord.id,
         createdById: adminUser.id,
         assignedToId: params.assignToId || null,
+        // Don't include metadata for legacy generator - it doesn't have style/level features
+        metadata: undefined
       };
       // logger.info('TicketGeneratorAgent: Returning final ticket data:', JSON.stringify(finalTicketData, null, 2)); // DEBUG LOG
       logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Returning final generated ticket data:', { finalTicketData }); // DEBUG LOG

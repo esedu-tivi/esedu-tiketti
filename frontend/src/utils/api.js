@@ -89,8 +89,8 @@ export const fetchTickets = async (filters = {}) => {
 export const fetchCategories = async () => {
   try {
     const { data } = await api.get('/categories')
-    // Handle both array response and object with data property
-    return Array.isArray(data) ? data : (data.data || data.categories || [])
+    // Backend returns { categories: [...] }
+    return data.categories || []
   } catch (error) {
     throw new Error('Kategorioiden haku epäonnistui')
   }

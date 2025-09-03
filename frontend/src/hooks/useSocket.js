@@ -11,7 +11,7 @@ export const useSocket = () => {
 
   const connect = useCallback(async () => {
     if (socketInstance?.connected) {
-      console.log('Reusing existing socket connection');
+      // Socket already connected, reuse it
       return socketInstance;
     }
 
@@ -31,7 +31,6 @@ export const useSocket = () => {
 
       // Create new socket instance only if it doesn't exist
       if (!socketInstance) {
-        console.log('Creating new socket connection');
         socketInstance = io(baseUrl, {
           auth: { token: cleanToken },
           transports: ['websocket'],
@@ -47,21 +46,8 @@ export const useSocket = () => {
         socketInstance.on('connect', () => {
           console.log('Connected to WebSocket server');
           console.log('Socket ID:', socketInstance.id);
-          
-          // Remove all existing listeners before re-subscribing
-          socketInstance.removeAllListeners();
-          
-          // Re-subscribe all listeners after reconnection
-          subscribersRef.current.forEach((callbacks, event) => {
-            console.log(`Re-subscribing to event: ${event}`);
-            callbacks.forEach(callback => {
-              const wrappedCallback = (data) => {
-                console.log(`Received ${event} event:`, data);
-                callback(data);
-              };
-              socketInstance.on(event, wrappedCallback);
-            });
-          });
+          // Socket.IO automatically re-subscribes to events on reconnection
+          // so we don't need to manually re-subscribe
         });
 
         socketInstance.on('connect_error', (error) => {
@@ -89,12 +75,14 @@ export const useSocket = () => {
         }, 25000);
 
         socketInstance.on('pong', () => {
-          console.log('Received pong from server');
+          // Server is alive, no need to log every pong
         });
 
-        // Debug all incoming events
+        // Debug only important incoming events
         socketInstance.onAny((eventName, ...args) => {
-          console.log(`Received event ${eventName}:`, args);
+          if (eventName === 'ticketCreated' || eventName === 'ticketDeleted' || eventName === 'error') {
+            console.log(`Received event ${eventName}:`, args);
+          }
         });
       }
 
@@ -107,17 +95,8 @@ export const useSocket = () => {
   }, []);
 
   const disconnect = useCallback(() => {
-    if (socketInstance) {
-      console.log('Disconnecting socket');
-      // Remove all listeners for this instance
-      subscribersRef.current.forEach((callbacks, event) => {
-        callbacks.forEach(callback => {
-          socketInstance.off(event, callback);
-        });
-      });
-      subscribersRef.current.clear();
-    }
-    
+    // Don't actually disconnect the socket - just clean up references
+    // The socket should stay connected as it's a singleton
     if (pingIntervalRef.current) {
       clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
@@ -125,8 +104,6 @@ export const useSocket = () => {
   }, []);
 
   const subscribe = useCallback(async (event, callback) => {
-    console.log(`Subscribing to event: ${event}`);
-    
     const socket = await connect();
     if (!socket) {
       console.error('Failed to connect socket');
@@ -135,50 +112,42 @@ export const useSocket = () => {
       };
     }
 
-    // Remove existing listeners for this event
-    socket.removeAllListeners(event);
-
-    // Store callback in subscribers map
-    if (!subscribersRef.current.has(event)) {
-      subscribersRef.current.set(event, new Set());
-    } else {
-      // Clear existing callbacks for this event
-      subscribersRef.current.get(event).clear();
+    // Create a unique key for this subscription
+    const subscriptionKey = `${event}_${callback.toString().substring(0, 50)}`;
+    
+    // Check if we already have this exact subscription
+    if (subscribersRef.current.has(subscriptionKey)) {
+      // Already subscribed, return existing cleanup
+      return subscribersRef.current.get(subscriptionKey);
     }
-    subscribersRef.current.get(event).add(callback);
 
-    // Add listener to socket with debug wrapper
+    // Add listener to socket
     const wrappedCallback = (data) => {
-      console.log(`Received ${event} event with data:`, data);
+      // Only log important events, not every single one
+      if (event === 'ticketCreated' || event === 'ticketDeleted') {
+        console.log(`Received ${event} event`);
+      }
       callback(data);
     };
     
     socket.on(event, wrappedCallback);
 
-    // Return cleanup function
-    return () => {
-      console.log(`Unsubscribing from event: ${event}`);
-      // Remove callback from subscribers map
-      const callbacks = subscribersRef.current.get(event);
-      if (callbacks) {
-        callbacks.delete(callback);
-        if (callbacks.size === 0) {
-          subscribersRef.current.delete(event);
-        }
-      }
-      // Remove listener from socket if it exists
+    // Create and store cleanup function
+    const cleanup = () => {
+      subscribersRef.current.delete(subscriptionKey);
       if (socket) {
         socket.off(event, wrappedCallback);
       }
     };
+    
+    // Store the cleanup function
+    subscribersRef.current.set(subscriptionKey, cleanup);
+
+    return cleanup;
   }, [connect]);
 
-  useEffect(() => {
-    connect();
-    return () => {
-      disconnect();
-    };
-  }, [connect, disconnect]);
-
+  // Initialize socket connection when first used
+  // No need to disconnect on unmount since it's a singleton
+  
   return { subscribe };
 }; 

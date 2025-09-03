@@ -27,7 +27,7 @@ const ChatResponseSchema = z.object({
   reasoning: z.string(), // Sisäinen päättely (ei näytetä käyttäjälle)
   response: z.string(),  // Käyttäjän vastaus
   emotionalState: z.enum(["frustrated", "hopeful", "excited", "satisfied", "confused"]),
-  shouldRevealHint: z.boolean() // Annetaanko vihje jos jumiutunut
+  hintGiven: z.boolean() // Annettiinko vihje vastauksessa (asetetaan true kun ohjeistettu)
 });
 ```
 
@@ -128,8 +128,8 @@ if (useModernAgent) {
     conversationHistory,
     // Viimeisin tukihenkilön viesti
     latestSupportMessage,
-    // Vihjesysteemin pakotus
-    shouldForceHint
+    // Vihjeohje StateMachinelta
+    hintInstruction // { giveHint: true, hintType: 'EARLY', hintNumber: 1 }
   );
   
   // Päivitä tilakoneen tila
@@ -140,7 +140,7 @@ if (useModernAgent) {
   // - evaluationResult: response.evaluation
   // - emotionalState: response.emotionalState
   // - reasoning: response.reasoning
-  // - shouldRevealHint: response.shouldRevealHint
+  // - shouldRevealHint: response.hintGiven // Tallennetaan tietokantaan
   // - isAiGenerated: true
   // - ticketId, authorId
 }
@@ -167,12 +167,13 @@ Vastauksen pituus ja tyyli mukautuvat:
 
 ### 3. Vihjetoiminnallisuus
 
-#### Toimintaperiaate
-- ConversationStateMachine seuraa "jumiutumista" keskustelussa
+#### Toimintaperiaate (Refaktoroitu 2025-01-02)
+- **ConversationStateMachine päättää MILLOIN** vihje annetaan
+- **AI-agentti vain noudattaa ohjeita** - ei tee omaa päätöstä vihjeistä
 - Vihjeiden asetukset haetaan AISettings-taulusta tietokannasta
-- Vihje annetaan kun tukihenkilö on jumiutunut konfiguroitu määrä peräkkäisiä vuoroja
-- Jumiutumislaskuri nollautuu aina kun tapahtuu edistystä (PROGRESSING tai parempi)
-- Vihjeet toimivat kaikissa tiloissa konfiguroitujen kynnysarvojen mukaan
+- StateMachine seuraa jumiutumista ja päättää vihjeiden tarpeesta
+- Kun vihje päätetään antaa, AI saa suoran ohjeen: "Anna vihje"
+- AI asettaa `hintGiven: true` kun on sisällyttänyt vihjeen vastaukseen
 
 #### Toteutus
 ```typescript
@@ -197,33 +198,83 @@ class ConversationStateMachine {
     closeThreshold: number | null;
     cooldownTurns: number;
     maxHints: number;
-  }): boolean {
-    if (!settings?.enabled) return false;
-    if (this.hintCount >= settings.maxHints) return false;
-    if (this.turnsSinceLastHint < settings.cooldownTurns) return false;
+  }): { shouldHint: boolean; triggerType?: 'EARLY' | 'PROGRESSING' | 'CLOSE' } {
+    if (!settings?.enabled) return { shouldHint: false };
+    if (this.hintCount >= settings.maxHints) return { shouldHint: false };
+    if (this.turnsSinceLastHint < settings.cooldownTurns) return { shouldHint: false };
     
-    // Tarkista kynnysarvot nykyisen tilan mukaan
-    if (this.state === 'initial' && this.stuckCounter >= settings.earlyThreshold) {
-      return true;
+    // Tarkista kynnysarvot ja palauta vihjetyyppi
+    if (this.stuckCounter >= settings.earlyThreshold) {
+      return { shouldHint: true, triggerType: 'EARLY' };
     }
-    if (this.state === 'diagnosing' && settings.progressThreshold && 
-        this.stuckCounter >= settings.progressThreshold) {
-      return true;
+    if (settings.progressThreshold && this.progressCounter >= settings.progressThreshold) {
+      return { shouldHint: true, triggerType: 'PROGRESSING' };
     }
-    if (this.state === 'attempting' && settings.closeThreshold && 
-        this.stuckCounter >= settings.closeThreshold) {
-      return true;
+    if (settings.closeThreshold && this.closeCounter >= settings.closeThreshold) {
+      return { shouldHint: true, triggerType: 'CLOSE' };
     }
     
-    return false;
+    return { shouldHint: false };
   }
 }
 ```
 
+#### Uusi yksinkertaistettu arkkitehtuuri (2025-01-02)
+
+**Ennen:** AI sai säännöt ja päätti itse milloin antaa vihjeitä
+```typescript
+// Vanha: AI sai koko konfiguraation ja säännöt
+const hintConfig = {
+  enabled: true,
+  earlyThreshold: 3,
+  progressThreshold: 2,
+  // ... AI päätti itse shouldRevealHint-arvon
+};
+```
+
+**Nyt:** StateMachine päättää, AI vain noudattaa ohjeita
+```typescript
+// Uusi: Selkeä ohje StateMachinelta
+const hintInstruction = {
+  giveHint: true,         // Selkeä käsky: anna vihje
+  hintType: 'EARLY',      // Konteksti: mikä laukaisi vihjeen
+  hintNumber: 1,          // Monesko vihje tämä on
+  stuckDuration: 3        // Kuinka kauan ollut jumissa
+};
+```
+
+#### Vihjeiden Granulariteetti (Päivitetty 2025-01-02)
+
+**EARLY-vaiheen vihjeet (Tuki on eksyksissä):**
+- **Vihje #1 - ULTRA EPÄMÄÄRÄINEN**: 
+  - Vain ilmaisee hämmennystä, ei teknisiä yksityiskohtia
+  - Esim: "En ymmärrä mikä tässä on vialla..." tai "Jotain on pielessä..."
+- **Vihje #2 - HIEMAN TARKEMPI**:
+  - Voi mainita hyvin laajan kategorian
+  - Esim: "Tuntuu että jotain verkossa on pielessä..." tai "Ongelma liittyy jotenkin nettiin..."
+- **Vihje #3 - KATEGORIA MAININTA**:
+  - Voi mainita yleisen ongelma-alueen
+  - Esim: "Luulen että ongelma on jossain asetuksissa..." tai "Verkkoasetukset tuntuvat oudoilta..."
+
+**PROGRESSING-vaiheen vihjeet (Oikea alue tunnistettu):**
+- **Ensimmäinen vihje**:
+  - Voi mainita havaittuja oireita
+  - Esim: "Huomasin että sivut eivät lataudu vaikka WiFi on päällä..."
+- **Myöhemmät vihjeet**:
+  - Tarkempia oireita ja havaintoja
+  - Esim: "DNS-asetukset näyttävät oudoilta..." tai konkreettisia arvoja
+
+**CLOSE-vaiheen vihjeet (Melkein perillä):**
+- Hyvin spesifisiä yksityiskohtia
+- Esim: "DNS on 0.0.0.0, pitäisikö sen olla jotain muuta?"
+- Voi mainita tarkkoja arvoja tai asetuksia ratkaisusta
+
 #### Promptissa
-- Kun `forceHint: true`, AI sisällyttää hienovaraisia vihjeitä vastaukseen
-- Vihjeet ovat luonnollisesti upotettuja käyttäjän kommentteihin
-- `shouldRevealHint` asetetaan true:ksi vastausobjektissa
+- AI saa selkeän ohjeen StateMachinelta:
+  - "🎯 MANDATORY INSTRUCTION: You MUST include a hint"
+  - Progressiiviset ohjeet vihjeen numeron mukaan
+  - Ei päätöksentekoa, vain ohjeiden noudattamista
+- `hintGiven` asetetaan true:ksi kun vihje on annettu
 
 ### 4. Reasoning-kenttä
 
@@ -300,7 +351,7 @@ class ConversationStateMachine {
 ### Tukihenkilön näkymä (CommentSection.jsx)
 **Näytetään vain:**
 - AI:n vastauksen teksti
-- "Vihje annettu" -badge kun `shouldRevealHint: true`
+- "Vihje annettu" -badge kun `shouldRevealHint: true` (tietokannasta)
 - AI Agent -merkintä
 
 **EI näytetä:**
@@ -327,7 +378,7 @@ Kaikki ModernChatAgent-kentät tallennetaan Comment-tauluun:
 - `evaluationResult`: EARLY/PROGRESSING/CLOSE/SOLVED
 - `emotionalState`: frustrated/hopeful/excited/satisfied/confused
 - `reasoning`: Sisäinen päättely
-- `shouldRevealHint`: Boolean-arvo vihjeestä
+- `shouldRevealHint`: Boolean-arvo vihjeestä (response.hintGiven)
 - `isAiGenerated`: true
 
 ## Lokitus

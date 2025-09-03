@@ -13,6 +13,7 @@ import aiRoutes from './routes/aiRoutes.js';
 import aiAnalyticsRoutes from './routes/aiAnalyticsRoutes.js';
 import tokenAnalyticsRoutes from './routes/tokenAnalyticsRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
+import discordSettingsRoutes from './routes/discordSettingsRoutes.js';
 import { createServer } from 'http';
 import { initializeSocketService } from './services/socketService.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -204,6 +205,7 @@ app.use('/api/notification-settings', notificationSettingsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/ai-analytics', aiAnalyticsRoutes);
 app.use('/api/ai/token-analytics', tokenAnalyticsRoutes);
+app.use('/api/discord', discordSettingsRoutes);
 
 // 404 handler - must be added before error handler and after all routes
 app.use(notFoundHandler);

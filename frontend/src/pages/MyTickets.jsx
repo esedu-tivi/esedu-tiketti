@@ -32,10 +32,9 @@ export default function MyTickets() {
 
     // Listen for ticket events that might affect user's tickets
     const handleTicketUpdate = (ticketData) => {
-      // Only invalidate if the ticket belongs to current user
-      if (ticketData?.createdById === user.id || ticketData?.userId === user.id) {
-        queryClient.invalidateQueries(['my-tickets']);
-      }
+      // Always invalidate queries when any ticket changes
+      // The query will filter to show only the user's tickets anyway
+      queryClient.invalidateQueries(['my-tickets']);
     };
 
     // Subscribe to ticket events

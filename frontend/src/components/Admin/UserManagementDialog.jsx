@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Alert } from '../ui/Alert';
 import { useUsers } from '../../hooks/useUsers';
 import { useUpdateUserRole } from '../../hooks/useRoleChange';
-import { Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw, MessageSquare } from 'lucide-react';
 
 export default function UserManagementDialog({ isOpen, onClose }) {
   const { data: fetchedUsers, isLoading, error: fetchError, refetch } = useUsers();
@@ -89,6 +89,18 @@ export default function UserManagementDialog({ isOpen, onClose }) {
     return (
       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
         {jobTitle}
+      </span>
+    );
+  };
+
+  // Discord badge component
+  const DiscordBadge = ({ user }) => {
+    if (!user.isDiscordUser) return null;
+    
+    return (
+      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+        <MessageSquare size={12} className="mr-1" />
+        Discord
       </span>
     );
   };
@@ -197,6 +209,7 @@ export default function UserManagementDialog({ isOpen, onClose }) {
                           <div className="flex items-center">
                             <span>{user.name}</span>
                             <JobTitleBadge jobTitle={user.jobTitle} />
+                            <DiscordBadge user={user} />
                           </div>
                         </td>
                         <td className="py-3">{user.email}</td>
@@ -237,6 +250,7 @@ export default function UserManagementDialog({ isOpen, onClose }) {
                     <div className="font-medium flex items-center flex-wrap">
                       <span>{user.name}</span>
                       <JobTitleBadge jobTitle={user.jobTitle} />
+                      <DiscordBadge user={user} />
                     </div>
                     <div className="text-sm text-gray-600 mb-2">{user.email}</div>
                     <div className="flex items-center mt-2">

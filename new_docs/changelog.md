@@ -2,6 +2,346 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 03.09.2025 - EnhancedModernChatAgent with Style Synchronization & Full Ticket Generator Integration
+
+## Complete Ticket Generator Frontend Integration (Fixed)
+- **feat:** Full integration of ModernTicketGeneratorAgent with frontend ticket generator
+  - Added metadata display in ticket previews showing generator version, writing style, technical level
+  - Enhanced logging to show generation details in the Lokit (logs) panel
+  - Added manual override controls in advanced settings for style and technical level
+  
+- **manual controls added:**
+  - Optional checkbox to enable manual overrides (disabled by default for automatic mode)
+  - Writing style selector: panic, confused, frustrated, polite, brief
+  - Technical level selector: beginner, intermediate, advanced
+  - Controls only appear in advanced settings section
+  - Clear indication that these only work with ModernTicketGenerator
+  
+- **metadata tracking:**
+  - Both legacy and modern generators now return metadata
+  - Legacy returns: `{ generatorVersion: 'legacy', writingStyle: 'standard', technicalLevel: 'mixed', technicalAccuracy: 0.7 }`
+  - Modern returns actual values: style used, technical level applied, accuracy score
+  - Metadata displayed as badges in preview cards
+  - Logs show generator version and configuration used
+  
+- **backend enhancements:**
+  - ModernTicketGenerator accepts optional `manualStyle` and `manualTechnicalLevel` parameters
+  - Falls back to automatic selection when not provided
+  - Controller passes through manual overrides from frontend
+  - Metadata included in preview response for display
+  
+- **fixes applied:**
+  - Manual override controls only shown when ModernTicketGenerator is enabled
+  - Legacy generator no longer returns metadata (was showing incorrectly)
+  - Metadata badges and logs only displayed for modern generator
+  - Fixed AI settings detection to conditionally show controls
+  - Fixed chatAgentSyncWithGenerator not saving - added to Zod validation schema
+  
+- **metadata persistence:**
+  - Added `generatorMetadata` JSON field to Ticket model
+  - ModernTicketGenerator metadata (style, level, accuracy) stored with ticket
+  - EnhancedModernChatAgent retrieves metadata from ticket and maintains consistency
+  - Writing style and technical level properly passed from generator to chat agent
+  
+- **style improvements (EnhancedModernChatAgent only - when sync is enabled):**
+  - Toned down panic style to be more realistic (max 2 exclamation marks, coherent responses)
+  - Made confused style more genuine (natural questions, less theatrical)
+  - Adjusted frustrated style to be civil and cooperative
+  - Added instructions for human-like, conversational responses
+  - Emphasized that users want help, not drama
+  - NOTE: ModernTicketGenerator remains unchanged - generates expressive tickets as before
+
+# 03.09.2025 - EnhancedModernChatAgent with Style Synchronization
+
+## Enhanced Chat Agent with Writing Style Sync
+- **feat:** Created EnhancedModernChatAgent that syncs with ModernTicketGeneratorAgent
+  - Maintains consistent writing style (panic, confused, frustrated, polite, brief) throughout conversation
+  - Implements same technical level configurations as ticket generator
+  - Auto-detects writing style from ticket description
+  - Dynamic technical level determination based on user profile
+  
+- **technical implementation:**
+  - Created `/backend/src/ai/agents/enhancedModernChatAgent.ts`
+  - Writing style detection from ticket description patterns
+  - Technical configurations matching ModernTicketGenerator:
+    - Beginner: max 1 term, 150 chars, high vagueness, avoid technical terms
+    - Intermediate: max 3 terms, 250 chars, medium vagueness
+    - Advanced: max 10 terms, 400 chars, low vagueness, full technical vocabulary
+  - Style-specific prompt instructions for each writing style
+  - Vocabulary restrictions based on technical level
+  
+- **database changes:**
+  - Added `chatAgentSyncWithGenerator` boolean field to AISettings
+  - Migration: `20250903004211_add_chat_agent_sync_toggle`
+  - Toggle to enable/disable style synchronization
+  - Only works when ModernTicketGenerator is also enabled
+  
+- **frontend updates:**
+  - Added sync toggle in AI Settings page
+  - Shows sync option only when ModernChatAgent is selected
+  - Disabled with warning when ModernTicketGenerator is not active
+  - Clear visual indicators for dependencies
+  
+- **benefits:**
+  - More immersive training experience with consistent personas
+  - Realistic user behavior throughout conversation
+  - Better alignment between ticket creation and chat responses
+  - Maintains personality traits from initial ticket
+  - Example: A panicked beginner who writes "APUA!! Kaikki on rikki!!" continues responding in panic style
+
+# 03.09.2025 - Hint System Architecture Refactor, Granularity Improvements & Modern Ticket Generator
+
+## Modern Ticket Generator V2
+- **feat:** Created ModernTicketGeneratorAgent with realistic user simulation
+- **problem solved:** Legacy generator created overly technical tickets for beginners
+  - Students writing about "DHCP-asiakasosoite 169.254.x.x" and "DNS-haku epäonnistuu"
+  - Too many troubleshooting steps listed for beginner users
+  - Overly structured and formal tickets
+  
+- **technical level scaling:**
+  - **Beginners**: Max 150 chars, vague descriptions like "netti ei toimi", no technical terms
+  - **Intermediate**: Max 250 chars, some basic terms, 1-3 troubleshooting steps
+  - **Advanced**: Max 400 chars, appropriate technical terms, organized structure
+  
+- **variety system:** 
+  - Multiple writing styles: panic, confused, frustrated, polite, brief
+  - Random style selection for diversity
+  - Realistic emotional states matching user profiles
+  
+- **integration:**
+  - Added `ticketGeneratorVersion` to AISettings schema (default: 'legacy')
+  - Version switching in aiController.ts
+  - Backwards compatible - legacy generator remains available
+  
+- **expected results:**
+  - Beginner: "hei, mulla ei toimi netti. oon yrittänyt laittaa wifin pois ja päälle mut ei auta"
+  - Instead of: "DHCP-palvelu ei jaa IP-osoitetta WLAN-verkossa..."
+
+# 02.01.2025 - Hint System Architecture Refactor & Granularity Improvements
+
+## Improved Hint System Architecture
+- **refactor:** Simplified hint system to use direct instructions instead of rules
+  - StateMachine now has sole authority over when to provide hints
+  - AI agent receives direct "give hint" instruction rather than evaluating rules itself
+  - Changed from `shouldRevealHint` to `hintGiven` in AI response schema to reflect actual behavior
+  - Replaced complex `HintConfiguration` with simpler `HintInstruction` interface
+  
+- **technical:** Cleaner separation of concerns
+  - StateMachine decides WHEN to hint based on configurable thresholds
+  - AI agent simply follows instructions on HOW to hint
+  - Single source of truth for hint logic (no redundant decision-making)
+  - More deterministic and predictable behavior
+
+## Progressive Hint Granularity
+- **feat:** Implemented progressive hint intensity based on evaluation stage and hint number
+  - Removed generic "mention specific symptoms" instruction that was too revealing for early hints
+  - Type-specific hint instructions with appropriate detail levels
+  
+- **EARLY stage hints (support is lost):**
+  - Hint #1: Ultra vague - "En ymmärrä mikä tässä on vialla..." (just confusion)
+  - Hint #2: Slightly less vague - "Tuntuu että jotain verkossa on pielessä..." (broad category)
+  - Hint #3: Category mention - "Luulen että ongelma on jossain asetuksissa..." (general area)
+  
+- **PROGRESSING stage hints (right area identified):**
+  - Can mention observed symptoms: "Huomasin että sivut eivät lataudu vaikka WiFi on päällä..."
+  - Later hints more specific: "DNS-asetukset näyttävät oudoilta..."
+  
+- **CLOSE stage hints (almost there):**
+  - Very specific details: "DNS on 0.0.0.0, pitäisikö sen olla jotain muuta?"
+  - Can reference exact values from solution
+  
+- **benefits:**
+  - More realistic user simulation - doesn't give away solution immediately
+  - Better training value for support students
+  - Progressive difficulty maintains learning curve
+  - Hints appropriately matched to how stuck the support person is
+
+# 03.09.2025 - Docker AI Response Generation Fix
+
+## Bug Fixes
+- **fix:** Fixed AI response generation failure in Docker environment
+  - Problem: Backend was using FRONTEND_URL to make self-referential API calls, causing networking issues in Docker
+  - Solution: Introduced BACKEND_URL environment variable for proper self-referencing
+  - Changed ticketController.ts to use BACKEND_URL instead of FRONTEND_URL
+  - Added BACKEND_URL to .env.example with appropriate defaults
+  - Updated docker-compose.yml to set BACKEND_URL=http://backend:3001 for container networking
+  - This ensures AI responses work correctly in both development and Docker environments
+
+# 02.09.2025 - Discord User Management & Channel Cleanup Improvements
+
+## Discord Security Features
+- **feat:** User blocking system for Discord integration
+  - Added `isBlocked` field to User model for tracking blocked Discord users
+  - Instant rejection at `/tiketti` command - no channel creation for blocked users
+  - Block/unblock toggle in Discord users management UI (admin panel)
+  - New API endpoint: `PUT /api/discord/users/:id/block`
+  - Blocked users receive ephemeral error message in Discord
+
+- **feat:** Ticket creation cancellation button
+  - Cancel button appears during ticket creation conversation flow
+  - Users can abort ticket creation at any point
+  - Channel automatically deleted 3 seconds after cancellation
+  - No database records created for cancelled tickets
+  - Prevents spam and accidental channel creation
+
+## Channel Management Improvements  
+- **feat:** Orphaned channel cleanup system
+  - Detects channels without corresponding tickets in database
+  - Checks for user activity before deletion (prevents data loss)
+  - Cleans up failed/cancelled ticket creation attempts
+  - Runs in same hourly cycle as regular cleanup (efficiency)
+  - Uses configurable TTL with 1-hour minimum for orphaned channels
+
+- **fix:** Discord user deletion cascade handling
+  - Proper foreign key constraint resolution when deleting users with tickets
+  - Deletion order: Notifications → Attachments → Comments → AI Interactions → Tickets
+  - Automatic Discord channel deletion when user is removed
+  - Uses global bot reference: `(global as any).discordBot`
+
+## Frontend Updates
+- **feat:** Three-dots dropdown menu for Discord user actions
+  - Replaced separate action buttons with dropdown menu using `MoreVertical` icon
+  - React Portal implementation prevents table overflow issues
+  - Actions: Block/Unblock, Sync user data, Delete user
+  - Fixed positioning calculation for proper dropdown placement
+  - Click-outside-to-close functionality
+
+## Backend Services
+- **feat:** Enhanced Discord settings service (`discordSettingsService.ts`)
+  - New `toggleBlockUser()` method for managing user blocks
+  - Updated `deleteDiscordUser()` with Discord channel cleanup
+  - Improved error handling for cascade deletions
+  - Real-time settings refresh without server restart
+
+- **fix:** Channel cleanup service improvements (`channelCleanup.ts`)
+  - Added `cleanupOrphanedChannels()` method
+  - Single timer system for all cleanup operations
+  - Uses database settings instead of hardcoded values
+  - Better logging for orphaned channel detection
+
+# 02.09.2025 - Discord Bot Improvements & Real-time Updates
+
+## Major Improvements
+- **feat:** Complete Discord bot status system overhaul
+  - Real-time ticket count display (Open, In Progress, Total)
+  - Rotating status messages with cleanup countdown
+  - Event-driven updates instead of polling
+  - Removed caching system for direct DB queries
+  - Instant updates when tickets change from any source
+
+- **feat:** Enhanced WebSocket real-time updates
+  - Fixed duplicate event listeners and connection issues
+  - Optimized socket connection as singleton pattern
+  - Reduced console noise and improved error handling
+  - All pages now update in real-time without refresh
+  - MyTickets, Admin, and MyWork views sync instantly
+
+- **fix:** Discord ticket closure now creates timeline entries
+  - Added automatic comment creation when closing from Discord
+  - Timeline (aikajana) properly shows Discord closure events
+  - WebSocket emission for timeline updates
+
+- **fix:** Category dropdown in ticket creation
+  - Fixed API response handling for categories
+  - Categories now load properly in NewTicketForm
+
+## Performance Optimizations
+- **perf:** Eliminated unnecessary database queries
+  - Discord bot uses event-driven updates instead of polling
+  - Removed 5-minute cache refresh (was 288 queries/day)
+  - Now only queries DB on startup and uses events for updates
+  - 99.9% reduction in recurring DB queries
+
+- **perf:** WebSocket connection improvements
+  - Prevented duplicate subscriptions
+  - Fixed reconnection handling
+  - Eliminated rate limiting issues
+  - Single persistent connection per client
+
+## Backend Enhancements
+- **feat:** Discord bot integration with ticket service
+  - Added onTicketChanged events to ticketService
+  - Automatic Discord bot updates for all ticket operations
+  - Works for tickets created from both web and Discord
+
+- **fix:** WebSocket event emissions
+  - Added missing emitTicketCreated for Discord tickets
+  - Added missing emitTicketDeleted for web deletions
+  - Fixed status change events to emit both specific and general updates
+  - All ticket state changes now properly broadcast
+
+## Frontend Improvements
+- **fix:** useSocket hook optimization
+  - Fixed socket.io listener management
+  - Prevented memory leaks from duplicate listeners
+  - Improved reconnection logic
+  - Reduced console logging noise
+
+- **fix:** Real-time updates for all views
+  - Admin page updates when tickets change
+  - MyWork view syncs across windows
+  - MyTickets refreshes on any relevant change
+  - TicketDetailsModal properly subscribes to events
+
+# 02.09.2025 - Discord Integration (Initial)
+- **feat:** Discord bot integration for ticket creation
+  - Slash command `/tiketti` to create support tickets
+  - Private channel creation for each ticket
+  - Conversational ticket creation flow in Finnish/English
+  - No account linking required - automatic user creation
+
+- **feat:** Bidirectional message synchronization
+  - Discord messages sync to web app as comments
+  - Web app comments appear in Discord as embeds
+  - Attachment support (images/videos)
+  - Real-time synchronization via message collectors
+
+- **feat:** Status update notifications in Discord
+  - Automatic status change notifications in ticket channels
+  - Formatted embeds showing status transitions
+  - Support for ticket closure with channel notification
+
+## Database
+- **database:** Added Discord integration fields
+  - User: isDiscordUser, discordId, discordUsername, discordServerId
+  - Ticket: sourceType, discordChannelId, discordServerId
+  - Comment: discordMessageId, isFromDiscord
+- **migration:** Applied schema changes via Prisma db push
+
+## Backend Implementation
+- **feat:** Discord bot service (`discord/bot.ts`)
+  - Slash command registration
+  - Private channel creation with permissions
+  - Graceful shutdown handling
+  
+- **feat:** Ticket conversation handler (`discord/ticketConversation.ts`)
+  - Step-by-step ticket creation flow
+  - Bilingual prompts (Finnish/English)
+  - Automatic Discord user creation
+  
+- **feat:** Message synchronization (`discord/messageSync.ts`)
+  - Channel message collectors for Discord→Web sync
+  - sendMessageToDiscord for Web→Discord sync
+  - Status update formatting and delivery
+  
+- **feat:** Integration with existing controllers
+  - Updated comment controller for Discord sync
+  - Status update controller integration
+  - Socket service extension for ticket updates
+
+## Configuration
+- **config:** Added Discord environment variables
+  - DISCORD_BOT_TOKEN for bot authentication
+  - DISCORD_CLIENT_ID for command registration
+  - Optional DISCORD_TICKET_CATEGORY_ID for channel organization
+
+## Documentation
+- **docs:** Created comprehensive Discord integration guide
+  - Setup instructions
+  - Configuration details
+  - Usage flow documentation
+  - Troubleshooting guide
+
 # 29.08.2025 - Token Usage Tracking and AI Model Selection
 
 ## New Features

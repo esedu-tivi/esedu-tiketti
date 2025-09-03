@@ -88,6 +88,13 @@ model User {
   notificationSettings NotificationSettings?
   aiInteractions  AIAssistantInteraction[]
   supportAssistantConversations SupportAssistantConversation[]
+  
+  // Discord-integraatio
+  isDiscordUser   Boolean   @default(false)
+  discordId       String?   @unique
+  discordUsername String?
+  discordServerId String?
+  isBlocked       Boolean   @default(false) // Estää käyttäjän tikettien luonnin
 
   // @@map removed
 }
@@ -120,6 +127,11 @@ model Ticket {
   createdBy      User            @relation("CreatedTickets", fields: [createdById], references: [id])
   aiInteractions AIAssistantInteraction[]
   supportAssistantConversations SupportAssistantConversation[]
+  
+  // Discord-integraatio
+  sourceType        String?  @default("WEB")  // "WEB" | "DISCORD"
+  discordChannelId  String?  @unique
+  discordServerId   String?
 
   // Removed resolvedAt, closedAt
   // Removed aiTrainingTicketId, aiTrainingTicket relation
@@ -148,6 +160,10 @@ model Comment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   ticketId      String
+  
+  // Discord-integraatio
+  discordMessageId String?
+  isFromDiscord    Boolean @default(false)
   authorId      String
   author        User        @relation(fields: [authorId], references: [id])
   ticket        Ticket      @relation(fields: [ticketId], references: [id])
@@ -427,6 +443,31 @@ Nämä indeksit parantavat merkittävästi yleisimpien kyselyiden suorituskykyä
 - Tikettien suodatus ja järjestäminen
 - Ilmoitusten haku
 - AI-analytiikan raportit
+
+## Discord-integraation Kentät
+
+Discord-integraatio lisää seuraavat kentät tietokantamalleihin:
+
+### User-mallin Discord-kentät
+- **`isDiscordUser`** (`Boolean`): Merkitsee, onko käyttäjä luotu Discord-integraation kautta
+- **`discordId`** (`String?` `@unique`): Käyttäjän Discord ID (uniikki)
+- **`discordUsername`** (`String?`): Käyttäjän Discord-käyttäjänimi
+- **`discordServerId`** (`String?`): Discord-palvelimen ID, jolta käyttäjä on
+
+### Ticket-mallin Discord-kentät
+- **`sourceType`** (`String?`): Tiketin lähde ("WEB" tai "DISCORD")
+- **`discordChannelId`** (`String?` `@unique`): Discord-kanavan ID tikettikeskustelulle
+- **`discordServerId`** (`String?`): Discord-palvelimen ID, jolla tiketti luotiin
+
+### Comment-mallin Discord-kentät
+- **`discordMessageId`** (`String?`): Discord-viestin ID synkronointia varten
+- **`isFromDiscord`** (`Boolean`): Merkitsee, onko kommentti tullut Discordista
+
+Nämä kentät mahdollistavat:
+- Tikettien luomisen Discordista ilman erillistä käyttäjätiliä
+- Kaksisuuntaisen viestien synkronoinnin Discord-kanavien ja web-sovelluksen välillä
+- Discord-käyttäjien automaattisen luomisen järjestelmään
+- Tikettikanavien hallinnan ja siivouksen
 
 ## Tietokannan Eheys ja Poistotoiminnot
 

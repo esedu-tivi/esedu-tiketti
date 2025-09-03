@@ -16,6 +16,14 @@ model User {
   role            UserRole  @default(USER)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  
+  // Discord integration
+  isDiscordUser   Boolean   @default(false)
+  discordId       String?   @unique
+  discordUsername String?
+  discordServerId String?
+  isBlocked       Boolean   @default(false) // Block users from creating tickets
+  
   comments        Comment[]
   assignedTickets Ticket[]  @relation("AssignedTickets")
   tickets         Ticket[]  @relation("CreatedTickets")
@@ -45,6 +53,15 @@ model Ticket {
   createdById    String
   assignedToId   String?
   categoryId     String
+  
+  // Discord integration
+  sourceType        String?  @default("WEB") // "WEB" | "DISCORD"
+  discordChannelId  String?  @unique
+  discordServerId   String?
+  
+  // AI Generation metadata (for ModernTicketGenerator)
+  generatorMetadata Json?    // Stores writing style, technical level, etc.
+  
   comments       Comment[]
   notifications  Notification[]
   attachments    Attachment[]
@@ -86,6 +103,10 @@ model Comment {
   emotionalState String?  // For ModernChatAgent: frustrated, hopeful, excited, satisfied, confused
   reasoning     String?  // For ModernChatAgent: Internal reasoning about the evaluation (useful for analytics)
   shouldRevealHint Boolean @default(false) // For ModernChatAgent: Whether AI decided to give a hint
+  
+  // Discord integration
+  discordMessageId String?
+  isFromDiscord    Boolean @default(false)
 
   @@index([ticketId])
   @@index([authorId])
@@ -242,6 +263,10 @@ model AISettings {
   
   // ChatAgent Settings
   chatAgentVersion      String   @default("modern") // "modern" | "legacy"
+  chatAgentSyncWithGenerator Boolean @default(false) // Sync chat style with ModernTicketGenerator (requires modern generator)
+  
+  // TicketGenerator Settings
+  ticketGeneratorVersion String  @default("legacy") // "modern" | "legacy"
   
   // Hint System Settings
   hintSystemEnabled     Boolean  @default(true)
@@ -305,4 +330,18 @@ model AITokenUsage {
   @@index([ticketId])
   @@index([userId])
   @@index([modelUsed])
+}
+
+model DiscordSettings {
+  id                  String   @id @default(uuid())
+  cleanupTTLHours     Int      @default(24)     // Channel cleanup after ticket closed
+  inactiveTTLHours    Int      @default(48)     // Inactive channel cleanup
+  statusRotationMs    Int      @default(10000)  // Status rotation interval (ms)
+  showTicketStats     Boolean  @default(true)   // Show ticket counts in status
+  showCleanupTimer    Boolean  @default(true)   // Show cleanup countdown
+  defaultCategoryName String   @default("Discord") // Default category name for Discord tickets
+  allowUserClose      Boolean  @default(true)   // Allow users to close their tickets
+  enableIntegration   Boolean  @default(true)   // Enable/disable Discord integration
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

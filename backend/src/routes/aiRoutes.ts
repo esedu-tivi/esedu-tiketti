@@ -13,6 +13,9 @@ router.use(authMiddleware);
 // Only admins and support staff can access AI features
 router.use(requireRole([UserRole.ADMIN, UserRole.SUPPORT]));
 
+// Check OpenAI configuration status
+router.get('/config-status', aiController.checkConfiguration);
+
 // Get AI agent configuration (categories, complexity etc.)
 router.get('/config', aiController.getAgentConfig);
 

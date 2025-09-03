@@ -21,19 +21,32 @@ interface SummarizeParams {
  */
 export class SummarizerAgent {
   private model: ChatOpenAI | null = null;
+  private currentModelName: string | null = null;
 
   constructor() {
     logger.info('SummarizerAgent: Created - model will be initialized on first use');
   }
   
   private async initializeModel(): Promise<void> {
-    if (this.model) return;
-    
     const modelName = await aiSettingsService.getModelForAgent('summarizer');
+    
+    // Check if model needs to be reinitialized due to settings change
+    if (this.model && this.currentModelName === modelName) {
+      return; // Model is already initialized with correct settings
+    }
+    
+    // Initialize or reinitialize the model
+    logger.info('SummarizerAgent: Initializing model', { 
+      previousModel: this.currentModelName, 
+      newModel: modelName,
+      isReinitializing: !!this.model
+    });
+    
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
       model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
+    this.currentModelName = modelName;
     logger.info('SummarizerAgent: Model initialized:', { model: modelName });
   }
 

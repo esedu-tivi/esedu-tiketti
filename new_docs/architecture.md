@@ -66,6 +66,11 @@ PORT=3001
 
 FRONTEND_URL=http://localhost:3000
 
+# Backend URL itseensä viittaaville API-kutsuille (tärkeä Dockerissa)
+# Dockerissa: http://backend:3001
+# Kehityksessä: http://localhost:3001
+BACKEND_URL=http://localhost:3001
+
 # JWT-allekirjoitusavain (vähintään 32 merkkiä)
 JWT_SECRET=your-super-secret-key-here-minimum-32-characters
 
@@ -90,6 +95,10 @@ OPENAI_API_KEY=sk-proj-1234567890
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OPENAI_COMPLETION_MODEL=gpt-4o-mini
 OPENAI_ADVANCED_MODEL=gpt-4o-mini
+
+# Discord-integraatio (valinnainen)
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_CLIENT_ID=your_discord_client_id_here
 
 ```
 
@@ -206,6 +215,10 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Tyylit:** [Tailwind CSS](https://tailwindcss.com/)
 *   **API-kommunikaatio:** [Axios](https://axios-http.com/)
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO Client](https://socket.io/docs/v4/client-api/)
+    - Singleton-pohjainen yhteyden hallinta
+    - Automaattinen uudelleenyhdistys
+    - Event-pohjainen tilauksien hallinta
+    - Duplikaattien esto subscription-tasolla
 *   **Autentikointi (Client):** [MSAL React (@azure/msal-react)](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/lib/msal-react) Azure AD -integraatioon.
 *   **Build-työkalu:** [Vite](https://vitejs.dev/)
 *   **Ikonit:** [Lucide React](https://lucide.dev/)
@@ -227,6 +240,10 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
     *   [LangChain.js](https://js.langchain.com/): Framework AI-agenttien ja promptien hallintaan.
     *   OpenAI API: Yhteys OpenAI:n kielimalleihin.
 *   **Reaaliaikainen Kommunikaatio:** [Socket.IO](https://socket.io/)
+    - JWT-pohjainen autentikointi
+    - User-room -pohjainen viestien reititys
+    - Event-driven päivitykset (ei tietokantakyselyitä)
+    - Tuetut tapahtumat: ticketCreated, ticketUpdated, ticketStatusChanged, ticketDeleted, commentAdded
 *   **Autentikointi (Server):**
     *   JWT-tokenien validointi (tukee sekä Azure AD RS256 että local HS256)
     *   [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) ja [jwks-rsa](https://github.com/auth0/node-jwks-rsa) kirjastot
@@ -241,6 +258,11 @@ Järjestelmä koostuu erillisistä frontend- ja backend-sovelluksista.
 *   **Environment Validation:** [Zod](https://github.com/colinhacks/zod) ympäristömuuttujien validointi (`config/env.ts`)
 *   **Rate Limiting:** [express-rate-limit](https://github.com/nfriedly/express-rate-limit) (200 req/min yleinen, 5 req/15min auth)
 *   **Security:** [Helmet](https://helmetjs.github.io/) security headers
+*   **Discord Integration:** [Discord.js](https://discord.js.org/) 
+    - Bot status rotation with ticket counts
+    - Event-driven status updates (no polling)
+    - Private channel management for tickets
+    - Bidirectional message synchronization
 
 ## Hakemistorakenne
 

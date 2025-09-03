@@ -30,6 +30,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      BACKEND_URL: http://backend:3001
     command: sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/index.js"
     volumes:
       - ./uploads:/usr/src/app/uploads

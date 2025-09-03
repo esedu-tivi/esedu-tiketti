@@ -55,6 +55,7 @@ interface SupportAssistantParams {
  */
 export class SupportAssistantAgent {
   private model: ChatOpenAI | null = null;
+  private currentModelName: string | null = null;
   
   constructor() {
     // Model will be initialized on first use with settings from database
@@ -62,23 +63,33 @@ export class SupportAssistantAgent {
   }
   
   private async initializeModel(): Promise<void> {
-    if (this.model) return;
-    
     const modelName = await aiSettingsService.getModelForAgent('support');
     logger.info(`🔍 [SupportAssistantAgent] Retrieved model from settings: "${modelName}"`);
     
+    // Check if model needs to be reinitialized due to settings change
+    if (this.model && this.currentModelName === modelName) {
+      return; // Model is already initialized with correct settings
+    }
+    
+    // Initialize or reinitialize the model
+    logger.info('🔄 [SupportAssistantAgent] Initializing model', { 
+      previousModel: this.currentModelName, 
+      newModel: modelName,
+      isReinitializing: !!this.model
+    });
+    
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
-      model: modelName,  // Use 'model' instead of deprecated 'modelName'
+      model: modelName,  // Use 'model' instead of deprecated 'modelName' // Add temperature for balanced creativity and consistency
       cache: true, // Enable OpenAI's built-in deduplication only
     });
+    this.currentModelName = modelName;
     
     // Log the actual model that LangChain will use
     logger.info(`🚀 [SupportAssistantAgent] Model initialized with settings model: "${modelName}"`);
     logger.info(`🚀 [SupportAssistantAgent] LangChain ChatOpenAI model property: "${this.model.model}"`);
     logger.info('🚀 [SupportAssistantAgent] Full initialization details:', {
       settingsModel: modelName,
-      langchainModel: this.model.model,
       responseCaching: 'DISABLED - Always fresh, context-aware responses',
       note: 'Each ticket requires unique assistance'
     });

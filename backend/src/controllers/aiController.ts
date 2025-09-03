@@ -2,8 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger.js';
 import { asyncHandler, ValidationError, NotFoundError } from '../middleware/errorHandler.js';
 import { ticketGenerator } from '../ai/agents/ticketGeneratorAgent.js';
+import { modernTicketGenerator } from '../ai/agents/modernTicketGeneratorAgent.js';
 import { chatAgent } from '../ai/agents/chatAgent.js';
 import { modernChatAgent, ConversationStateMachine } from '../ai/agents/modernChatAgent.js';
+import { enhancedModernChatAgent } from '../ai/agents/enhancedModernChatAgent.js';
 import { TicketStatus, Comment, User, Category, Prisma } from '@prisma/client';
 import { ticketService } from '../services/ticketService.js';
 import { CreateTicketDTO } from '../types/index.js';
@@ -37,10 +39,29 @@ const cleanupStateMachine = (ticketId: string): void => {
 
 export const aiController = {
   /**
+   * Check if OpenAI API is configured
+   */
+  checkConfiguration: asyncHandler(async (req: Request, res: Response) => {
+    const hasApiKey = !!process.env.OPENAI_API_KEY;
+    const isValidFormat = process.env.OPENAI_API_KEY?.startsWith('sk-') || false;
+    
+    res.json({
+      success: true,
+      data: {
+        isConfigured: hasApiKey && isValidFormat,
+        details: {
+          hasApiKey,
+          isValidFormat
+        }
+      }
+    });
+  }),
+
+  /**
    * Generate a *preview* of a training ticket without saving it.
    */
   generateTrainingTicketPreview: asyncHandler(async (req: Request, res: Response) => {
-      const { complexity, category, userProfile, assignToId, responseFormat } = req.body;
+      const { complexity, category, userProfile, assignToId, manualStyle, manualTechnicalLevel } = req.body;
       
       logger.info('Received request to generate training ticket preview:', req.body);
       
@@ -58,18 +79,38 @@ export const aiController = {
         userId = user?.id;
       }
       
+      // Check which ticket generator to use
+      const useModernGenerator = await aiSettingsService.useModernTicketGenerator();
+      const generator = useModernGenerator ? modernTicketGenerator : ticketGenerator;
+      
+      logger.info(`Using ${useModernGenerator ? 'modern' : 'legacy'} ticket generator for preview`);
+      
       // Generate ticket data using the AI agent but DO NOT save it yet
-      logger.info('Calling ticket generator for preview with parameters:', { complexity, category, userProfile, assignToId, responseFormat, userId });
-      const ticketData = await ticketGenerator.generateTicket({
+      logger.info('Calling ticket generator for preview with parameters:', { 
+        complexity, category, userProfile, assignToId, userId,
+        manualStyle, manualTechnicalLevel 
+      });
+      const ticketData = await generator.generateTicket({
         complexity,
         category,
         userProfile,
         assignToId, // Pass assignToId so it's included in the preview data
-        responseFormat,
-        userId // Pass userId for token tracking
+        userId, // Pass userId for token tracking
+        manualStyle, // Pass manual style override if provided
+        manualTechnicalLevel // Pass manual technical level override if provided
       });
       
       logger.info('Successfully generated ticket preview data');
+      
+      // Log metadata if using modern generator
+      if (ticketData.metadata) {
+        logger.info('📊 [Ticket Metadata]:', {
+          generatorVersion: ticketData.metadata.generatorVersion,
+          writingStyle: ticketData.metadata.writingStyle,
+          technicalLevel: ticketData.metadata.technicalLevel,
+          technicalAccuracy: ticketData.metadata.technicalAccuracy
+        });
+      }
       
       // ALSO generate the solution during preview
       logger.info('Generating solution for preview...');
@@ -77,7 +118,7 @@ export const aiController = {
       // Note: ticketData.id doesn't exist yet, so we call generateSolution with raw data
       // Assuming generateSolution can handle raw data or we adapt it slightly
       // For now, let's pass the necessary components. We might need to adjust ticketGeneratorAgent if this fails.
-      const solution = await ticketGenerator.generateSolutionForPreview({
+      const solution = await generator.generateSolutionForPreview({
         title: ticketData.title,
         description: ticketData.description,
         device: ticketData.device,
@@ -115,7 +156,7 @@ export const aiController = {
         additionalInfo: ticketData.additionalInfo,
         priority: ticketData.priority,
         categoryId: ticketData.categoryId,
-        responseFormat: ticketData.responseFormat,
+        responseFormat: 'TEKSTI',  // Always text-only
         userProfile: ticketData.userProfile,
         attachments: [],
       };
@@ -125,12 +166,18 @@ export const aiController = {
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
       logger.info('Ticket created with ID:', ticket.id);
       
-      // Explicitly mark the ticket as AI-generated after creation
+      // Update ticket with AI-generated flag and metadata if from ModernTicketGenerator
+      const updateData: any = { isAiGenerated: true };
+      if (ticketData.metadata && ticketData.metadata.generatorVersion === 'modern') {
+        updateData.generatorMetadata = ticketData.metadata;
+        logger.info('Storing ModernTicketGenerator metadata:', ticketData.metadata);
+      }
+      
       await prisma.ticket.update({
         where: { id: ticket.id! }, 
-        data: { isAiGenerated: true },
+        data: updateData,
       });
-      logger.info('Marked ticket as AI-generated');
+      logger.info('Marked ticket as AI-generated with metadata');
       
       // Store the PRE-GENERATED solution (received from frontend) in a knowledge base entry
       logger.info('Storing pre-generated solution for ticket ID:', ticket.id);
@@ -285,12 +332,20 @@ export const aiController = {
       // Get AI settings to determine which chat agent to use
       const aiSettings = await aiSettingsService.getSettings();
       const useModernAgent = aiSettings.chatAgentVersion === 'modern';
+      const useEnhancedSync = aiSettings.chatAgentSyncWithGenerator && aiSettings.ticketGeneratorVersion === 'modern';
       
       if (useModernAgent) {
-        logger.info('🚀 ============================================');
-        logger.info('🚀 Using MODERN ChatAgent for response generation');
-        logger.info('🚀 ============================================');
-        logger.info('🔍 [ModernAgent] Feature flag enabled, using new implementation');
+        if (useEnhancedSync) {
+          logger.info('✨🚀 ============================================');
+          logger.info('✨🚀 Using ENHANCED MODERN ChatAgent with style sync');
+          logger.info('✨🚀 ============================================');
+          logger.info('✨ [EnhancedAgent] Syncing with ModernTicketGenerator');
+        } else {
+          logger.info('🚀 ============================================');
+          logger.info('🚀 Using MODERN ChatAgent for response generation');
+          logger.info('🚀 ============================================');
+          logger.info('🔍 [ModernAgent] Standard modern implementation');
+        }
         
         // Get the ticket creator details
         const ticketCreator = await prisma.user.findUnique({
@@ -320,7 +375,7 @@ export const aiController = {
         
         // Get state machine to check if we should force hints
         const stateMachine = getOrCreateStateMachine(ticket.id);
-        const shouldForceHint = stateMachine.shouldProvideHint({
+        const hintResult = stateMachine.shouldProvideHint({
           enabled: aiSettings.hintSystemEnabled,
           earlyThreshold: aiSettings.hintOnEarlyThreshold,
           progressThreshold: aiSettings.hintOnProgressThreshold,
@@ -329,49 +384,110 @@ export const aiController = {
           maxHints: aiSettings.hintMaxPerConversation
         });
         
-        // Use modern chat agent with single LLM call
-        const response = await modernChatAgent.respond(
-          {
-            title: ticket.title,
-            description: ticket.description,
-            device: ticket.device || undefined,
-            category: category?.name || 'Unknown',
-            additionalInfo: ticket.additionalInfo || undefined,
-            solution: solution?.content || 'Ei tietoa ratkaisusta',
-            userProfile: {
-              name: ticketCreator?.name || 'Käyttäjä',
-              role: userProfile === 'student' ? 'student' : 
-                    userProfile === 'teacher' ? 'teacher' : 
-                    'staff' as "student" | "teacher" | "staff",
-              technicalLevel: technicalLevel as "beginner" | "intermediate" | "advanced"
+        // Build hint instruction if StateMachine decided to give hint
+        const hintInstruction = hintResult.shouldHint ? {
+          giveHint: true,
+          hintType: hintResult.triggerType,
+          hintNumber: stateMachine.getHintsGiven() + 1,
+          stuckDuration: stateMachine.getStuckCounter()
+        } : undefined;
+        
+        // Choose which agent to use based on sync settings
+        let response: any;
+        
+        if (useEnhancedSync) {
+          // Extract metadata from ticket's generatorMetadata field
+          let extractedWritingStyle: string | undefined;
+          let extractedTechnicalLevel: string | undefined;
+          
+          if (ticket.generatorMetadata && typeof ticket.generatorMetadata === 'object') {
+            const metadata = ticket.generatorMetadata as any;
+            if (metadata.generatorVersion === 'modern') {
+              extractedWritingStyle = metadata.writingStyle;
+              extractedTechnicalLevel = metadata.technicalLevel;
+              logger.info('📊 [EnhancedAgent] Using metadata from ModernTicketGenerator:', {
+                writingStyle: extractedWritingStyle,
+                technicalLevel: extractedTechnicalLevel,
+                technicalAccuracy: metadata.technicalAccuracy
+              });
             }
-          },
-          ticket.comments.map(comment => ({
-            role: comment.authorId === ticket.createdById ? 'user' : 'support',
-            content: comment.content,
-            timestamp: comment.createdAt
-          })),
-          commentText,
-          shouldForceHint, // Pass the hint flag to the AI
-          supportUserId,
-          ticketId
-        );
+          }
+          
+          // Use enhanced chat agent with writing style sync
+          response = await enhancedModernChatAgent.respond(
+            {
+              title: ticket.title,
+              description: ticket.description,
+              device: ticket.device || undefined,
+              category: category?.name || 'Unknown',
+              additionalInfo: ticket.additionalInfo || undefined,
+              solution: solution?.content || 'Ei tietoa ratkaisusta',
+              userProfile: {
+                name: ticketCreator?.name || 'Käyttäjä',
+                role: userProfile === 'student' ? 'student' : 
+                      userProfile === 'teacher' ? 'teacher' : 
+                      'staff' as "student" | "teacher" | "staff",
+                technicalLevel: (extractedTechnicalLevel || technicalLevel) as "beginner" | "intermediate" | "advanced"
+              },
+              // Pass extracted writing style if available from metadata
+              initialWritingStyle: extractedWritingStyle as any
+            },
+            ticket.comments.map(comment => ({
+              role: comment.authorId === ticket.createdById ? 'user' : 'support',
+              content: comment.content,
+              timestamp: comment.createdAt
+            })),
+            commentText,
+            hintInstruction, // Pass hint instruction if needed
+            supportUserId,
+            ticketId
+          );
+        } else {
+          // Use standard modern chat agent
+          response = await modernChatAgent.respond(
+            {
+              title: ticket.title,
+              description: ticket.description,
+              device: ticket.device || undefined,
+              category: category?.name || 'Unknown',
+              additionalInfo: ticket.additionalInfo || undefined,
+              solution: solution?.content || 'Ei tietoa ratkaisusta',
+              userProfile: {
+                name: ticketCreator?.name || 'Käyttäjä',
+                role: userProfile === 'student' ? 'student' : 
+                      userProfile === 'teacher' ? 'teacher' : 
+                      'staff' as "student" | "teacher" | "staff",
+                technicalLevel: technicalLevel as "beginner" | "intermediate" | "advanced"
+              }
+            },
+            ticket.comments.map(comment => ({
+              role: comment.authorId === ticket.createdById ? 'user' : 'support',
+              content: comment.content,
+              timestamp: comment.createdAt
+            })),
+            commentText,
+            hintInstruction, // Pass hint instruction if needed
+            supportUserId,
+            ticketId
+          );
+        }
         
         responseText = response.response;
         evaluation = response.evaluation;
         emotionalState = response.emotionalState;
         reasoning = response.reasoning;
-        // Always set shouldRevealHint to true if we forced a hint
-        shouldRevealHint = shouldForceHint ? true : response.shouldRevealHint;
+        // Use hintGiven from response to track if hint was actually given
+        shouldRevealHint = response.hintGiven;
         
         // Update state machine AFTER getting response
         stateMachine.transition(evaluation as "EARLY" | "PROGRESSING" | "CLOSE" | "SOLVED");
         
         // Log if we forced a hint
-        if (shouldForceHint) {
+        if (hintResult.shouldHint) {
           logger.info('💡 [StateMachine] Hint was provided to the AI (stuck for ' + stateMachine.getStuckCounter() + ' turns)');
-          logger.info('💡 [StateMachine] shouldRevealHint flag set to: ' + shouldRevealHint);
-          reasoning = (reasoning || '') + '\n[StateMachine: Hint provided - stuck for ' + stateMachine.getStuckCounter() + ' consecutive turns]';
+          logger.info('💡 [StateMachine] Hint was given by AI: ' + shouldRevealHint);
+          logger.info('💡 [StateMachine] Hint trigger type: ' + hintResult.triggerType);
+          reasoning = (reasoning || '') + '\n[StateMachine: Hint provided - ' + hintResult.triggerType + ' threshold triggered]';
         }
         
         // Add state machine info to reasoning

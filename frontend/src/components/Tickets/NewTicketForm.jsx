@@ -372,7 +372,7 @@ export default function NewTicketForm({ onClose }) {
                       <SelectValue placeholder="Valitse kategoria" />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {(categories?.data || categories?.categories || []).map((category) => (
+                      {(categories || []).map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           {category.name}
                         </SelectItem>

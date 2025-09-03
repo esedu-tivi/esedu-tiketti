@@ -19,10 +19,33 @@ export const AI_CONFIG = {
       moderate: 'MEDIUM',
       complex: 'HIGH',
     },
-    responseFormats: ['TEKSTI', 'KUVA', 'VIDEO'],
+    responseFormats: ['TEKSTI'],  // Only text-based responses allowed
     // Maximum number of attachments to generate for a ticket
     maxAttachments: 2,
     // Maximum characters for ticket description
     maxDescriptionLength: 500,
+  },
+  
+  // Modern ticket generator settings
+  modernTicketGenerator: {
+    enableVariety: true,
+    technicalLevels: {
+      beginner: { 
+        maxTerms: 1, 
+        maxLength: 150,
+        vagueness: 'high'
+      },
+      intermediate: { 
+        maxTerms: 3, 
+        maxLength: 250,
+        vagueness: 'medium'
+      },
+      advanced: { 
+        maxTerms: 10, 
+        maxLength: 400,
+        vagueness: 'low'
+      }
+    },
+    styles: ['panic', 'confused', 'frustrated', 'polite', 'brief']
   }
 }; 

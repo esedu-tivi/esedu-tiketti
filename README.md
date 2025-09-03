@@ -19,6 +19,7 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Profiilisivu ja asetukset
 - Vastausmuodon valinta tiketille (TEKSTI, KUVA, VIDEO)
 - Tiedostojen liittäminen tiketteihin (kuvat, videot, muut tiedostot)
+- Discord-integraatio tikettien luontiin ilman erillistä käyttäjätiliä
 
 ### IT-tuki ja hallinta
 - Kolmiportainen käyttäjähallinta (Opiskelija → Tukihenkilö → Admin)
@@ -116,6 +117,19 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Responsiivinen median näyttö eri laitteilla
 - Tuki yleisimmille mediatiedostomuodoille (jpg, png, gif, mp4, webm)
 
+### Discord-integraatio
+- Tikettien luonti Discord-komennolla `/tiketti`
+- Yksityinen kanava jokaiselle tukipyynnölle
+- Kaksisuuntainen viestien synkronointi (Discord ↔ Web)
+- Automaattinen Discord-käyttäjien luonti järjestelmään
+- Kanavien automaattinen siivous suljetuille tiketeille
+- Discord-käyttäjien hallinta admin-paneelissa
+- Käyttäjien esto/esto poisto -toiminnallisuus
+- Tikettien luonnin peruutusmahdollisuus
+- Hylättyjen kanavien automaattinen poisto
+- Botin statuksen reaaliaikaiset päivitykset
+- Integraation käynnistys/sammutus hallintapaneelista
+
 ### Ilmoitusjärjestelmä
 - Reaaliaikaiset WebSocket-ilmoitukset
 - Mukautettavat ilmoitusasetukset
@@ -153,17 +167,20 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - LangChain.js (tekoälyintegraatiot)
 - OpenAI API
 - Token tracking callbacks (automaattinen seuranta)
+- Discord.js (Discord-bot integraatio)
 
 ### Tietokanta
 - PostgreSQL
   - Tiketit ja kommentit
-  - Käyttäjät ja roolit
+  - Käyttäjät ja roolit (mukaan lukien Discord-käyttäjät)
   - Kategoriat
   - Ilmoitukset ja asetukset
   - Media ja liitetiedostot
   - Tekoälyasetukset ja -vastaukset
   - Token-käytön seurantatiedot (AITokenUsage)
   - AI-mallien konfiguraatio (AISettings)
+  - Discord-integraation asetukset (DiscordSettings)
+  - Discord-kanavien ja tikettien yhdistäminen
 
 ## 📱 Käyttöliittymä
 - Responsiivinen design
@@ -175,6 +192,7 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Mukautettavat ilmoitusasetukset
 - Mediakomponentit kuva- ja videosisällölle
 - AI Tools -hallintanäkymä tekoälyominaisuuksille
+- Discord-asetukset -hallintapaneeli integraation konfigurointiin
 
 ## 📚 Dokumentaatio
 Projektin tarkempi dokumentaatio löytyy `new_docs`-kansiosta:
@@ -192,6 +210,8 @@ Projektin tarkempi dokumentaatio löytyy `new_docs`-kansiosta:
   - [`new_docs/ai-features.md`](./new_docs/ai-features.md): Tekoälyominaisuuksien yleiskatsaus.
   - [`new_docs/ai-agents/index.md`](./new_docs/ai-agents/index.md): Tekoälyagenttien yleiskuvaus ja flowchartit.
   - (`new_docs/ai-agents/` -kansion muut tiedostot agenttikohtaisesti)
+- **Discord-integraatio:**
+  - [`new_docs/discord-integration.md`](./new_docs/discord-integration.md): Discord-botin ja integraation dokumentaatio.
 - **Muut:**
   - [`new_docs/changelog.md`](./new_docs/changelog.md): Muutosloki.
   - [`new_docs/todo.md`](./new_docs/todo.md): Tehtävälista.

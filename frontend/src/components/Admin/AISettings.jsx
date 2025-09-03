@@ -111,6 +111,8 @@ const AISettings = () => {
   const handleSave = async () => {
     const updateData = {
       chatAgentVersion: settings.chatAgentVersion,
+      chatAgentSyncWithGenerator: settings.chatAgentSyncWithGenerator || false,
+      ticketGeneratorVersion: settings.ticketGeneratorVersion,
       hintSystemEnabled: settings.hintSystemEnabled,
       hintOnEarlyThreshold: settings.hintOnEarlyThreshold,
       hintOnProgressThreshold: settings.hintOnProgressThreshold,
@@ -229,8 +231,41 @@ const AISettings = () => {
         </div>
       </div>
       
+      {/* Chat Agent Style Sync Toggle */}
+      {settings.chatAgentVersion === 'modern' && (
+        <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="chatAgentSyncWithGenerator"
+              checked={settings.chatAgentSyncWithGenerator || false}
+              onChange={(e) => handleSettingChange('chatAgentSyncWithGenerator', e.target.checked)}
+              disabled={settings.ticketGeneratorVersion !== 'modern'}
+              className="mt-1 text-indigo-600 focus:ring-indigo-500 rounded disabled:opacity-50"
+            />
+            <div className="flex-1">
+              <label 
+                htmlFor="chatAgentSyncWithGenerator" 
+                className={`block font-medium ${settings.ticketGeneratorVersion !== 'modern' ? 'text-gray-400' : 'text-gray-900'} cursor-pointer`}
+              >
+                Synkronoi kirjoitustyyli ModernTicketGeneratorin kanssa
+              </label>
+              <p className={`text-sm mt-1 ${settings.ticketGeneratorVersion !== 'modern' ? 'text-gray-400' : 'text-gray-600'}`}>
+                Käyttäjä säilyttää saman kirjoitustyylin (panic, confused, frustrated, polite, brief) ja teknisen tason koko keskustelun ajan.
+              </p>
+              {settings.ticketGeneratorVersion !== 'modern' && (
+                <p className="text-sm text-orange-600 mt-2 flex items-center gap-1">
+                  <AlertCircle size={14} />
+                  Vaatii ModernTicketGenerator-version käyttöönottoa
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Chat Agent Model Selection */}
-      <div className="border-t pt-6">
+      <div className="border-t pt-6 mt-6">
         {renderModelSettings(
           'chatAgentModel',
           'Chat Agent',
@@ -528,11 +563,69 @@ const AISettings = () => {
           'Valitse malli, jota käytetään tukihenkilöiden avustamisessa. Tämä malli antaa ehdotuksia ja ohjeita tikettien ratkaisemiseen.',
           <Users className="text-blue-500" size={20} />
         )}
-        {activeTab === 'ticket-generator' && renderModelSettings(
-          'ticketGeneratorModel',
-          'Ticket Generator',
-          'Valitse malli, jota käytetään harjoitustikettien generoinnissa. Tämä malli luo realistisia IT-tukitikettejä opiskelijoiden harjoittelua varten.',
-          <Sparkles className="text-purple-500" size={20} />
+        {activeTab === 'ticket-generator' && (
+          <>
+            {/* Ticket Generator Version */}
+            <div className="space-y-4 mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <Sparkles className="text-purple-500" size={16} />
+                Tikettien generaattorin versio
+              </h3>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <label className="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="ticketGeneratorVersion"
+                    value="modern"
+                    checked={settings.ticketGeneratorVersion === 'modern'}
+                    onChange={(e) => handleSettingChange('ticketGeneratorVersion', e.target.value)}
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">ModernTicketGenerator</span>
+                      <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded">Uusi</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Realistisempi käyttäjäsimulaatio: Aloittelijat kirjoittavat epämääräisesti ("netti ei toimi"), 
+                      ei teknisiä termejä, vaihteleva kirjoitustyyli
+                    </p>
+                  </div>
+                </label>
+                
+                <label className="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="ticketGeneratorVersion"
+                    value="legacy"
+                    checked={settings.ticketGeneratorVersion === 'legacy'}
+                    onChange={(e) => handleSettingChange('ticketGeneratorVersion', e.target.value)}
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">TicketGenerator</span>
+                      <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded">Perinteinen</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Vanha versio: Teknisesti tarkkoja tikettejä, sisältää DHCP/DNS-termejä myös aloittelijoilta
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            {/* Model Selection */}
+            <div className="border-t pt-6">
+              {renderModelSettings(
+                'ticketGeneratorModel',
+                'Ticket Generator Model',
+                'Valitse malli, jota käytetään harjoitustikettien generoinnissa.',
+                <Sparkles className="text-purple-500" size={20} />
+              )}
+            </div>
+          </>
         )}
         {activeTab === 'summarizer' && renderModelSettings(
           'summarizerModel',

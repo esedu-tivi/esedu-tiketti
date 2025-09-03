@@ -9,6 +9,7 @@ import { getSocketService } from '../services/socketService.js';
 import { prisma } from '../lib/prisma.js';
 import { successResponse, errorResponse, paginatedResponse, parsePaginationParams, createPaginationMeta, errorResponses } from '../utils/apiResponse.js';
 import { asyncHandler, NotFoundError, ValidationError, AuthorizationError } from '../middleware/errorHandler.js';
+import { sendMessageToDiscord, sendStatusUpdateToDiscord } from '../discord/messageSync.js';
 
 export const ticketController = {
   // Haetaan kaikki tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
@@ -170,6 +171,11 @@ export const ticketController = {
   // Poista tiketti
   deleteTicket: asyncHandler(async (req: Request, res: Response) => {
       await ticketService.deleteTicket(req.params.id);
+      
+      // Emit WebSocket event for ticket deletion
+      const socketService = getSocketService();
+      socketService.emitTicketDeleted(req.params.id);
+      
       res.status(204).send();
   }),
 
@@ -301,9 +307,33 @@ export const ticketController = {
         return res.status(400).json({ error: 'Invalid status' });
       }
 
+      // Get the old status before updating
+      const oldTicket = await prisma.ticket.findUnique({
+        where: { id },
+        select: { status: true, discordChannelId: true }
+      });
+
       const ticket = await ticketService.updateTicketStatus(id, status);
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket not found' });
+      }
+
+      // Send status update to Discord if applicable
+      if (oldTicket?.discordChannelId && oldTicket.status !== status) {
+        const updatedBy = req.user?.email ? 
+          await prisma.user.findUnique({ 
+            where: { email: req.user.email },
+            select: { name: true }
+          }) : null;
+        
+        if (updatedBy) {
+          await sendStatusUpdateToDiscord(
+            ticket.id,
+            oldTicket.status,
+            status,
+            updatedBy.name
+          );
+        }
       }
 
       // Create notification for the ticket creator
@@ -317,6 +347,7 @@ export const ticketController = {
       // Emit WebSocket event for status change
       const socketService = getSocketService();
       socketService.emitTicketStatusChanged(ticket);
+      socketService.emitTicketUpdated(ticket); // Also emit general update event
 
       res.json({ ticket });
   }),
@@ -468,7 +499,9 @@ export const ticketController = {
           user.id !== ticketDetails.createdById
         ) {
           aiGenerationNeeded = true;
-          aiApiUrl = process.env.FRONTEND_URL || 'http://localhost:3000'; // Assuming API route is accessible via frontend URL structure
+          // Use BACKEND_URL for self-referential API calls (important for Docker)
+          const port = process.env.PORT || 3001;
+          aiApiUrl = process.env.BACKEND_URL || `http://localhost:${port}`;
           aiToken = req.headers.authorization?.split(' ')[1] || '';
           aiPayload = {
             ticketId: id,
@@ -476,6 +509,21 @@ export const ticketController = {
             supportUserId: user.id
           };
           logger.info('AI response generation will be triggered for ticket:', id);
+        }
+
+        // Send to Discord if ticket originated there
+        if (ticketDetails.discordChannelId && !user.isDiscordUser) {
+          try {
+            await sendMessageToDiscord(
+              ticketDetails.id,
+              content,
+              user.name,
+              user.role
+            );
+            logger.info(`Comment sent to Discord for ticket ${ticketDetails.id}`);
+          } catch (error) {
+            logger.error('Error sending comment to Discord:', error);
+          }
         }
 
         // Respond to the client first
@@ -663,6 +711,23 @@ export const ticketController = {
         }
       });
 
+      // Send to Discord if ticket originated there
+      if (ticket.discordChannelId && !user.isDiscordUser) {
+        try {
+          await sendMessageToDiscord(
+            ticket.id,
+            content,
+            user.name,
+            user.role,
+            mediaUrl,
+            mediaType
+          );
+          logger.info(`Media comment sent to Discord for ticket ${ticket.id}`);
+        } catch (error) {
+          logger.error('Error sending media comment to Discord:', error);
+        }
+      }
+
       // Respond to client first
       res.status(201).json(comment);
       
@@ -806,6 +871,12 @@ export const ticketController = {
           break;
       }
 
+      // Get the ticket's Discord channel before updating
+      const oldTicket = await prisma.ticket.findUnique({
+        where: { id: req.params.id },
+        select: { discordChannelId: true, status: true }
+      });
+
       // Päivitä tiketin tila ja aseta käsittelijä
       const [updatedTicket, comment] = await prisma.$transaction([
         prisma.ticket.update({
@@ -844,6 +915,22 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (oldTicket?.discordChannelId && oldTicket.status !== TicketStatus.IN_PROGRESS) {
+        await sendStatusUpdateToDiscord(
+          updatedTicket.id,
+          oldTicket.status,
+          TicketStatus.IN_PROGRESS,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot && oldTicket && oldTicket.status !== TicketStatus.IN_PROGRESS) {
+        await discordBot.onTicketChanged('statusChanged', oldTicket.status, TicketStatus.IN_PROGRESS);
+      }
+
       // Don't create a notification when user takes the ticket themselves
       // The notification is unnecessary since they initiated the action
       
@@ -851,6 +938,7 @@ export const ticketController = {
       const socketService = getSocketService();
       socketService.emitTicketStatusChanged(updatedTicket);
       socketService.emitTicketAssigned(updatedTicket, user.email);
+      socketService.emitTicketUpdated(updatedTicket); // Also emit general update
       
       res.json({ ticket: updatedTicket });
   }),
@@ -930,6 +1018,22 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (ticket.discordChannelId) {
+        await sendStatusUpdateToDiscord(
+          ticket.id,
+          TicketStatus.IN_PROGRESS,
+          TicketStatus.OPEN,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot) {
+        await discordBot.onTicketChanged('statusChanged', TicketStatus.IN_PROGRESS, TicketStatus.OPEN);
+      }
+
       // Create notification for the ticket creator
       await createNotification(
         ticket.createdById,
@@ -942,6 +1046,7 @@ export const ticketController = {
       const socketService = getSocketService();
       socketService.emitTicketStatusChanged(updatedTicket);
       socketService.emitTicketAssigned(updatedTicket); // No email because unassigned
+      socketService.emitTicketUpdated(updatedTicket); // Also emit general update
 
       res.json({ ticket: updatedTicket });
   }),
@@ -1068,6 +1173,22 @@ export const ticketController = {
       // Lisää uusi kommentti tiketin tietoihin
       updatedTicket.comments.push(comment);
 
+      // Send status update to Discord if applicable
+      if (ticket.discordChannelId) {
+        await sendStatusUpdateToDiscord(
+          ticket.id,
+          ticket.status,
+          status,
+          user.name
+        );
+      }
+
+      // Update Discord bot status
+      const { discordBot } = await import('../discord/bot.js');
+      if (discordBot && ticket.status !== status) {
+        await discordBot.onTicketChanged('statusChanged', ticket.status, status);
+      }
+
       // Create notification for the ticket creator
       await createNotification(
         ticket.createdById,
@@ -1075,6 +1196,11 @@ export const ticketController = {
         `Tiketin "${ticket.title}" tila on muuttunut: ${status}`,
         ticket.id
       );
+
+      // Emit WebSocket events for real-time updates
+      const socketService = getSocketService();
+      socketService.emitTicketStatusChanged(updatedTicket);
+      socketService.emitTicketUpdated(updatedTicket);
 
       res.json({ ticket: updatedTicket });
   }),
@@ -1191,6 +1317,20 @@ export const ticketController = {
 
       // Lisää uudet kommentit tiketin tietoihin
       updatedTicket.comments.push(userComment, systemComment);
+
+      // Send transfer notification to Discord if applicable
+      if (ticket.discordChannelId) {
+        try {
+          await sendMessageToDiscord(
+            ticket.id,
+            `Tiketti siirretty: ${user.name} → ${targetUser.name}`,
+            'Järjestelmä',
+            'ADMIN'
+          );
+        } catch (error) {
+          logger.error('Error sending transfer notification to Discord:', error);
+        }
+      }
 
       // Create notification for the assigned user
       await createNotification(

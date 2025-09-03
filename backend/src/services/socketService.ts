@@ -291,6 +291,16 @@ class SocketService {
     logger.info(`[SocketService] Broadcasting ticketDeleted event for ticket ${ticketId}`);
     this.io.emit('ticketDeleted', { ticketId });
   }
+
+  // Broadcast ticket update event (generic)
+  broadcastTicketUpdate(ticketId: string, updateData: any) {
+    logger.info(`[SocketService] Broadcasting ticket update for ticket ${ticketId}`, updateData);
+    this.io.emit('ticketUpdate', {
+      ticketId,
+      ...updateData,
+      timestamp: new Date().toISOString()
+    });
+  }
 }
 
 let instance: SocketService | null = null;

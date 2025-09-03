@@ -70,14 +70,25 @@ Vaikka tämä projekti käyttää Viteä, jos käytössä olisi Create React App
 ### Reaaliaikainen Kommunikaatio (Socket.IO Client)
 *   **Hook:** `hooks/useSocket.js` muodostaa yhteyden backendin Socket.IO-palvelimeen käyttäjän JWT-tokenilla autentikoituen (`io(baseUrl, { auth: { token }})`).
 *   **Singleton Pattern:** Käyttää singleton-patternia välttääkseen useita yhteyksiä.
-*   **Tapahtumien Kuuntelu:** Hook palauttaa funktiot tapahtumien tilaamiseen ja peruuttamiseen.
-*   **Uudet tapahtumat:** 
+    - Yksi globaali Socket-instanssi koko sovellukselle
+    - Automaattinen uudelleenyhdistys katkoksen jälkeen
+    - Duplikaattitilauksien esto subscription-avaimilla
+*   **Tapahtumien Kuuntelu:** Hook palauttaa `subscribe` ja `unsubscribe` funktiot.
+    - `subscribe(event, callback)` - Tilaa tapahtuman ja palauttaa cleanup-funktion
+    - Automaattinen cleanup komponentin unmountissa
+    - Estää duplikaattikuuntelijat samalle tapahtuma-callback -yhdistelmälle
+*   **Tuetut tapahtumat:** 
     - `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`
     - `ticketAssigned`, `ticketDeleted`, `ticketAssignedToYou`
     - `newComment`, `newNotification`
     - `typingStart`, `typingStop`
-*   **React Query -integraatio:** WebSocket-tapahtumat päivittävät automaattisesti React Query:n välimuistin.
-*   **Yhteyden Tila:** Hook palauttaa yhteyden tilan ja automaattisen uudelleenyhdistämisen.
+*   **React Query -integraatio:** 
+    - WebSocket-tapahtumat kutsuvat `queryClient.invalidateQueries()`
+    - Automaattinen datan päivitys kaikissa näkymissä
+    - Ei tarvetta manuaaliselle tilan hallinnalle
+*   **Yhteyden Tila:** Hook hallitsee yhteyden tilaa sisäisesti
+    - Automaattinen token-päivitys autentikoinnin yhteydessä
+    - Sujuva uudelleenyhdistys ilman käyttäjän toimenpiteitä
 
 ### React Query Hooks ja Tilan Hallinta
 
@@ -212,6 +223,36 @@ src/
 *   **Komponentit:** Komponentit on pyritty pitämään pieninä ja fokusoituneina. `components/ui`-kansio sisältää Shadcn/UI:sta räätälöityjä tai suoraan käytettyjä peruskomponentteja. Ominaisuuskohtaiset komponentit (esim. `TicketList`, `CommentForm`) sijaitsevat omissa alikansioissaan (`components/Tickets`, `components/Comments`). `pages`-komponentit koostavat näitä pienempiä komponentteja kokonaisiksi sivunäkymiksi.
 *   **Reaaliaikaisuus:** `useSocket`-hook alustaa Socket.IO-yhteyden backend-palvelimeen käyttäjän autentikoinnin jälkeen. Hook tarjoaa funktiot tapahtumien kuunteluun (`socket.on`) ja lähettämiseen (`socket.emit`, jos tarpeen). Esimerkiksi kuunnellaan `new_notification`-tapahtumaa ja päivitetään ilmoituskomponentin tilaa tai näytetään toast-ilmoitus `React Hot Toast`:lla.
 *   **API-kommunikaatio:** `utils/api.js` luo ja konfiguroi keskitetyn Axios-instanssin, joka asettaa `baseURL`:n ja lisää automaattisesti JWT-tokenin `Authorization`-headeriin jokaiseen lähtevään pyyntöön (interceptorin avulla). `services`-kansion funktiot käyttävät tätä instanssia kommunikoidakseen backendin kanssa.
+
+### Reaaliaikaiset Päivitykset Näkymissä
+
+Frontend-sovelluksen eri näkymät päivittyvät automaattisesti reaaliajassa WebSocket-tapahtumien kautta:
+
+#### Admin-näkymä (`/admin`)
+*   Kuuntelee: `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`, `ticketDeleted`
+*   Päivittää tikettilistan automaattisesti ilman sivun päivitystä
+*   Näyttää kaikki tiketit järjestelmässä
+
+#### MyWork-näkymä (`/my-work`)
+*   Kuuntelee: `ticketAssigned`, `ticketStatusChanged`, `ticketDeleted`
+*   Näyttää tukihenkilölle osoitetut tiketit
+*   Päivittyy heti kun tiketti osoitetaan tai poistetaan
+
+#### MyTickets-näkymä (`/my-tickets`)
+*   Kuuntelee: `ticketCreated`, `ticketUpdated`, `ticketStatusChanged`, `ticketDeleted`
+*   Näyttää vain käyttäjän omat tiketit
+*   Invalidoi kyselyt kaikissa tapahtumissa varmistaakseen ajantasaisen näkymän
+
+#### Tikettinäkymä (`/tickets/:id`)
+*   Kuuntelee: `newComment`, `ticketUpdated`, `ticketStatusChanged`
+*   Päivittää kommentit ja tiketin tiedot reaaliajassa
+*   Näyttää kirjoitusindikaattorin (`typingStart`, `typingStop`)
+
+#### Toteutustapa
+*   Jokainen näkymä käyttää `useSocket` hookia tapahtumien tilaamiseen
+*   WebSocket-tapahtuma kutsuu `queryClient.invalidateQueries()` 
+*   React Query hakee päivitetyn datan automaattisesti
+*   Ei manuaalista tilan hallintaa tai duplikaattikoodia
 
 ## Näkymät ja Polut
 
@@ -414,4 +455,42 @@ Komponentti sijaitsee AI Tools -sivun "Analytiikka"-välilehdellä (`/ai-tools` 
    * Näyttää sopivan yksikön (tunnit tai minuutit) ratkaisuajoille.
    * Käsittelee myös tapaukset, joissa AI-avustajan käyttö ei paranna ratkaisuaikaa.
 
-// ... existing code ... 
+## Discord-integraation komponentit
+
+### Discord-asetukset (`/src/pages/DiscordSettings.jsx`)
+*   **Välilehdet:** Neljä välilehteä Discord-integraation hallintaan
+*   **Reaaliaikaiset tilastot:** Hakee tilastot header-kortteihin
+*   **Komponentit:**
+    - Discord-käyttäjät - käyttäjien hallinta
+    - Botin asetukset - integraation konfigurointi
+    - Kanavien hallinta - siivousasetusten määritys
+    - Tilastot - analytiikkanäkymä
+
+### Discord-käyttäjälista (`/src/components/Discord/DiscordUsersList.jsx`)
+*   **Käyttäjähallinta:** Discord-käyttäjien listaus ja toiminnot
+*   **Esto/esto poisto:** `toggleBlockUser` toiminnallisuus
+*   **Pudotusvalikko:** React Portal -toteutus overflow-ongelmien välttämiseksi
+*   **Ominaisuudet:**
+    - Haku käyttäjänimellä tai Discord ID:llä
+    - Käyttäjätilastot (tiketit, kommentit)
+    - Synkronointi Discord-tietojen kanssa
+    - Käyttäjien poisto tiketteineen
+    - Kolmen pisteen valikko (`MoreVertical` ikoni)
+
+### Discord-botin asetukset (`/src/components/Discord/DiscordBotConfig.jsx`)
+*   **Asetusten hallinta:** Botin konfiguraation muokkaus
+*   **Reaaliaikaiset päivitykset:** Asetukset voimaan heti tallennuksen jälkeen
+*   **Integraation toggle:** Käynnistys/sammutus-kytkin
+
+### Discord-kanavien asetukset (`/src/components/Discord/DiscordChannelSettings.jsx`)
+*   **Siivousasetukset:** TTL-arvojen määritys
+*   **Aikarajat:** Suljettujen ja passiivisten tikettien käsittely
+*   **Käyttäjäoikeudet:** Tikettien sulkemisoikeuksien hallinta
+
+### Discord-tilastot (`/src/components/Discord/DiscordStatistics.jsx`)
+*   **Visuaalinen analytiikka:** Recharts-kirjaston kaaviot
+*   **Aktiviteettikaavio:** 7 päivän tikettimäärät pylväskaaviona
+*   **Tilajakauma:** Tikettien statukset ympyräkaaviona
+*   **Suorituskykymittarit:** Ratkaisuaste ja aktiivisuusaste
+*   **Viimeisimmät tiketit:** Taulukkonäkymä uusimmista tiketeistä
+*   **Yhtenäinen tyyli:** Sama ulkoasu kuin Token-analytiikka sivulla 

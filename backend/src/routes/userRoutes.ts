@@ -48,9 +48,12 @@ router.get('/me', authMiddleware, asyncHandler(async (req: Request, res: Respons
     res.json(user);
 }));
 
-// Hae kaikki käyttäjät (admin ja support)
+// Hae kaikki käyttäjät (admin ja support) - exclude Discord users
 router.get('/', authMiddleware, requireRole([UserRole.ADMIN, UserRole.SUPPORT]), asyncHandler(async (req: Request, res: Response) => {
     const users = await prisma.user.findMany({
+      where: {
+        isDiscordUser: false // Exclude Discord users from user management
+      },
       select: {
         id: true,
         email: true,
@@ -135,13 +138,18 @@ router.put('/role', authMiddleware, asyncHandler(async (req: Request, res: Respo
     res.json(updatedUser);
 }));
 
-// Hae kaikki tukihenkilöt (sallittu tukihenkilöille ja admineille)
+// Hae kaikki tukihenkilöt (sallittu tukihenkilöille ja admineille) - exclude Discord users
 router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.ADMIN]), asyncHandler(async (req: Request, res: Response) => {
     const users = await prisma.user.findMany({
       where: {
-        OR: [
-          { role: UserRole.SUPPORT },
-          { role: UserRole.ADMIN }
+        AND: [
+          {
+            OR: [
+              { role: UserRole.SUPPORT },
+              { role: UserRole.ADMIN }
+            ]
+          },
+          { isDiscordUser: false } // Exclude Discord users
         ]
       },
       select: {

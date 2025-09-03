@@ -8,6 +8,8 @@ const prisma = new PrismaClient();
 // Validation schema for AI settings
 const AISettingsSchema = z.object({
   chatAgentVersion: z.enum(['modern', 'legacy']).optional(),
+  chatAgentSyncWithGenerator: z.boolean().optional(),
+  ticketGeneratorVersion: z.enum(['modern', 'legacy']).optional(),
   hintSystemEnabled: z.boolean().optional(),
   hintOnEarlyThreshold: z.number().min(1).max(10).optional(),
   hintOnProgressThreshold: z.number().min(1).max(10).nullable().optional(),
@@ -36,6 +38,8 @@ export const aiSettingsController = {
         settings = await prisma.aISettings.create({
           data: {
             chatAgentVersion: 'modern',
+            chatAgentSyncWithGenerator: false,
+            ticketGeneratorVersion: 'legacy',
             hintSystemEnabled: true,
             hintOnEarlyThreshold: 3,
             hintOnProgressThreshold: null,
@@ -86,6 +90,7 @@ export const aiSettingsController = {
             ...validatedData,
             updatedBy: userId,
             chatAgentVersion: validatedData.chatAgentVersion || 'modern',
+            ticketGeneratorVersion: validatedData.ticketGeneratorVersion || 'legacy',
             hintSystemEnabled: validatedData.hintSystemEnabled ?? true,
             hintOnEarlyThreshold: validatedData.hintOnEarlyThreshold || 3,
             hintCooldownTurns: validatedData.hintCooldownTurns ?? 0,
@@ -147,6 +152,8 @@ export const aiSettingsController = {
       const settings = await prisma.aISettings.create({
         data: {
           chatAgentVersion: 'modern',
+          chatAgentSyncWithGenerator: false,
+          ticketGeneratorVersion: 'legacy',
           hintSystemEnabled: true,
           hintOnEarlyThreshold: 3,
           hintOnProgressThreshold: null,

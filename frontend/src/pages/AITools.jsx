@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import axios from 'axios';
+import { authService } from '../services/authService';
 import AITicketGenerator from '../components/Admin/AITicketGenerator';
 import AiTicketAnalysis from '../components/Admin/AiTicketAnalysis';
 import ConversationModal from '../components/Admin/ConversationModal';
@@ -39,6 +41,31 @@ const AITools = () => {
   const [activeTab, setActiveTab] = useState('ticket-generator');
   // State for active AI Assistant subtab
   const [activeAssistantSubtab, setActiveAssistantSubtab] = useState('demo');
+  // State for OpenAI configuration check
+  const [isConfigured, setIsConfigured] = useState(null);
+  const [configDetails, setConfigDetails] = useState(null);
+
+  // Check OpenAI configuration on mount
+  useEffect(() => {
+    checkConfiguration();
+  }, []);
+
+  const checkConfiguration = async () => {
+    try {
+      const token = await authService.acquireToken();
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/ai/config-status`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setIsConfigured(response.data.data.isConfigured);
+      setConfigDetails(response.data.data.details);
+    } catch (error) {
+      console.error('Error checking OpenAI configuration:', error);
+      setIsConfigured(false);
+    }
+  };
 
   // State for conversation modal
   const [selectedConvTicketId, setSelectedConvTicketId] = useState(null);
@@ -168,6 +195,56 @@ const AITools = () => {
       description: 'Ohjeet AI-avustajan käyttöön ja toimintatapa'
     }
   ];
+
+  // Check if OpenAI is configured
+  if (isConfigured === false) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+          <div className="text-center">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 mb-4">
+              <Brain className="h-8 w-8 text-yellow-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">OpenAI API ei ole konfiguroitu</h2>
+            <p className="text-gray-600 mb-6">
+              AI-työkalujen käyttäminen vaatii OpenAI API -avaimen. Lisää seuraava ympäristömuuttuja:
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 text-left mb-6">
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <span className={`inline-block w-3 h-3 rounded-full mr-2 ${configDetails?.hasApiKey ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  <code className="text-sm">OPENAI_API_KEY</code>
+                  {configDetails?.hasApiKey && !configDetails?.isValidFormat && (
+                    <span className="ml-2 text-xs text-red-600">(Invalid format - must start with 'sk-')</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <button
+                onClick={() => window.history.back()}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Takaisin
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state while checking configuration
+  if (isConfigured === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Tarkistetaan OpenAI-konfiguraatiota...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 relative">

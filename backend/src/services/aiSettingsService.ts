@@ -5,6 +5,8 @@ const prisma = new PrismaClient();
 
 export interface AISettingsData {
   chatAgentVersion: string;
+  chatAgentSyncWithGenerator: boolean;
+  ticketGeneratorVersion: string;
   hintSystemEnabled: boolean;
   hintOnEarlyThreshold: number;
   hintOnProgressThreshold: number | null;
@@ -38,6 +40,8 @@ class AISettingsService {
         settings = await prisma.aISettings.create({
           data: {
             chatAgentVersion: 'modern',
+            chatAgentSyncWithGenerator: false,
+            ticketGeneratorVersion: 'legacy',
             hintSystemEnabled: true,
             hintOnEarlyThreshold: 3,
             hintOnProgressThreshold: null,
@@ -56,6 +60,8 @@ class AISettingsService {
       // Update cache
       this.cachedSettings = {
         chatAgentVersion: settings.chatAgentVersion,
+        chatAgentSyncWithGenerator: settings.chatAgentSyncWithGenerator,
+        ticketGeneratorVersion: settings.ticketGeneratorVersion,
         hintSystemEnabled: settings.hintSystemEnabled,
         hintOnEarlyThreshold: settings.hintOnEarlyThreshold,
         hintOnProgressThreshold: settings.hintOnProgressThreshold,
@@ -76,6 +82,8 @@ class AISettingsService {
       // Return default settings on error
       return {
         chatAgentVersion: 'modern',
+        chatAgentSyncWithGenerator: false,
+        ticketGeneratorVersion: 'legacy',
         hintSystemEnabled: true,
         hintOnEarlyThreshold: 3,
         hintOnProgressThreshold: null,
@@ -100,6 +108,12 @@ class AISettingsService {
   async useModernChatAgent(): Promise<boolean> {
     const settings = await this.getSettings();
     return settings.chatAgentVersion === 'modern';
+  }
+  
+  // Check if we should use modern ticket generator
+  async useModernTicketGenerator(): Promise<boolean> {
+    const settings = await this.getSettings();
+    return settings.ticketGeneratorVersion === 'modern';
   }
 
   // Check if hint system is enabled

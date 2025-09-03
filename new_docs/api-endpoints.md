@@ -1102,4 +1102,186 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
             }
           ]
         }
-        ``` 
+        ```
+
+---
+
+## Discord-integraatio
+
+### Discord-asetukset
+
+#### GET /api/discord/settings
+- **Kuvaus**: Hakee Discord-integraation asetukset
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "settings": {
+          "id": "uuid",
+          "cleanupTTLHours": 24,
+          "inactiveTTLHours": 48,
+          "statusRotationMs": 10000,
+          "showTicketStats": true,
+          "showCleanupTimer": true,
+          "defaultCategoryName": "Discord",
+          "allowUserClose": true,
+          "enableIntegration": false
+        }
+      }
+    }
+    ```
+
+#### PUT /api/discord/settings
+- **Kuvaus**: Päivittää Discord-integraation asetukset
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Body**:
+  ```json
+  {
+    "cleanupTTLHours": 24,
+    "inactiveTTLHours": 48,
+    "statusRotationMs": 10000,
+    "showTicketStats": true,
+    "showCleanupTimer": true,
+    "defaultCategoryName": "Discord",
+    "allowUserClose": true,
+    "enableIntegration": true
+  }
+  ```
+- **Vastaus**: 200 OK
+
+#### POST /api/discord/settings/reset
+- **Kuvaus**: Palauttaa Discord-asetukset oletusarvoihin
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+
+### Discord-käyttäjät
+
+#### GET /api/discord/users
+- **Kuvaus**: Hakee Discord-käyttäjät
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Query-parametrit**:
+  - `includeStats` (boolean): Sisällytä tilastot (default: true)
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "users": [
+          {
+            "id": "user-uuid",
+            "email": "discord_12345@discord.local",
+            "name": "KäyttäjäNimi",
+            "discordId": "12345",
+            "discordUsername": "KäyttäjäNimi",
+            "isBlocked": false,
+            "createdAt": "2024-05-01T10:00:00.000Z",
+            "_count": {
+              "tickets": 5,
+              "comments": 12
+            }
+          }
+        ]
+      }
+    }
+    ```
+
+#### PUT /api/discord/users/:id/block
+- **Kuvaus**: Estää tai poistaa eston Discord-käyttäjältä
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Body**:
+  ```json
+  {
+    "isBlocked": true
+  }
+  ```
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "user": {
+          "id": "user-uuid",
+          "name": "KäyttäjäNimi",
+          "discordUsername": "KäyttäjäNimi",
+          "isBlocked": true
+        }
+      },
+      "message": "Discord user blocked successfully"
+    }
+    ```
+
+#### DELETE /api/discord/users/:id
+- **Kuvaus**: Poistaa Discord-käyttäjän
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Body**:
+  ```json
+  {
+    "deleteTickets": true
+  }
+  ```
+- **Vastaus**: 200 OK
+
+#### POST /api/discord/users/:id/sync
+- **Kuvaus**: Synkronoi Discord-käyttäjän tiedot
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **URL-parametrit**:
+  - `id`: Käyttäjän UUID
+- **Vastaus**: 200 OK
+
+### Discord-tilastot
+
+#### GET /api/discord/statistics
+- **Kuvaus**: Hakee Discord-integraation tilastot
+- **Autentikointi**: Vaaditaan (Bearer token)
+- **Rooli**: ADMIN
+- **Vastaus**: 200 OK
+  - Body:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "statistics": {
+          "totalUsers": 25,
+          "totalTickets": 150,
+          "activeChannels": 5,
+          "avgResponseTimeHours": 2.5,
+          "activityChart": [
+            {
+              "date": "2024-05-01",
+              "count": 10,
+              "dayName": "Ma"
+            }
+          ],
+          "recentActivity": [
+            {
+              "id": "ticket-uuid",
+              "title": "Ongelma tulostimen kanssa",
+              "status": "OPEN",
+              "createdAt": "2024-05-02T10:00:00.000Z",
+              "createdBy": {
+                "name": "KäyttäjäNimi",
+                "discordUsername": "KäyttäjäNimi"
+              }
+            }
+          ],
+          "lastUpdated": "2024-05-02T12:00:00.000Z"
+        }
+      }
+    }
+    ``` 

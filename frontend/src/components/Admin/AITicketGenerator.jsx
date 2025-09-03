@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { authService } from '../../services/authService';
 import { useUsers } from '../../hooks/useUsers';
 import { useCategories } from '../../hooks/useCategories';
+import { useAISettings } from '../../hooks/useAISettings';
 import TicketDetailsModal from '../Tickets/TicketDetailsModal';
 import { 
   Sparkles, 
@@ -43,19 +44,23 @@ const AITicketGenerator = () => {
   // Get categories and users from hooks
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const { data: allUsers } = useUsers();
+  const { settings: aiSettings } = useAISettings();
   
   // State for form inputs
   const [complexity, setComplexity] = useState('moderate');
   const [category, setCategory] = useState('');
   const [userProfile, setUserProfile] = useState('student');
   const [assignToId, setAssignToId] = useState('');
-  const [responseFormat, setResponseFormat] = useState('auto');
   const [ticketCount, setTicketCount] = useState(1); // New state for ticket quantity
+  
+  // Manual override states (for ModernTicketGenerator)
+  const [useManualOverrides, setUseManualOverrides] = useState(false);
+  const [manualStyle, setManualStyle] = useState('');
+  const [manualTechnicalLevel, setManualTechnicalLevel] = useState('');
   
   // State for dropdown options 
   const [complexityOptions, setComplexityOptions] = useState([]);
   const [userProfileOptions, setUserProfileOptions] = useState([]);
-  const [responseFormatOptions, setResponseFormatOptions] = useState(['TEKSTI', 'KUVA', 'VIDEO']);
   
   // Derive support users from allUsers
   const supportUsers = allUsers?.filter(u => u.role === 'SUPPORT' || u.role === 'ADMIN') || [];
@@ -157,7 +162,7 @@ const AITicketGenerator = () => {
     e.preventDefault();
     
     const count = parseInt(ticketCount) || 1;
-    addLog('info', `Pyydetty ${count} esikatselun generointia`, { count, complexity, category, userProfile, responseFormat, assignToId: count === 1 ? assignToId : 'N/A' }); // Log initial request
+    addLog('info', `Pyydetty ${count} esikatselun generointia`, { count, complexity, category, userProfile, assignToId: count === 1 ? assignToId : 'N/A' }); // Log initial request
 
     if (count <= 0) {
       toast.error('Tikettien määrän tulee olla vähintään 1.');
@@ -200,11 +205,11 @@ const AITicketGenerator = () => {
         complexity,
         category,
         userProfile,
-          assignToId: currentAssignToId 
+        assignToId: currentAssignToId,
+        // Include manual overrides if enabled
+        ...(useManualOverrides && manualStyle && { manualStyle }),
+        ...(useManualOverrides && manualTechnicalLevel && { manualTechnicalLevel })
       };
-      if (responseFormat !== 'auto') {
-        payload.responseFormat = responseFormat;
-      }
       
         addLog('debug', `Lähetetään esikatselupyyntö ${i + 1}`, { payload }); // Log payload before sending
         addLog('debug', `Processing preview item ${i + 1}`, { complexity: payload.complexity, category: payload.category, userProfile: payload.userProfile }); // Log item details
@@ -222,6 +227,17 @@ const AITicketGenerator = () => {
             solution: response.data.solution, 
             id: `preview-${i}` // Temporary ID for list rendering
           });
+          
+          // Log metadata if available (from ModernTicketGenerator)
+          if (response.data.ticketData.metadata && response.data.ticketData.metadata.generatorVersion === 'modern') {
+            const meta = response.data.ticketData.metadata;
+            addLog('info', `📊 Tiketti generoitu: Moderni generaattori`, {
+              writingStyle: meta.writingStyle,
+              technicalLevel: meta.technicalLevel,
+              technicalAccuracy: `${(meta.technicalAccuracy * 100).toFixed(0)}%`
+            });
+          }
+          
           addLog('success', `Esikatselu ${i + 1} luotu (${generationTime}s)`, { title: response.data.ticketData.title, previewId: `preview-${i}` }); // Added previewId
           addLog('debug', `Received preview response ${i + 1}`, { responseData: response.data }); // Log raw response
         } catch (error) {
@@ -413,10 +429,10 @@ const AITicketGenerator = () => {
         category,
         userProfile,
         // assignToId: undefined, // Explicitly undefined for reroll
+        // Include manual overrides if enabled
+        ...(useManualOverrides && manualStyle && { manualStyle }),
+        ...(useManualOverrides && manualTechnicalLevel && { manualTechnicalLevel })
       };
-      if (responseFormat !== 'auto') {
-        payload.responseFormat = responseFormat;
-      }
 
       addLog('debug', `Sending reroll request for ${previewId}`, { payload });
       const startTime = performance.now();
@@ -649,39 +665,6 @@ const AITicketGenerator = () => {
                 </div>
               </div>
               
-              {/* Response Format */}
-              <div>
-                <label htmlFor="responseFormat" className="block text-sm font-medium text-gray-700 mb-1">
-                  Haluttu vastausmuoto (Valinnainen)
-                </label>
-                <div className="relative">
-                  <select
-                    id="responseFormat"
-                    value={responseFormat}
-                    onChange={(e) => setResponseFormat(e.target.value)}
-                    disabled={isLoading || isFetching}
-                    className="w-full pl-3 pr-10 py-2.5 text-base border border-gray-300 focus:outline-none
-                            focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg 
-                            shadow-sm appearance-none bg-white"
-                  >
-                    <option value="auto">Automaattinen (AI päättää)</option>
-                    {responseFormatOptions.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {getResponseFormatContent(opt).label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <ChevronDown size={16} className="text-gray-500" />
-                  </div>
-                </div>
-                {responseFormat !== 'auto' && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {getResponseFormatContent(responseFormat).description}
-                  </p>
-                )}
-              </div>
-              
               {/* Advanced options toggle and content */}
               <div className="pt-2">
               <button
@@ -725,6 +708,69 @@ const AITicketGenerator = () => {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Manual overrides for ModernTicketGenerator - only show if modern generator is enabled */}
+                  {aiSettings?.ticketGeneratorVersion === 'modern' && (
+                    <div className="mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                      <div className="flex items-center mb-2">
+                        <input
+                          type="checkbox"
+                          id="useManualOverrides"
+                          checked={useManualOverrides}
+                          onChange={(e) => setUseManualOverrides(e.target.checked)}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="useManualOverrides" className="ml-2 text-sm font-medium text-gray-700">
+                          Manuaaliset asetukset (ModernTicketGenerator)
+                        </label>
+                      </div>
+                    
+                    {useManualOverrides && (
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <label htmlFor="manualStyle" className="block text-sm font-medium text-gray-700 mb-1">
+                            Kirjoitustyyli
+                          </label>
+                          <select
+                            id="manualStyle"
+                            value={manualStyle}
+                            onChange={(e) => setManualStyle(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                          >
+                            <option value="">Automaattinen</option>
+                            <option value="panic">Paniikki - Hätäinen ja huutava</option>
+                            <option value="confused">Hämmentynyt - Epävarma ja kysyvä</option>
+                            <option value="frustrated">Turhautunut - Ärtynyt ja valittava</option>
+                            <option value="polite">Kohtelias - Muodollinen ja kiitollinen</option>
+                            <option value="brief">Lyhyt - Minimaaliset viestit</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="manualTechnicalLevel" className="block text-sm font-medium text-gray-700 mb-1">
+                            Tekninen taso
+                          </label>
+                          <select
+                            id="manualTechnicalLevel"
+                            value={manualTechnicalLevel}
+                            onChange={(e) => setManualTechnicalLevel(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                          >
+                            <option value="">Automaattinen (profiilista)</option>
+                            <option value="beginner">Aloittelija - Ei teknisiä termejä</option>
+                            <option value="intermediate">Keskitaso - Joitain termejä</option>
+                            <option value="advanced">Edistynyt - Tekninen kieli</option>
+                          </select>
+                        </div>
+                        
+                        <p className="text-xs text-gray-600 italic">
+                          Huom: Nämä asetukset toimivat vain ModernTicketGenerator-version kanssa.
+                          Tarkista AI-asetuksista, että se on käytössä.
+                        </p>
+                      </div>
+                    )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -808,10 +854,31 @@ const AITicketGenerator = () => {
                             <ChevronDown size={16} className="text-gray-400 group-open:rotate-180 transition-transform" />
                           </summary>
                           <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-3">
+                            {/* Show metadata if available (only for modern generator) */}
+                            {item.ticketData.metadata && item.ticketData.metadata.generatorVersion === 'modern' && (
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  ✨ Moderni generaattori
+                                </span>
+                                {item.ticketData.metadata.writingStyle && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                    Tyyli: {item.ticketData.metadata.writingStyle}
+                                  </span>
+                                )}
+                                {item.ticketData.metadata.technicalLevel && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Taso: {item.ticketData.metadata.technicalLevel}
+                                  </span>
+                                )}
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                                  Tarkkuus: {(item.ticketData.metadata.technicalAccuracy * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            )}
                             <div className="flex flex-wrap gap-3 text-sm text-gray-500">
                               {/* Device, Response Format, Assigned User spans... */}
                               <span className="flex items-center"><HardDrive size={14} className="mr-1" />Laite: {item.ticketData.device}</span>
-                              <span className="flex items-center">{getResponseFormatContent(item.ticketData.responseFormat).icon}<span className="ml-1">{getResponseFormatContent(item.ticketData.responseFormat).label}</span></span>
+                              <span className="flex items-center">{getResponseFormatContent('TEKSTI').icon}<span className="ml-1">{getResponseFormatContent('TEKSTI').label}</span></span>
                               {item.ticketData.assignedToId && (
                                 <span className="flex items-center"><Users size={14} className="mr-1" />Osoitettu: {supportUsers.find(u => u.id === item.ticketData.assignedToId)?.name || item.ticketData.assignedToId}</span>
                               )}

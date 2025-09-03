@@ -5,6 +5,21 @@ import fs from 'fs/promises'; // Added for file deletion
 import path from 'path'; // Added for path construction
 import { prisma } from '../lib/prisma.js';
 import { NotFoundError, ValidationError, AuthorizationError } from '../middleware/errorHandler.js';
+import { discordChannelCleanup } from '../discord/channelCleanup.js';
+
+// Check if Discord is configured
+const isDiscordEnabled = process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_CLIENT_ID;
+
+// Dynamically import Discord bot if enabled
+let discordBot: any = null;
+if (isDiscordEnabled) {
+  import('../discord/bot.js').then(module => {
+    discordBot = module.discordBot;
+    logger.info('Discord bot integration loaded for ticket service');
+  }).catch(err => {
+    logger.warn('Discord bot not available for ticket service:', err.message);
+  });
+}
 
 // Helper function to get absolute path for uploads
 const getUploadPath = (relativePath: string): string => {
@@ -78,6 +93,13 @@ export const ticketService = {
       }
     });
 
+    // Update Discord bot status if available
+    if (discordBot && ticket.sourceType !== 'DISCORD') {
+      // Only update for non-Discord tickets (Discord tickets already update)
+      await discordBot.onTicketChanged('created', undefined, ticket.status);
+      logger.debug('Discord bot status updated for new ticket creation');
+    }
+
     // If there are attachments, create them and link to the ticket
     if (data.attachments && data.attachments.length > 0) {
       for (const attachment of data.attachments) {
@@ -122,6 +144,12 @@ export const ticketService = {
 
   // Päivitä tiketti
   updateTicket: async (id: string, data: UpdateTicketDTO) => {
+    // Get the old ticket status for cache update
+    const oldTicket = await prisma.ticket.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
     const updateData: any = { ...data };
     
     if (data.assignedToId) {
@@ -138,7 +166,7 @@ export const ticketService = {
       updateData.responseFormat = data.responseFormat;
     }
 
-    return prisma.ticket.update({
+    const updatedTicket = await prisma.ticket.update({
       where: { id },
       data: updateData,
       include: {
@@ -152,14 +180,26 @@ export const ticketService = {
         }
       }
     });
+
+    // Update Discord bot status if status changed
+    if (discordBot && data.status && oldTicket && oldTicket.status !== data.status) {
+      await discordBot.onTicketChanged('statusChanged', oldTicket.status, data.status);
+      logger.debug(`Discord bot status updated for status change: ${oldTicket.status} -> ${data.status}`);
+    }
+
+    return updatedTicket;
   },
 
   // Poista tiketti, siihen liittyvät liitteet, kommentit ja KnowledgeArticle (jos AI-generoitu)
   deleteTicket: async (id: string) => {
-    // Haetaan ensin tiketti, jotta tiedetään onko se AI-generoitu
+    // Haetaan ensin tiketti, jotta tiedetään onko se AI-generoitu ja onko sillä Discord-kanava
     const ticketToDelete = await prisma.ticket.findUnique({
       where: { id },
-      select: { isAiGenerated: true } // Valitaan vain tarvittava kenttä
+      select: { 
+        isAiGenerated: true,
+        discordChannelId: true, // Tarvitaan Discord-kanavan poistoon
+        status: true // Tarvitaan cache päivitykseen
+      }
     });
 
     // Käytetään transaktiota varmistamaan, että kaikki poistot onnistuvat tai mikään ei onnistu
@@ -251,6 +291,19 @@ export const ticketService = {
       });
       logger.info(`Deleted ${deletedSupportConversations.count} SupportAssistantConversation records related to ticket ${id}.`);
 
+      // NEW STEP: Delete Discord channel if it exists
+      // This must be done before deleting the ticket to access the discordChannelId
+      if (ticketToDelete?.discordChannelId) {
+        logger.info(`Ticket ${id} has Discord channel ${ticketToDelete.discordChannelId}. Attempting to delete it.`);
+        try {
+          await discordChannelCleanup.cleanupTicket(id);
+          logger.info(`Successfully deleted Discord channel for ticket ${id}.`);
+        } catch (error) {
+          // Log error but don't fail the transaction - Discord channel might already be deleted
+          logger.error(`Failed to delete Discord channel for ticket ${id}:`, error);
+        }
+      }
+
       // 6. Poista itse tiketti
       logger.info(`Deleting ticket ${id} itself within transaction.`);
       const deletedTicket = await tx.ticket.delete({
@@ -258,12 +311,25 @@ export const ticketService = {
       });
       logger.info(`Successfully deleted ticket ${id} and related data within transaction.`);
       return deletedTicket; // Palautetaan poistettu tiketti transaktiosta
+    }).then(async result => {
+      // Update Discord bot status after successful deletion
+      if (discordBot && ticketToDelete?.status) {
+        await discordBot.onTicketChanged('deleted', ticketToDelete.status, undefined);
+        logger.debug(`Discord bot status updated for deleted ticket with status: ${ticketToDelete.status}`);
+      }
+      return result;
     });
   },
 
   // Päivitä tiketin tila
   updateTicketStatus: async (id: string, status: TicketStatus) => {
-    return await prisma.ticket.update({
+    // Get the old status for Discord bot update
+    const oldTicket = await prisma.ticket.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    const updatedTicket = await prisma.ticket.update({
       where: { id },
       data: { status },
       include: {
@@ -284,6 +350,14 @@ export const ticketService = {
         }
       }
     });
+
+    // Update Discord bot status if status changed
+    if (discordBot && oldTicket && oldTicket.status !== status) {
+      await discordBot.onTicketChanged('statusChanged', oldTicket.status, status);
+      logger.debug(`Discord bot status updated for status change: ${oldTicket.status} -> ${status}`);
+    }
+
+    return updatedTicket;
   },
 
   // Aseta tiketin käsittelijä

@@ -27,6 +27,9 @@ const formatCommentContent = (content) => {
   });
 };
 
+// Get API base URL
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+
 // Render media content based on type
 const MediaContent = ({ mediaUrl, mediaType, onClick }) => {
   if (!mediaUrl) return null;
@@ -34,7 +37,7 @@ const MediaContent = ({ mediaUrl, mediaType, onClick }) => {
   // Ensure mediaUrl has the full path to the backend
   const fullMediaUrl = mediaUrl.startsWith('http') 
     ? mediaUrl 
-    : `http://localhost:3001${mediaUrl}`;
+    : `${API_BASE_URL}${mediaUrl}`;
   
   // Handle image content
   if (mediaType === 'image') {

@@ -119,19 +119,32 @@ interface ChatAgentResponse {
  */
 export class ChatAgent {
   private model: ChatOpenAI | null = null;
+  private currentModelName: string | null = null;
   
   constructor() {
     logger.info('ChatAgent: Created - model will be initialized on first use');
   }
   
   private async initializeModel(): Promise<void> {
-    if (this.model) return;
-    
     const modelName = await aiSettingsService.getModelForAgent('chat');
+    
+    // Check if model needs to be reinitialized due to settings change
+    if (this.model && this.currentModelName === modelName) {
+      return; // Model is already initialized with correct settings
+    }
+    
+    // Initialize or reinitialize the model
+    logger.info('ChatAgent: Initializing model', { 
+      previousModel: this.currentModelName, 
+      newModel: modelName,
+      isReinitializing: !!this.model
+    });
+    
     this.model = new ChatOpenAI({
       openAIApiKey: AI_CONFIG.openai.apiKey,
       model: modelName,  // Use 'model' instead of deprecated 'modelName'
     });
+    this.currentModelName = modelName;
     
     logger.info('ChatAgent: Model initialized:', { model: modelName });
   }

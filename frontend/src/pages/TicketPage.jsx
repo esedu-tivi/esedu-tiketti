@@ -42,6 +42,8 @@ import {
 import CommentSection from '../components/Tickets/CommentSection';
 import SupportAssistantChat from '../components/AI/SupportAssistantChat';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+
 const SUPPORT_COLOR = {
   bg: 'bg-[#92C01F]',
   bgLight: 'bg-[#92C01F]/10',
@@ -1012,7 +1014,7 @@ export default function TicketPage() {
                       >
                         <div className="relative">
                           <img 
-                            src={`http://localhost:3001${attachment.path}`} 
+                            src={`${API_BASE_URL}${attachment.path}`} 
                             alt={attachment.filename} 
                             className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                           />
@@ -1025,7 +1027,7 @@ export default function TicketPage() {
                       </div>
                     ) : attachment.mimetype.startsWith('video/') ? (
                       <a 
-                        href={`http://localhost:3001${attachment.path}`} 
+                        href={`${API_BASE_URL}${attachment.path}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block"
@@ -1040,7 +1042,7 @@ export default function TicketPage() {
                       </a>
                     ) : (
                       <a 
-                        href={`http://localhost:3001${attachment.path}`} 
+                        href={`${API_BASE_URL}${attachment.path}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="block"
@@ -1075,7 +1077,7 @@ export default function TicketPage() {
                   </button>
                 </div>
                 <img 
-                  src={`http://localhost:3001${selectedImage.path}`} 
+                  src={`${API_BASE_URL}${selectedImage.path}`} 
                   alt={selectedImage.filename} 
                   className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
                   onClick={(e) => e.stopPropagation()}

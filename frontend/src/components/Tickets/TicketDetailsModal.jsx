@@ -43,6 +43,8 @@ import {
 import CommentSection from '../Tickets/CommentSection';
 import SupportAssistantChat from '../AI/SupportAssistantChat';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
+
 // Add keyframe animations
 import { keyframes, css } from '@emotion/react';
 import { Global } from '@emotion/react';
@@ -150,48 +152,72 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
   const { subscribe } = useSocket();
   const [activeTab, setActiveTab] = useState('details');
   const [showAssistantChat, setShowAssistantChat] = useState(false);
+  const [conversationLoading, setConversationLoading] = useState(false);
 
   const {
     data: ticket,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ['ticket', ticketId],
     queryFn: () => fetchTicket(ticketId),
     enabled: !!ticketId,
   });
 
+  // Refetch data when switching to conversation tab to ensure fresh data
+  useEffect(() => {
+    if (activeTab === 'conversation' && ticketId) {
+      setConversationLoading(true);
+      refetch().finally(() => {
+        setConversationLoading(false);
+      });
+    }
+  }, [activeTab, ticketId, refetch]);
+
   useEffect(() => {
     if (!ticketId || !subscribe || !queryClient) return;
 
-    console.log(`[TicketDetailsModal] useEffect triggered with ticketId: ${ticketId}`);
-
-    console.log(`[Socket] Subscribing to newComment events for ticket ${ticketId}`);
+    let isActive = true;
+    const unsubscribers = [];
 
     const setupSubscription = async () => {
+      if (!isActive) return;
+      
       try {
-        const unsubscribe = await subscribe('newComment', (commentData) => {
-          console.log(`[Socket] Received newComment event:`, commentData);
+        // Subscribe to new comments
+        const unsubComment = await subscribe('newComment', (commentData) => {
           if (commentData && commentData.ticketId === ticketId) {
-            console.log(`[Socket] Comment matches current ticket (${ticketId}). Invalidating query.`);
             queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
-          } else {
-             console.log(`[Socket] Comment does not match current ticket (${ticketId}). Ignoring.`);
           }
         });
+        if (isActive) unsubscribers.push(unsubComment);
 
-        return unsubscribe;
+        // Subscribe to ticket status changes
+        const unsubStatus = await subscribe('ticketStatusChanged', (statusData) => {
+          if (statusData && statusData.ticketId === ticketId) {
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+          }
+        });
+        if (isActive) unsubscribers.push(unsubStatus);
+
+        // Subscribe to general ticket updates
+        const unsubUpdate = await subscribe('ticketUpdated', (updateData) => {
+          if (updateData && updateData.id === ticketId) {
+            queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+          }
+        });
+        if (isActive) unsubscribers.push(unsubUpdate);
       } catch (error) {
-        console.error('[Socket] Error setting up newComment subscription:', error);
-        return () => {};
+        console.error('[Socket] Error setting up subscriptions:', error);
       }
     };
 
-    const cleanupPromise = setupSubscription();
+    setupSubscription();
 
     return () => {
-      console.log(`[Socket] Cleaning up newComment subscription for ticket ${ticketId}`);
-      cleanupPromise.then(cleanup => cleanup());
+      isActive = false;
+      unsubscribers.forEach(unsub => unsub && unsub());
     };
   }, [ticketId, subscribe, queryClient]);
 
@@ -1161,25 +1187,32 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                 {/* Conversation tab content */}
                 {activeTab === 'conversation' && (
                   <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 animate-fadeIn">
-                    <CommentSection
-                      comments={(
-                        (ticketData.comments || [])
-                        .filter(comment => comment.author?.email !== 'system@esedu.fi')
-                        .sort((a, b) => {
-                          const dateDiff = new Date(a.createdAt) - new Date(b.createdAt);
-                          if (dateDiff !== 0) return dateDiff;
-                          if (a.id < b.id) return -1;
-                          if (a.id > b.id) return 1;
-                          return 0;
-                        })
-                      )}
-                      newComment={newComment}
-                      setNewComment={setNewComment}
-                      handleAddComment={handleAddComment}
-                      addCommentMutation={addCommentMutation}
-                      ticket={ticketData}
-                      onAddMediaComment={handleAddMediaComment}
-                    />
+                    {conversationLoading ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#92C01F]"></div>
+                        <p className="mt-4 text-sm text-gray-500">Päivitetään keskustelua...</p>
+                      </div>
+                    ) : (
+                      <CommentSection
+                        comments={(
+                          (ticketData.comments || [])
+                          .filter(comment => comment.author?.email !== 'system@esedu.fi')
+                          .sort((a, b) => {
+                            const dateDiff = new Date(a.createdAt) - new Date(b.createdAt);
+                            if (dateDiff !== 0) return dateDiff;
+                            if (a.id < b.id) return -1;
+                            if (a.id > b.id) return 1;
+                            return 0;
+                          })
+                        )}
+                        newComment={newComment}
+                        setNewComment={setNewComment}
+                        handleAddComment={handleAddComment}
+                        addCommentMutation={addCommentMutation}
+                        ticket={ticketData}
+                        onAddMediaComment={handleAddMediaComment}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1204,7 +1237,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                         >
                           <div className="relative">
                             <img 
-                              src={`http://localhost:3001${attachment.path}`} 
+                              src={`${API_BASE_URL}${attachment.path}`} 
                               alt={attachment.filename} 
                               className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
                             />
@@ -1217,7 +1250,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                         </div>
                       ) : attachment.mimetype.startsWith('video/') ? (
                         <a 
-                          href={`http://localhost:3001${attachment.path}`} 
+                          href={`${API_BASE_URL}${attachment.path}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="block"
@@ -1232,7 +1265,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                         </a>
                       ) : (
                         <a 
-                          href={`http://localhost:3001${attachment.path}`} 
+                          href={`${API_BASE_URL}${attachment.path}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="block"
@@ -1366,7 +1399,7 @@ export default function TicketDetailsModal({ ticketId, onClose }) {
                     </button>
                   </div>
                   <img 
-                    src={`http://localhost:3001${selectedImage.path}`} 
+                    src={`${API_BASE_URL}${selectedImage.path}`} 
                     alt={selectedImage.filename} 
                     className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg shadow-xl"
                     onClick={(e) => e.stopPropagation()}
