@@ -4,6 +4,13 @@ Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedost
 
 # 03.09.2025 - EnhancedModernChatAgent with Style Synchronization & Full Ticket Generator Integration
 
+## Fix: Azure AD token validation in production (v1 vs v2 JWKS)
+- fix: Resolved `invalid signature` errors for Azure AD tokens with issuer `https://sts.windows.net/{tenant}/`.
+  - Root cause: Middleware fetched only v2 JWKS (`.../discovery/v2.0/keys`) even when tokens were v1 (`sts.windows.net/...`).
+  - Solution: Added dynamic JWKS selection and fallback between v1 (`.../discovery/keys`) and v2 (`.../discovery/v2.0/keys`) based on token issuer.
+  - Improved diagnostics to log audience/issuer and JWKS client used.
+  - Documented guidance that backend only accepts tokens with `aud = AZURE_CLIENT_ID` and will reject Microsoft Graph tokens (`aud = 00000003-0000-0000-c000-000000000000`).
+
 ## Complete Ticket Generator Frontend Integration (Fixed)
 - **feat:** Full integration of ModernTicketGeneratorAgent with frontend ticket generator
   - Added metadata display in ticket previews showing generator version, writing style, technical level

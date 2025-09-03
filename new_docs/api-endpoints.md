@@ -6,6 +6,8 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 
 *   **Perus-URL:** Kaikki API-polut alkavat oletusarvoisesti `/api` (tarkista `backend/src/app.ts` tai `routes/index.ts` tarkan version varalta, esim. `/api/v1`).
 *   **Autentikointi:** Useimmat päätepisteet vaativat autentikoinnin (`authMiddleware`). Pyynnön tulee sisältää `Authorization`-header, jonka arvo on `Bearer <JWT-token>`. Backend tukee sekä Azure AD (RS256) että local JWT (HS256) tokeneita.
+    - Azure AD -tokeneista hyväksytään vain oman API:n yleisölle (aud) myönnetyt tokenit (aud = `AZURE_CLIENT_ID`). Microsoft Graph -tokenit (aud = `00000003-0000-0000-c000-000000000000`) hylätään.
+    - Tokenin issuer voi olla v1 (`https://sts.windows.net/{tenant}/`) tai v2 (`https://login.microsoftonline.com/{tenant}/v2.0`). Middleware validoi allekirjoituksen oikeaa JWKS-lähdettä vasten ja tekee tarvittaessa fallbackin.
 *   **Roolit:** Pääsy tiettyihin päätepisteisiin ja toimintoihin on rajoitettu käyttäjän roolin perusteella (USER, SUPPORT, ADMIN) käyttäen `requireRole`-middlewarea.
 *   **Vastausmuoto:** Kaikki vastaukset käyttävät standardoitua muotoa:
     - Onnistuneet: `{ "success": true, "message": "...", "data": {...}, "timestamp": "...", "meta": {...} }`

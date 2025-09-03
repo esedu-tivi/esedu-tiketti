@@ -92,6 +92,34 @@ npm run db:reset
     *   Tämä komento ajaa automaattisesti `prisma generate` ja `prisma migrate deploy` ennen palvelimen käynnistämistä.
     *   Varmista, että tuotantoympäristön `.env`-tiedosto on oikein konfiguroitu (erityisesti `DATABASE_URL`, `JWT_SECRET`, `AZURE_AD_*` ja `ENVIRONMENT=production`).
 
+## Azure AD -autentikointi (ID/Access tokenien validointi)
+
+Backend tukee sekä paikallisia JWT:itä (HS256) että Azure AD:n allekirjoittamia RS*-tokeneita. Azure-tokeneissa on kaksi keskeistä versiota, jotka vaikuttavat issuereihin ja allekirjoitusavaimiin (JWKS):
+
+- Issuer v2: `https://login.microsoftonline.com/{tenant}/v2.0`
+- Issuer v1: `https://sts.windows.net/{tenant}/`
+
+Vastaavat JWKS-avaimet sijaitsevat eri discovery-osoitteissa:
+
+- v2-avaimet: `https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys`
+- v1-avaimet: `https://login.microsoftonline.com/{tenant}/discovery/keys`
+
+Autentikointimiddleware (`src/middleware/authMiddleware.ts`) tunnistaa tokenin issuerin perusteella, käyttää ensisijaisesti oikeaa JWKS-joukkoa (v1 vs v2), ja tekee automaattisen fallbackin vaihtoehtoiseen JWKS-joukkoon, jos allekirjoituksen validointi epäonnistuu ("invalid signature"). Tämä korjaa tuotantoympäristössä esiintyneen virheen, jossa v1-issuerilla (`sts.windows.net/...`) allekirjoitetut tokenit validoitiin vain v2-avaimia vasten.
+
+Tärkeää frontendille (MSAL):
+
+- Backend odottaa, että Azure ID-/access tokenin `aud`-claim on oman API-sovelluksen client ID (`AZURE_CLIENT_ID`).
+- Älä lähetä Microsoft Graphin access tokenia backendille (aud: `00000003-0000-0000-c000-000000000000`). Graph-token validoituu nyt allekirjoituksesta oikein, mutta se hylätään yleisön (audience) perusteella turvallisuussyistä.
+- Pyydä tokenit nimenomaan tälle API:lle (Expose an API → scope) ja käytä MSAL:ssa oikeaa scopea (esim. `api://<AZURE_CLIENT_ID>/.default` tai määritelty custom scope).
+
+Ympäristömuuttujat:
+
+- `AZURE_TENANT_ID` (pakollinen tuotannossa)
+- `AZURE_CLIENT_ID` (pakollinen tuotannossa)
+- Valinnainen: `DEVELOPER_EMAILS` (pilkulla eroteltu lista), joille kehitystarkistukset ovat joustavammat
+
+Virhetilanteiden diagnostiikka: middleware lokittaa selkeästi issuerin, audin ja käytetyn JWKS-lähteen. Jos saat 401 `Invalid token signature`, kyseessä on yleensä väärä JWKS (korjaantuu fallbackilla) tai väärä tenant. Jos saat 401 `Invalid or expired token` audience-virheen kera, frontend lähettää todennäköisesti Graph-tokenin eikä oman API:n tokenia.
+
 ## Syötteiden Validointi
 
 Backend validoi API-kutsujen syötteet varmistaakseen datan eheyden ja turvallisuuden. Vaikka tarkka kirjasto ei ole tässä määritelty (`express-validator` tai `zod` ovat yleisiä vaihtoehtoja), validointi kattaa tyypillisesti:

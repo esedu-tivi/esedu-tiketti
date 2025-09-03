@@ -26,7 +26,10 @@ Tähän tiedostoon listataan projektin tulevat tehtävät ja niiden tila.
 
 ### Backend & API
 
-*   `[Merkki]` Kuvaus tehtävästä...
+*   `✅` Azure AD -autentikoinnin korjaus tuotannossa (JWKS v1/v2 fallback)
+    *   Lisätty dynaaminen JWKS-valinta issuerin perusteella (v1 vs v2)
+    *   Fallback vaihtoehtoiseen JWKS-joukkoon invalid signature -tilanteissa
+    *   Dokumentoitu audience-vaatimus (aud = `AZURE_CLIENT_ID`)
 
 ### Tekoäly (AI)
 

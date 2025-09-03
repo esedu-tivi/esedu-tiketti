@@ -25,15 +25,25 @@ const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
 // Developer emails that bypass strict tenant validation
 const DEVELOPER_EMAILS = process.env.DEVELOPER_EMAILS?.split(',').map(email => email.trim().toLowerCase()) || [];
 
-// JWKS client for Azure AD - configured tenant
-const jwksClient = jwksRsa({
+// JWKS client for Azure AD v2.0 keys (issuer like https://login.microsoftonline.com/{tenant}/v2.0)
+// NOTE: v2 tokens use this endpoint, keys usually overlap with v1 but not guaranteed.
+const jwksClientV2 = jwksRsa({
   jwksUri: `https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys`,
   cache: true,
   rateLimit: true,
   jwksRequestsPerMinute: 5
 });
 
-// JWKS client for common endpoint (personal Microsoft accounts)
+// JWKS client for Azure AD v1 keys (issuer like https://sts.windows.net/{tenant}/)
+// IMPORTANT: v1 tokens expect the non-v2 discovery path.
+const jwksClientV1 = jwksRsa({
+  jwksUri: `https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/keys`,
+  cache: true,
+  rateLimit: true,
+  jwksRequestsPerMinute: 5
+});
+
+// JWKS client for common endpoint (personal Microsoft accounts), v2.0
 const jwksClientCommon = jwksRsa({
   jwksUri: `https://login.microsoftonline.com/common/discovery/v2.0/keys`,
   cache: true,
@@ -41,21 +51,22 @@ const jwksClientCommon = jwksRsa({
   jwksRequestsPerMinute: 5
 });
 
-const getKey = (header: any, callback: any) => {
-  console.log('[PROD DEBUG] Getting signing key for kid:', header.kid);
-  console.log('[PROD DEBUG] JWKS URI:', `https://login.microsoftonline.com/${AZURE_TENANT_ID}/discovery/v2.0/keys`);
-  
-  jwksClient.getSigningKey(header.kid, (err, key) => {
+// Helper to create a getKey function bound to a specific JWKS client
+const createGetKey = (client: jwksRsa.JwksClient, label: string) => (header: any, callback: any) => {
+  console.log('[PROD DEBUG1] Getting signing key for kid:', header.kid);
+  console.log('[PROD DEBUG1] Using JWKS client:', label);
+  client.getSigningKey(header.kid, (err, key) => {
     if (err) {
-      console.log('[PROD DEBUG] Error getting signing key:', {
+      console.log('[PROD DEBUG1] Error getting signing key:', {
         errorMessage: err.message,
         errorName: err.name,
-        kid: header.kid
+        kid: header.kid,
+        client: label
       });
       callback(err);
     } else {
       const signingKey = key?.getPublicKey();
-      console.log('[PROD DEBUG] Successfully retrieved signing key for kid:', header.kid);
+      console.log('[PROD DEBUG1] Successfully retrieved signing key for kid:', header.kid);
       callback(null, signingKey);
     }
   });
@@ -94,7 +105,7 @@ export const authMiddleware = async (
     
     // Decode token payload for initial logging
     const tokenPayloadRaw = jwt.decode(token) as JWTPayload;
-    console.log('[PROD DEBUG] Initial token decode:', {
+    console.log('[PROD DEBUG1] Initial token decode:', {
       email: tokenPayloadRaw?.preferred_username || tokenPayloadRaw?.upn || tokenPayloadRaw?.email,
       iss: tokenPayloadRaw?.iss,
       aud: tokenPayloadRaw?.aud,
@@ -107,7 +118,7 @@ export const authMiddleware = async (
     try {
       const tokenHeader = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString());
       
-      console.log('[PROD DEBUG] Token header:', {
+      console.log('[PROD DEBUG1] Token header:', {
         alg: tokenHeader.alg,
         typ: tokenHeader.typ,
         kid: tokenHeader.kid
@@ -122,7 +133,7 @@ export const authMiddleware = async (
         requestId: (req as any).requestId
       });
       
-      console.log('[PROD DEBUG] Azure config:', {
+      console.log('[PROD DEBUG1] Azure config:', {
         AZURE_TENANT_ID,
         AZURE_CLIENT_ID,
         hasClientId: !!AZURE_CLIENT_ID,
@@ -173,7 +184,7 @@ export const authMiddleware = async (
             const decodedForCheck = jwt.decode(token) as JWTPayload;
             const userEmail = (decodedForCheck?.preferred_username || decodedForCheck?.upn || decodedForCheck?.email || '').toLowerCase();
             
-            console.log('[PROD DEBUG] Token analysis:', {
+            console.log('[PROD DEBUG1] Token analysis:', {
               userEmail,
               iss: decodedForCheck?.iss,
               aud: decodedForCheck?.aud,
@@ -240,7 +251,7 @@ export const authMiddleware = async (
               });
             } else {
               // For production users, use strict validation
-              console.log('[PROD DEBUG] Starting strict validation for non-developer account:', {
+              console.log('[PROD DEBUG1] Starting strict validation for non-developer account:', {
                 email: userEmail,
                 configuredTenant: AZURE_TENANT_ID,
                 configuredClientId: AZURE_CLIENT_ID,
@@ -252,30 +263,72 @@ export const authMiddleware = async (
               decoded = await new Promise((resolve, reject) => {
                 const verifyOptions = {
                   audience: AZURE_CLIENT_ID,
-                  issuer: [`https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0`, 
-                           `https://sts.windows.net/${AZURE_TENANT_ID}/`],
+                  issuer: [
+                    `https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0`,
+                    `https://sts.windows.net/${AZURE_TENANT_ID}/`
+                  ],
                   algorithms: ['RS256', 'RS384', 'RS512'] as jwt.Algorithm[]
                 };
-                
-                console.log('[PROD DEBUG] JWT verify options:', verifyOptions);
-                console.log('[PROD DEBUG] Token details:', {
+
+                console.log('[PROD DEBUG1] JWT verify options:', verifyOptions);
+                console.log('[PROD DEBUG1] Token details:', {
                   tokenAudience: decodedForCheck?.aud,
                   expectedAudience: AZURE_CLIENT_ID,
                   tokenIssuer: decodedForCheck?.iss
                 });
-                
-                jwt.verify(token, getKey as any, verifyOptions, (err, decoded) => {
-                  if (err) {
-                    console.log('[PROD DEBUG] JWT verification error:', {
-                      errorMessage: err.message,
-                      errorName: err.name,
-                      tokenAudience: decodedForCheck?.aud,
-                      expectedAudience: AZURE_CLIENT_ID
+
+                // Decide primary JWKS client based on issuer (v1 vs v2)
+                const issuer: string = decodedForCheck?.iss || '';
+                const isV1Issuer = issuer.startsWith(`https://sts.windows.net/`);
+                const primaryClient = isV1Issuer ? jwksClientV1 : jwksClientV2;
+                const secondaryClient = isV1Issuer ? jwksClientV2 : jwksClientV1;
+
+                const tryVerifyWith = (client: jwksRsa.JwksClient, label: string, onDone: (err: any, decoded?: JWTPayload) => void) => {
+                  const getKeyDynamic = createGetKey(client, label) as any;
+                  jwt.verify(token, getKeyDynamic, verifyOptions, (err, decodedPayload) => {
+                    onDone(err, decodedPayload as JWTPayload | undefined);
+                  });
+                };
+
+                // First try with the primary client, on invalid signature fallback to the secondary client once
+                tryVerifyWith(primaryClient, isV1Issuer ? 'AzureAD v1 (discovery/keys)' : 'AzureAD v2 (discovery/v2.0/keys)', (err, decodedPayload) => {
+                  if (!err && decodedPayload) {
+                    console.log('[PROD DEBUG1] JWT verification successful');
+                    return resolve(decodedPayload);
+                  }
+
+                  console.log('[PROD DEBUG1] JWT verification error:', {
+                    errorMessage: err?.message,
+                    errorName: err?.name,
+                    tokenAudience: decodedForCheck?.aud,
+                    expectedAudience: AZURE_CLIENT_ID,
+                    hint:
+                      err?.name === 'JsonWebTokenError' && err?.message === 'invalid signature'
+                        ? 'Possible JWKS set mismatch (v1 vs v2) or wrong tenant'
+                        : undefined
+                  });
+
+                  // If signature invalid, try the alternate JWKS set once
+                  if (err && err.name === 'JsonWebTokenError' && err.message === 'invalid signature') {
+                    console.log('[PROD DEBUG1] Retrying verification with alternate JWKS client');
+                    tryVerifyWith(secondaryClient, isV1Issuer ? 'AzureAD v2 (fallback)' : 'AzureAD v1 (fallback)', (err2, decodedPayload2) => {
+                      if (!err2 && decodedPayload2) {
+                        console.log('[PROD DEBUG1] JWT verification successful after JWKS fallback');
+                        return resolve(decodedPayload2);
+                      }
+
+                      console.log('[PROD DEBUG1] JWT verification still failing after fallback:', {
+                        errorMessage: err2?.message,
+                        errorName: err2?.name,
+                        tokenAudience: decodedForCheck?.aud,
+                        expectedAudience: AZURE_CLIENT_ID,
+                        issuer: issuer
+                      });
+                      return reject(err2 || err);
                     });
-                    reject(err);
                   } else {
-                    console.log('[PROD DEBUG] JWT verification successful');
-                    resolve(decoded as JWTPayload);
+                    // Not a signature error or other failure; reject immediately
+                    return reject(err);
                   }
                 });
               });
@@ -292,7 +345,7 @@ export const authMiddleware = async (
               // Log more details about the verification failure
               const decodedForError = jwt.decode(token, { complete: true }) as any;
               
-              console.log('[PROD DEBUG] VERIFICATION FAILED - Full error details:', {
+              console.log('[PROD DEBUG1] VERIFICATION FAILED - Full error details:', {
                 errorMessage: azureError.message,
                 errorName: azureError.name,
                 tokenIssuer: decodedForError?.payload?.iss,
