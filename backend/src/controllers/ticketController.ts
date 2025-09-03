@@ -1345,10 +1345,17 @@ export const ticketController = {
 
   // Optimized endpoint for MyWorkView - fetches all work-related tickets in one call
   getMyWorkTickets: asyncHandler(async (req: Request, res: Response) => {
-    const user = (req as any).user;
-    
-    if (!user.id) {
-      return errorResponses.unauthorized(res, 'User ID not found');
+    if (!req.user?.email) {
+      return errorResponses.unauthorized(res, 'User email not found');
+    }
+
+    // Look up the user from the database to get the ID
+    const user = await prisma.user.findUnique({
+      where: { email: req.user.email }
+    });
+
+    if (!user) {
+      return errorResponses.unauthorized(res, 'User not found');
     }
 
     // Fetch all three data sets in parallel
