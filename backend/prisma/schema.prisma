@@ -32,6 +32,7 @@ model User {
   aiInteractions  AIAssistantInteraction[]
   supportAssistantConversations SupportAssistantConversation[]
   aiTokenUsage    AITokenUsage[]
+  studentReports  StudentReport[]
 }
 
 model Ticket {
@@ -344,4 +345,20 @@ model DiscordSettings {
   enableIntegration   Boolean  @default(true)   // Enable/disable Discord integration
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+}
+
+model StudentReport {
+  id              String   @id @default(uuid())
+  userId          String
+  startDate       DateTime
+  endDate         DateTime
+  ticketCount     Int
+  reportData      Json     // Stores the complete report data as JSON
+  exportedAt      DateTime? // Timestamp when report was exported
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([createdAt])
 }

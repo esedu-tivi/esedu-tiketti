@@ -162,6 +162,20 @@ export const deleteTicket = async (id) => {
   }
 }
 
+export const bulkDeleteTickets = async (ticketIds) => {
+  try {
+    const { data } = await api.delete('/tickets/bulk', {
+      data: { ticketIds }
+    })
+    return data
+  } catch (error) {
+    if (error.response) {
+      throw new Error(error.response.data.error || 'Tikettien poisto epäonnistui')
+    }
+    throw new Error('Tikettien poisto epäonnistui')
+  }
+}
+
 // yksittäisen tiketin haku
 export const fetchTicket = async (id) => {
   try {

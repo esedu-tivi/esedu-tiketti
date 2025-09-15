@@ -179,6 +179,29 @@ export const ticketController = {
       res.status(204).send();
   }),
 
+  // Bulk delete tickets
+  bulkDeleteTickets: asyncHandler(async (req: Request, res: Response) => {
+      const { ticketIds } = req.body;
+      
+      if (!Array.isArray(ticketIds)) {
+        return errorResponses.badRequest(res, 'ticketIds must be an array');
+      }
+
+      const result = await ticketService.bulkDeleteTickets(ticketIds);
+      
+      // Emit WebSocket events for each deleted ticket
+      const socketService = getSocketService();
+      result.deletedTicketIds.forEach(ticketId => {
+        socketService.emitTicketDeleted(ticketId);
+      });
+      
+      successResponse(res, {
+        message: `Successfully deleted ${result.deletedCount} tickets`,
+        deletedCount: result.deletedCount,
+        deletedTicketIds: result.deletedTicketIds
+      });
+  }),
+
   // Haetaan kaikki omat tiketit, jos suodattimia määritelty, niin haetaan niiden mukaan
   getMyTickets: asyncHandler(async (req: Request, res: Response) => {
       if (!req.user?.email) {
@@ -310,10 +333,30 @@ export const ticketController = {
       // Get the old status before updating
       const oldTicket = await prisma.ticket.findUnique({
         where: { id },
-        select: { status: true, discordChannelId: true }
+        select: { status: true, discordChannelId: true, processingStartedAt: true }
       });
 
-      const ticket = await ticketService.updateTicketStatus(id, status);
+      // Prepare update data based on status change
+      let updateData: any = { status };
+      
+      // If changing to RESOLVED or CLOSED, set processingEndedAt
+      if ((status === TicketStatus.RESOLVED || status === TicketStatus.CLOSED) && 
+          oldTicket?.status !== TicketStatus.RESOLVED && oldTicket?.status !== TicketStatus.CLOSED) {
+        updateData.processingEndedAt = new Date();
+        
+        // If processingStartedAt is not set, set it now (for tickets that were never formally taken)
+        if (!oldTicket?.processingStartedAt) {
+          updateData.processingStartedAt = new Date();
+        }
+      }
+      
+      // If reopening a ticket, clear processingEndedAt
+      if (status === TicketStatus.IN_PROGRESS && 
+          (oldTicket?.status === TicketStatus.RESOLVED || oldTicket?.status === TicketStatus.CLOSED)) {
+        updateData.processingEndedAt = null;
+      }
+
+      const ticket = await ticketService.updateTicketStatus(id, status, updateData);
       if (!ticket) {
         return res.status(404).json({ error: 'Ticket not found' });
       }

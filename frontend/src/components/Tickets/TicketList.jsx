@@ -7,9 +7,13 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { Button } from '../ui/Button';
 import { authService } from '../../services/authService';
+import { bulkDeleteTickets } from '../../utils/api';
+import BulkActionToolbar from './BulkActionToolbar';
 
 function TicketList({ tickets = [], isLoading, error }) {
   const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [selectedTickets, setSelectedTickets] = useState(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
   const { userRole } = useAuth();
   const queryClient = useQueryClient();
 
@@ -36,6 +40,22 @@ function TicketList({ tickets = [], isLoading, error }) {
       console.error('Error deleting ticket:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Tiketin poistaminen epäonnistui.';
       toast.error(errorMessage);
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: bulkDeleteTickets,
+    onSuccess: (response) => {
+      const deletedCount = response.data?.deletedCount || response.deletedCount || 0;
+      toast.success(`${deletedCount} tiketti${deletedCount !== 1 ? 'ä' : ''} poistettu onnistuneesti!`);
+      setSelectedTickets(new Set());
+      setIsSelectMode(false);
+      queryClient.invalidateQueries(['tickets']);
+      queryClient.invalidateQueries(['my-tickets']);
+    },
+    onError: (error) => {
+      console.error('Error bulk deleting tickets:', error);
+      toast.error(error.message || 'Tikettien poistaminen epäonnistui.');
     },
   });
 
@@ -101,8 +121,47 @@ function TicketList({ tickets = [], isLoading, error }) {
     return `${Math.floor(diffInSeconds / 86400)} pv sitten`;
   };
 
-  const handleTicketClick = (ticketId) => {
-    setSelectedTicketId(ticketId);
+  const handleTicketClick = (ticketId, event) => {
+    // Don't do anything if clicking on the checkbox itself
+    if (event.target.type === 'checkbox') {
+      return;
+    }
+    
+    if (isSelectMode && userRole === 'ADMIN') {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleTicketSelection(ticketId);
+    } else {
+      setSelectedTicketId(ticketId);
+    }
+  };
+
+  const toggleTicketSelection = (ticketId) => {
+    const newSelection = new Set(selectedTickets);
+    if (newSelection.has(ticketId)) {
+      newSelection.delete(ticketId);
+    } else {
+      newSelection.add(ticketId);
+    }
+    setSelectedTickets(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTickets.size === tickets.length) {
+      setSelectedTickets(new Set());
+    } else {
+      setSelectedTickets(new Set(tickets.map(t => t.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    const ticketIds = Array.from(selectedTickets);
+    bulkDeleteMutation.mutate(ticketIds);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedTickets(new Set());
+    setIsSelectMode(false);
   };
 
   const handleDeleteClick = (e, ticket) => {
@@ -145,6 +204,32 @@ function TicketList({ tickets = [], isLoading, error }) {
 
   return (
     <div className="ticket-list">
+      {userRole === 'ADMIN' && tickets.length > 0 && (
+        <div className="mb-4 flex items-center gap-4">
+          <Button
+            variant={isSelectMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setIsSelectMode(!isSelectMode);
+              setSelectedTickets(new Set());
+            }}
+          >
+            {isSelectMode ? 'Lopeta valinta' : 'Valitse tikettejä'}
+          </Button>
+          {isSelectMode && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={selectedTickets.size === tickets.length && tickets.length > 0}
+                onChange={handleSelectAll}
+                className="rounded border-gray-300"
+              />
+              Valitse kaikki
+            </label>
+          )}
+        </div>
+      )}
+      
       {!tickets || tickets.length === 0 ? (
         <p>Ei tikettejä näytettäväksi</p>
       ) : (
@@ -158,10 +243,23 @@ function TicketList({ tickets = [], isLoading, error }) {
             return (
               <li
                 key={ticket.id}
-                className="ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition group relative"
-                onClick={() => handleTicketClick(ticket.id)}
+                className={`ticket-item bg-white p-4 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition group relative ${
+                  selectedTickets.has(ticket.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                }`}
+                onClick={(e) => handleTicketClick(ticket.id, e)}
               >
-                <div className="block">
+                {isSelectMode && userRole === 'ADMIN' && (
+                  <div className="absolute top-4 left-4 z-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedTickets.has(ticket.id)}
+                      onChange={() => toggleTicketSelection(ticket.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+                <div className={`block ${isSelectMode && userRole === 'ADMIN' ? 'ml-8' : ''}`}>
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
                       {ticket.title}
@@ -192,7 +290,7 @@ function TicketList({ tickets = [], isLoading, error }) {
                   </div>
                 </div>
                 
-                {userRole === 'ADMIN' && (
+                {userRole === 'ADMIN' && !isSelectMode && (
                   <Button
                     variant="ghost"
                     size="icon"
@@ -213,6 +311,15 @@ function TicketList({ tickets = [], isLoading, error }) {
         <TicketDetailsModal
           ticketId={selectedTicketId}
           onClose={() => setSelectedTicketId(null)}
+        />
+      )}
+      
+      {userRole === 'ADMIN' && (
+        <BulkActionToolbar
+          selectedCount={selectedTickets.size}
+          onDelete={handleBulkDelete}
+          onClearSelection={handleClearSelection}
+          isDeleting={bulkDeleteMutation.isLoading}
         />
       )}
     </div>

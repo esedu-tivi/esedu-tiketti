@@ -44,6 +44,7 @@ Järjestelmän PostgreSQL-tietokanta ajetaan tyypillisesti Docker-kontissa (`ese
     *   Kun ajat backendin **kontissa** (`docker-compose up -d`), `DATABASE_URL` käyttää Docker-verkon sisäistä palvelunimeä, esim. `postgresql://admin:admin123@postgres:5432/esedu_tiketti_db?schema=public`.
     *   **JWT_SECRET** pitää olla vähintään 32 merkkiä pitkä.
     *   **OPENAI_API_KEY** on pakollinen AI-toimintojen käyttöön.
+    *   **DISCORD_BOT_TOKEN** ja **DISCORD_CLIENT_ID** tarvitaan Discord-integraatioon (valinnainen).
 *   **Tiedostojen Pysyvyys:** Tietokanta tallennetaan Docker volumeen (`postgres_data`). Ladatut tiedostot (`uploads`-kansio) tulisi myös tallentaa pysyvästi (volume tai bind mount, tarkista `docker-compose.yml`).
 
 ## Tietokannan Hallinta (Prisma)

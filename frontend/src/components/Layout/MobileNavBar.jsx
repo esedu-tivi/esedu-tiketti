@@ -9,7 +9,8 @@ import {
   Settings,
   Briefcase,
   Users,
-  Sparkles
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 
@@ -39,7 +40,7 @@ export default function MobileNavBar() {
   return (
     <>
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg">
-        <div className={`grid ${isAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-16`}>
+        <div className={`grid ${isAdmin ? 'grid-cols-6' : isSupportOrAdmin ? 'grid-cols-5' : 'grid-cols-4'} h-16`}>
           {/* Home / My Tickets */}
           <Link to="/my-tickets" className={getNavItemClass('/my-tickets')}>
             <div className="relative w-full h-full flex flex-col items-center justify-center">
@@ -68,6 +69,19 @@ export default function MobileNavBar() {
                 <TicketIcon size={24} className={`mb-1 ${isActive('/tickets') ? 'text-primary' : 'text-gray-500'}`} />
                 <span className="text-[10px]">Tiketit</span>
                 {isActive('/tickets') && (
+                  <div className="absolute -top-[2px] left-1/2 transform -translate-x-1/2 w-8 h-1 bg-primary rounded-full" />
+                )}
+              </div>
+            </Link>
+          )}
+          
+          {/* Reports for Support/Admin */}
+          {isSupportOrAdmin && (
+            <Link to="/reports" className={getNavItemClass('/reports')}>
+              <div className="relative w-full h-full flex flex-col items-center justify-center">
+                <FileText size={24} className={`mb-1 ${isActive('/reports') ? 'text-primary' : 'text-gray-500'}`} />
+                <span className="text-[10px]">Raportit</span>
+                {isActive('/reports') && (
                   <div className="absolute -top-[2px] left-1/2 transform -translate-x-1/2 w-8 h-1 bg-primary rounded-full" />
                 )}
               </div>

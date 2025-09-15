@@ -266,6 +266,8 @@ Sovelluksen keskeiset näkymät (sivut) ja niitä vastaavat URL-polut:
 *   `/my-work`: **Oma Työ -näkymä** (`MyWorkView.jsx`) - Tuki-/Admin-roolien dashboard, näyttää todennäköisesti heille osoitetut tiketit.
 *   `/admin` / `/admin/tickets`: **Admin Tiketinhallintasivu** (`Tickets.jsx`) - Näyttää kaikki tiketit, mahdollisesti laajennetuilla suodatus-/hallintatoiminnoilla Admin/Support-rooleille.
 *   `/ai-tools`: **AI-Työkalut -sivu** (`AITools.jsx`) - Käyttöliittymä AI-ominaisuuksille, kuten tikettien generointi, analysointi ja asetukset (vain Admin).
+*   `/discord-settings`: **Discord-asetukset -sivu** (`DiscordSettings.jsx`) - Discord-integraation hallinta (vain Admin).
+*   `/reports`: **Raportit -sivu** (`StudentReportView.jsx`) - Tukihenkilöiden työraporttien generointi ja vienti (Support/Admin).
 *   `/profile`: **Profiilisivu** (`ProfileView.jsx`) - Näyttää käyttäjän profiilitiedot.
 *   `*`: **Catch-all (Uudelleenohjaus)** - Ohjaa kaikki tuntemattomat polut juureen (`/`).
 
@@ -311,6 +313,154 @@ Komponentti sijaitsee AI Tools -sivun "AI-asetukset"-välilehdellä (`/ai-tools`
 * Päivittää asetukset `PUT /api/ai/settings` -rajapintaan
 * Palauttaa oletukset `POST /api/ai/settings/reset` -rajapinnalla
 * Vertaa muutoksia alkuperäisiin arvoihin tunnistaakseen tallentamattomat muutokset
+
+## Tikettien Massapoisto (Bulk Delete)
+
+Tikettien massapoisto-ominaisuus mahdollistaa admin-käyttäjille useiden tikettien poistamisen kerralla tehokkaamman hallinnan mahdollistamiseksi.
+
+### Sijainti Sovelluksessa
+Ominaisuus on integroitu suoraan tikettilistauksiin (`/tickets` ja muut tikettinäkymät) ja on saatavilla vain ADMIN-rooleille.
+
+### Komponentit
+* **TicketList.jsx** - Päivitetty tukemaan valinta-tilaa ja massatoimintoja
+  * Valinta-tilan hallinta
+  * Checkbox-integraatio jokaiselle tiketille
+  * Valittujen tikettien korostus
+* **BulkActionToolbar.jsx** - Kelluvat toimintopainikkeet valituille tiketeille
+  * Näyttää valittujen tikettien määrän
+  * "Poista valitut" -toiminto
+  * "Tyhjennä valinta" -toiminto
+
+### Ominaisuudet
+* **Valinta-tila** - Admin klikkaa "Valitse tikettejä" aktivoidakseen valinta-tilan
+* **Yksilöllinen valinta** - Klikkaa tikettejä tai checkboxeja valitaksesi
+* **Valitse kaikki** - Checkbox kaikien näkyvien tikettien valintaan
+* **Visuaalinen palaute** 
+  * Sininen reunus ja taustaväri valituille tiketeille
+  * Checkbox-merkit valituille
+  * Valittujen määrä näkyy toolbarissa
+* **Kelluvat toiminnot** - Kiinteä toolbar ruudun alareunassa
+* **Vahvistus-dialogi** - Toast-pohjainen vahvistus vahinkopoistojen estämiseksi
+* **Rajoitukset** - Max 100 tikettiä kerralla suorituskyvyn takaamiseksi
+
+### Tekninen Toteutus
+
+#### Tilan hallinta (TicketList.jsx)
+```javascript
+const [selectedTickets, setSelectedTickets] = useState(new Set());
+const [isSelectMode, setIsSelectMode] = useState(false);
+```
+
+#### Tapahtumankäsittely
+```javascript
+const handleTicketClick = (ticketId, event) => {
+  // Ohita jos klikattu checkboxia
+  if (event.target.type === 'checkbox') return;
+  
+  if (isSelectMode && userRole === 'ADMIN') {
+    event.preventDefault();
+    toggleTicketSelection(ticketId);
+  } else {
+    setSelectedTicketId(ticketId); // Avaa tikettinäkymä
+  }
+};
+```
+
+#### API-kutsu (React Query)
+```javascript
+const bulkDeleteMutation = useMutation({
+  mutationFn: bulkDeleteTickets,
+  onSuccess: (response) => {
+    const deletedCount = response.data?.deletedCount || 0;
+    toast.success(`${deletedCount} tikettiä poistettu`);
+    setSelectedTickets(new Set());
+    setIsSelectMode(false);
+    queryClient.invalidateQueries(['tickets']);
+  }
+});
+```
+
+### API-integraatio
+* **Endpoint:** `DELETE /api/tickets/bulk`
+* **Metodi:** DELETE
+* **Body:** `{ ticketIds: string[] }`
+* **Vastaus:** 
+  ```json
+  {
+    "success": true,
+    "data": {
+      "deletedCount": 3,
+      "deletedTicketIds": ["id1", "id2", "id3"]
+    }
+  }
+  ```
+* **WebSocket-eventit:** `ticketDeleted` lähetetään jokaiselle poistetulle tiketille
+* **Välimuistin päivitys:** Automaattinen React Query invalidation
+
+### Käyttökokemus
+1. Admin navigoi tikettilistaukseen
+2. Klikkaa "Valitse tikettejä" -nappia
+3. Valintaruudut ilmestyvät tikettien vasempaan reunaan
+4. Valitsee tikettejä klikkaamalla niitä tai checkboxeja
+5. BulkActionToolbar ilmestyy alareunaan näyttäen valittujen määrän
+6. Klikkaa "Poista valitut"
+7. Vahvistaa poiston toast-dialogissa
+8. Tiketit poistetaan ja lista päivittyy automaattisesti
+
+### Turvallisuus
+* Vain ADMIN-roolin käyttäjät näkevät valinta-toiminnon
+* Backend varmistaa käyttäjän oikeudet
+* Transaktiopohjainen poisto varmistaa datan eheyden
+* Maksimiraja estää vahingossa tapahtuvat massiiviset poistot
+
+## Raportit (StudentReportView)
+
+StudentReportView-komponentti tarjoaa tukihenkilöille mahdollisuuden generoida ja viedä raportteja käsitellyistä tiketeistä ESEDU:n Ossi-oppimisympäristöön palauttamista varten.
+
+### Sijainti Sovelluksessa
+Komponentti sijaitsee `/reports` URL-polussa ja on saatavilla SUPPORT ja ADMIN rooleille. Linkki löytyy navigaatiosta "Raportit"-nimellä.
+
+### Komponentti (StudentReportView.jsx)
+`StudentReportView.jsx` tarjoaa seuraavat ominaisuudet:
+
+#### Suodattimet:
+* **Aikajakso** - Valittavissa alkupäivä ja loppupäivä
+* **Pikavalitsimet** - Viikko, kuukausi, 3 kuukautta
+* **Kategoria** - Suodata tikettejä kategorian mukaan
+* **Prioriteetti** - Suodata prioriteetin mukaan (LOW, MEDIUM, HIGH, CRITICAL)
+
+#### Tilastot:
+* **KPI-kortit** - Ratkaistut, suljetut, käsittelyssä olevat tiketit ja keskimääräinen ratkaisuaika
+* **Kategoriajakauma** - Näyttää käsitellyt tiketit kategorioittain
+* **Prioriteettijakauma** - Näyttää tikettien jakautumisen prioriteeteittain
+
+#### Tikettilista:
+* **Yksityiskohtaiset tiedot** - ID, otsikko, kuvaus, kategoria, prioriteetti, tila
+* **Ajat** - Luontiaika, ratkaisuaika, käsittelyaika minuutteina
+* **Metadata** - Kommenttien määrä, vastausmuoto
+* **Laajennettava kuvaus** - Klikkaa nähdäksesi koko kuvauksen
+
+#### Vientimuodot:
+* **PDF** - Virallinen raportti allekirjoitusta varten
+  * Sisältää käyttäjätiedot, tilastot ja tikettilistan
+  * Automaattinen sivutus pitkille listoille
+* **CSV** - Excel-yhteensopiva muoto
+  * Sarakkeet: ID, otsikko, kuvaus, kategoria, prioriteetti, tila, ajat
+  * UTF-8 BOM Excel-yhteensopivuuden varmistamiseksi
+* **JSON** - Strukturoitu data integraatioita varten
+
+### Tiedonhallinta:
+* Hakee raporttidatan `GET /api/reports/my-work` -rajapinnasta
+* Vie raportin `GET /api/reports/export/[pdf|csv|json]` -rajapinnoilla
+* Käyttää axios-instanssia automaattisella tokenisoinnilla
+* Näyttää informatiivisen viestin jos tikettejä ei ole
+
+### Käyttöliittymän ominaisuudet:
+* **Responsiivinen suunnittelu** - Toimii mobiililaitteilla ja työpöydällä
+* **Collapsible suodattimet** - Lisää näyttötilaa tiketeille
+* **Toast-ilmoitukset** - Palaute vientitoiminnoista
+* **Latausindikaattori** - Näytetään dataa haettaessa
+* **Virheenkäsittely** - Selkeät virheilmoitukset
 
 ## Token Analytics
 

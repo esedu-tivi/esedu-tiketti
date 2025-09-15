@@ -20,6 +20,8 @@ Tietomalli määrittelee järjestelmän keskeiset entiteetit, niiden attribuutit
 *   **SupportAssistantConversation:** Tukihenkilön ja tukihenkilöassistentin välinen keskusteluhistoria.
 *   **AISettings:** Singleton-tietue AI-agenttien konfiguraatiota varten.
 *   **AITokenUsage:** Token-käytön seurantatiedot kaikille AI-agenteille.
+*   **DiscordSettings:** Discord-integraation asetukset.
+*   **StudentReport:** Tukihenkilöiden generoimat työraportit.
 
 ## Prisma Schema (`backend/prisma/schema.prisma`)
 
@@ -95,6 +97,9 @@ model User {
   discordUsername String?
   discordServerId String?
   isBlocked       Boolean   @default(false) // Estää käyttäjän tikettien luonnin
+  
+  aiTokenUsage    AITokenUsage[]
+  studentReports  StudentReport[]
 
   // @@map removed
 }
@@ -485,5 +490,57 @@ Tiketin poistaminen käynnistää sarjan toimenpiteitä, jotka suoritetaan trans
 6.  **Varsinaisen Tiketin Poisto:** Lopuksi itse `Ticket`-tietue poistetaan.
 
 On suositeltavaa kääriä nämä operaatiot **Prisman transaktioon** (`prisma.$transaction([...])`) sovelluslogiikassa, jotta varmistetaan, että kaikki vaiheet onnistuvat tai yksikään niistä ei toteudu, pitäen tietokannan konsistenttina.
+
+## Uudet Mallit
+
+### DiscordSettings
+
+Singleton-tietue Discord-integraation asetusten hallintaan:
+
+```prisma
+model DiscordSettings {
+  id                  String   @id @default(uuid())
+  cleanupTTLHours     Int      @default(24)     // Kanavan siivous tiketin sulkemisen jälkeen
+  inactiveTTLHours    Int      @default(48)     // Ei-aktiivisen kanavan siivous
+  statusRotationMs    Int      @default(10000)  // Tilan rotaatioväli (ms)
+  showTicketStats     Boolean  @default(true)   // Näytä tikettilaskurit tilassa
+  showCleanupTimer    Boolean  @default(true)   // Näytä siivousajastin
+  defaultCategoryName String   @default("Discord") // Oletuskategoria Discord-tiketeille
+  allowUserClose      Boolean  @default(true)   // Salli käyttäjien sulkea tikettejä
+  enableIntegration   Boolean  @default(true)   // Ota integraatio käyttöön/pois
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+```
+
+### StudentReport
+
+Tukihenkilöiden generoimat työraportit ESEDU:n Ossi-oppimisympäristöön palauttamista varten:
+
+```prisma
+model StudentReport {
+  id              String   @id @default(uuid())
+  userId          String
+  startDate       DateTime    // Raporttijakson alkupäivä
+  endDate         DateTime    // Raporttijakson loppupäivä
+  ticketCount     Int         // Tikettien lukumäärä raportissa
+  reportData      Json        // Koko raportin data JSON-muodossa
+  exportedAt      DateTime?   // Milloin raportti on viety
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+```
+
+StudentReport-malli tallentaa:
+- **userId**: Raportin luoneen tukihenkilön ID
+- **startDate/endDate**: Raporttijakson päivämäärät
+- **ticketCount**: Raporttiin sisältyvien tikettien määrä
+- **reportData**: Koko raportti JSON-muodossa (sisältää tikettilistan, tilastot, ym.)
+- **exportedAt**: Merkitään kun raportti viedään PDF/CSV/JSON-muotoon
+- **createdAt**: Raportin luontiaika
 
 Lisäksi tiedostojen poisto palvelimelta (fyysiset tiedostot `uploads`-kansiosta) on tärkeä osa poistoprosessia, joka tulee hoitaa sovelluslogiikassa (`ticketService.deleteTicket`) ennen tietokantatietueiden poistoa tai sen jälkeen osana samaa logiikkakokonaisuutta. 

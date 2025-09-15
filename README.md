@@ -33,6 +33,24 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
 - Tiedostonlataus ja -käsittelytoiminnot
 - Tikettiliitteiden hallinnointi ja tarkastelu
 - Joustavampi mediakommentointi: kaikki tukihenkilöt voivat liittää kuvia ja videoita tiketteihin riippumatta siitä, onko tiketti heille osoitettu
+- **Tikettien massapoisto** (Admin-ominaisuus):
+  - Valitse useita tikettejä kerralla
+  - Poista jopa 100 tikettiä yhdellä toiminnolla
+  - Vahvistus-dialogi ennen poistoa
+  - WebSocket-päivitykset muille käyttäjille
+
+### Raportit ja analytiikka
+- **Työraporttien generointi** tukihenkilöille
+  - Suodatettavat raportit (aikajakso, kategoria, prioriteetti)
+  - Tilastot: ratkaistut, suljetut ja käsittelyssä olevat tiketit
+  - Keskimääräiset ratkaisuajat
+  - Kategorioiden ja prioriteettien jakaumat
+- **Vientimuodot** ESEDU Ossi-oppimisympäristöön
+  - PDF: Virallinen raportti allekirjoitusta varten
+  - CSV: Excel-yhteensopiva taulukkomuoto
+  - JSON: Strukturoitu data integraatioita varten
+- Raporttien tallennus myöhempää käyttöä varten
+- Käsittelyaikojen automaattinen seuranta
 
 ### Tekoälyominaisuudet
 
@@ -181,6 +199,7 @@ Erityispiirteenä järjestelmä sisältää edistyneitä tekoälyominaisuuksia, 
   - AI-mallien konfiguraatio (AISettings)
   - Discord-integraation asetukset (DiscordSettings)
   - Discord-kanavien ja tikettien yhdistäminen
+  - Työraporttien data (StudentReport)
 
 ## 📱 Käyttöliittymä
 - Responsiivinen design

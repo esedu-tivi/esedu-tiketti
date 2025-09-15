@@ -34,6 +34,163 @@ const getUploadPath = (relativePath: string): string => {
 };
 
 export const ticketService = {
+  // Bulk delete tickets
+  bulkDeleteTickets: async (ticketIds: string[]) => {
+    logger.info(`Starting bulk deletion of ${ticketIds.length} tickets`);
+    
+    if (!ticketIds || ticketIds.length === 0) {
+      throw new ValidationError('No ticket IDs provided for bulk deletion');
+    }
+
+    // Limit to prevent accidental massive deletions
+    const MAX_BULK_DELETE = 100;
+    if (ticketIds.length > MAX_BULK_DELETE) {
+      throw new ValidationError(`Cannot delete more than ${MAX_BULK_DELETE} tickets at once`);
+    }
+
+    // Get tickets to check their properties before deletion
+    const ticketsToDelete = await prisma.ticket.findMany({
+      where: { id: { in: ticketIds } },
+      select: {
+        id: true,
+        isAiGenerated: true,
+        discordChannelId: true,
+        status: true,
+        attachments: {
+          select: {
+            id: true,
+            path: true
+          }
+        }
+      }
+    });
+
+    if (ticketsToDelete.length !== ticketIds.length) {
+      const foundIds = ticketsToDelete.map(t => t.id);
+      const notFoundIds = ticketIds.filter(id => !foundIds.includes(id));
+      logger.warn(`Some tickets not found for bulk deletion: ${notFoundIds.join(', ')}`);
+    }
+
+    // Collect all attachment files to delete
+    const attachmentFiles: { id: string; path: string }[] = [];
+    ticketsToDelete.forEach(ticket => {
+      ticket.attachments.forEach(attachment => {
+        attachmentFiles.push(attachment);
+      });
+    });
+
+    // Use transaction for atomic bulk deletion
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete attachment files
+      if (attachmentFiles.length > 0) {
+        logger.info(`Deleting ${attachmentFiles.length} attachment files for bulk deletion`);
+        for (const attachment of attachmentFiles) {
+          try {
+            const filePath = getUploadPath(attachment.path);
+            await fs.unlink(filePath);
+            logger.info(`Deleted attachment file: ${filePath}`);
+          } catch (fileError: any) {
+            logger.error(`Failed to delete attachment file ${attachment.path}:`, fileError.message);
+          }
+        }
+      }
+
+      // Delete all related data in correct order
+      const deletedAttachments = await tx.attachment.deleteMany({
+        where: { ticketId: { in: ticketIds } }
+      });
+      logger.info(`Deleted ${deletedAttachments.count} attachments`);
+
+      const deletedComments = await tx.comment.deleteMany({
+        where: { ticketId: { in: ticketIds } }
+      });
+      logger.info(`Deleted ${deletedComments.count} comments`);
+
+      const deletedNotifications = await tx.notification.deleteMany({
+        where: { ticketId: { in: ticketIds } }
+      });
+      logger.info(`Deleted ${deletedNotifications.count} notifications`);
+
+      // Delete AI-related data
+      const deletedAIInteractions = await tx.aIAssistantInteraction.deleteMany({
+        where: { ticketId: { in: ticketIds } }
+      });
+      logger.info(`Deleted ${deletedAIInteractions.count} AI interactions`);
+
+      // Delete SupportAssistantConversation records
+      const deletedSupportConversations = await tx.supportAssistantConversation.deleteMany({
+        where: { ticketId: { in: ticketIds } }
+      });
+      logger.info(`Deleted ${deletedSupportConversations.count} support conversations`);
+
+      // Delete KnowledgeArticles for AI-generated tickets
+      const aiTicketIds = ticketsToDelete
+        .filter(t => t.isAiGenerated)
+        .map(t => t.id);
+      
+      if (aiTicketIds.length > 0) {
+        // Find articles that reference these tickets
+        const relatedArticles = await tx.knowledgeArticle.findMany({
+          where: { 
+            relatedTicketIds: { 
+              hasSome: aiTicketIds 
+            } 
+          },
+          select: { id: true }
+        });
+
+        if (relatedArticles.length > 0) {
+          const articleIds = relatedArticles.map(a => a.id);
+          await tx.knowledgeArticle.deleteMany({
+            where: { id: { in: articleIds } }
+          });
+          logger.info(`Deleted ${relatedArticles.length} knowledge articles`);
+        }
+      }
+
+      // Delete the tickets themselves
+      const deletedTickets = await tx.ticket.deleteMany({
+        where: { id: { in: ticketIds } }
+      });
+      logger.info(`Successfully deleted ${deletedTickets.count} tickets`);
+
+      return {
+        deletedCount: deletedTickets.count,
+        deletedTicketIds: ticketsToDelete.map(t => t.id)
+      };
+    });
+
+    // Clean up Discord channels if applicable
+    const discordTickets = ticketsToDelete.filter(t => t.discordChannelId);
+    if (discordTickets.length > 0 && isDiscordEnabled) {
+      for (const ticket of discordTickets) {
+        try {
+          await discordChannelCleanup.cleanupTicket(ticket.id);
+          logger.info(`Cleaned up Discord channel ${ticket.discordChannelId} for ticket ${ticket.id}`);
+        } catch (error) {
+          logger.error(`Failed to cleanup Discord channel for ticket ${ticket.id}:`, error);
+        }
+      }
+    }
+
+    // Update Discord bot status if available
+    if (discordBot && result.deletedCount > 0) {
+      try {
+        const remainingTickets = await prisma.ticket.count({
+          where: { status: { not: 'CLOSED' } }
+        });
+        if (discordBot.updateBotStatus) {
+          await discordBot.updateBotStatus(remainingTickets);
+          logger.debug('Discord bot status updated after bulk deletion');
+        }
+      } catch (error) {
+        logger.warn('Failed to update Discord bot status after bulk deletion:', error);
+      }
+    }
+
+    return result;
+  },
+
   // Hae kaikki tiketit
   getAllTickets: async () => {
     return prisma.ticket.findMany({
@@ -322,7 +479,7 @@ export const ticketService = {
   },
 
   // Päivitä tiketin tila
-  updateTicketStatus: async (id: string, status: TicketStatus) => {
+  updateTicketStatus: async (id: string, status: TicketStatus, additionalData?: any) => {
     // Get the old status for Discord bot update
     const oldTicket = await prisma.ticket.findUnique({
       where: { id },
@@ -331,7 +488,7 @@ export const ticketService = {
 
     const updatedTicket = await prisma.ticket.update({
       where: { id },
-      data: { status },
+      data: { status, ...additionalData },
       include: {
         category: true,
         createdBy: {

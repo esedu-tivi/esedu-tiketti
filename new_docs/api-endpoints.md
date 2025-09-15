@@ -277,16 +277,36 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
         }
         ```
     *   **Vastaus (Esimerkki):** Palauttaa päivitetyn tikettiobjektin.
-*   **DELETE /tickets/:id**
-    *   **Kuvaus:** Poistaa tiketin (ja siihen liittyvät kommentit/liitteet).
-    *   **Polkuparametri (`:id`):** Poistettavan tiketin UUID.
+*   **DELETE /tickets/bulk**
+    *   **Kuvaus:** Poistaa useita tikettejä kerralla (massapoisto).
     *   **Rooli:** ADMIN (`requireRole([UserRole.ADMIN])`).
+    *   **Runko (Tyyppi):** `{ ticketIds: string[] }` (UUID-taulukko, max 100 tikettiä)
+    *   **Runko (Esimerkki):**
+        ```json
+        {
+          "ticketIds": ["tiketti-uuid-1", "tiketti-uuid-2", "tiketti-uuid-3"]
+        }
+        ```
     *   **Vastaus (Esimerkki):**
         ```json
         {
-          "message": "Ticket deleted successfully"
+          "success": true,
+          "message": "Bulk delete completed successfully",
+          "data": {
+            "deletedCount": 3
+          },
+          "timestamp": "2024-01-01T10:00:00.000Z"
         }
         ```
+    *   **Toiminnallisuus:** 
+        - Poistaa atomisesti kaikki tikettiin liittyvät tiedot (liitteet, kommentit, ilmoitukset, AI-interaktiot)
+        - Lähettää WebSocket-ilmoituksen jokaisesta poistetusta tiketistä
+        - Poistaa mahdolliset Discord-kanavat
+*   **DELETE /tickets/:id**
+    *   **Kuvaus:** Poistaa yksittäisen tiketin (ja siihen liittyvät kommentit/liitteet).
+    *   **Polkuparametri (`:id`):** Poistettavan tiketin UUID.
+    *   **Rooli:** ADMIN (`requireRole([UserRole.ADMIN])`).
+    *   **Vastaus:** HTTP 204 No Content (tyhjä vastaus onnistuneesta poistosta)
 *   **PUT /tickets/:id/assign**
     *   **Kuvaus:** Määrittää tiketin tukihenkilölle tai poistaa määrityksen.
     *   **Polkuparametri (`:id`):** Tiketin UUID.
@@ -1245,6 +1265,143 @@ Tämä dokumentti kuvaa Esedu Tikettijärjestelmän backendin tarjoaman RESTful 
 - **URL-parametrit**:
   - `id`: Käyttäjän UUID
 - **Vastaus**: 200 OK
+
+## Raportit (`/reports`)
+
+### Työraportti
+
+*   **GET /reports/my-work**
+    *   **Kuvaus:** Hakee kirjautuneen tukihenkilön työraportin. Sisältää kaikki tiketit joita käyttäjä on käsitellyt (assignedTo tai kommentoinut).
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Query-parametrit:**
+        - `startDate` - Alkupäivämäärä (ISO 8601 tai YYYY-MM-DD)
+        - `endDate` - Loppupäivämäärä (ISO 8601 tai YYYY-MM-DD)
+        - `categoryId` - Kategorian UUID (valinnainen)
+        - `priority` - Prioriteetti (LOW, MEDIUM, HIGH, CRITICAL)
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "user": {
+              "id": "user-uuid",
+              "name": "Tuki Henkilö",
+              "email": "tuki@esedu.fi",
+              "jobTitle": "IT-tukihenkilö"
+            },
+            "period": {
+              "startDate": "2025-08-01T00:00:00.000Z",
+              "endDate": "2025-08-31T23:59:59.999Z"
+            },
+            "statistics": {
+              "totalResolved": 45,
+              "totalClosed": 12,
+              "totalInProgress": 3,
+              "averageResolutionTime": 240,
+              "categoriesHandled": [
+                { "name": "Verkko-ongelmat", "count": 25 },
+                { "name": "Tulostus", "count": 20 }
+              ],
+              "priorityBreakdown": [
+                { "priority": "CRITICAL", "count": 5 },
+                { "priority": "HIGH", "count": 15 },
+                { "priority": "MEDIUM", "count": 30 },
+                { "priority": "LOW", "count": 10 }
+              ]
+            },
+            "tickets": [
+              {
+                "id": "ticket-uuid",
+                "title": "Tulostin ei toimi",
+                "description": "...",
+                "category": "Tulostus",
+                "priority": "MEDIUM",
+                "status": "RESOLVED",
+                "createdAt": "2025-08-15T10:00:00.000Z",
+                "resolvedAt": "2025-08-15T14:30:00.000Z",
+                "processingTime": 270,
+                "commentsCount": 5,
+                "responseFormat": "TEKSTI"
+              }
+            ]
+          }
+        }
+        ```
+
+### Raportin tallennus
+
+*   **POST /reports/save**
+    *   **Kuvaus:** Tallentaa generoidun raportin myöhempää käyttöä varten.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Runko (Tyyppi):** `{ reportData: UserWorkReport }`
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "data": {
+            "reportId": "report-uuid"
+          },
+          "message": "Report saved successfully"
+        }
+        ```
+
+*   **GET /reports/saved**
+    *   **Kuvaus:** Hakee käyttäjän tallennetut raportit.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Vastaus (Esimerkki):**
+        ```json
+        {
+          "success": true,
+          "data": [
+            {
+              "id": "report-uuid",
+              "startDate": "2025-08-01T00:00:00.000Z",
+              "endDate": "2025-08-31T23:59:59.999Z",
+              "ticketCount": 60,
+              "createdAt": "2025-09-01T10:00:00.000Z",
+              "exportedAt": "2025-09-01T10:15:00.000Z"
+            }
+          ]
+        }
+        ```
+
+*   **GET /reports/saved/:reportId**
+    *   **Kuvaus:** Hakee tietyn tallennetun raportin.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Polkuparametri:** `reportId` - Raportin UUID
+    *   **Vastaus:** Sama muoto kuin `GET /reports/my-work`
+
+### Raportin vienti
+
+*   **GET /reports/export/pdf**
+    *   **Kuvaus:** Vie raportin PDF-muodossa. Sisältää käyttäjätiedot, tilastot ja tikettilistan.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Query-parametrit:** Samat kuin `GET /reports/my-work` + `reportId` (valinnainen)
+    *   **Vastaus:** PDF-tiedosto (`Content-Type: application/pdf`)
+
+*   **GET /reports/export/csv**
+    *   **Kuvaus:** Vie raportin CSV-muodossa Excel-käsittelyä varten.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Query-parametrit:** Samat kuin `GET /reports/my-work` + `reportId` (valinnainen)
+    *   **Vastaus:** CSV-tiedosto (`Content-Type: text/csv; charset=utf-8`)
+    *   **CSV-sarakkeet:**
+        - Tiketti ID
+        - Otsikko
+        - Kuvaus
+        - Kategoria
+        - Prioriteetti
+        - Tila
+        - Luotu
+        - Ratkaistu
+        - Käsittelyaika (min)
+        - Kommentteja
+        - Vastausmuoto
+
+*   **GET /reports/export/json**
+    *   **Kuvaus:** Vie raportin JSON-muodossa integraatioita varten.
+    *   **Rooli:** SUPPORT, ADMIN
+    *   **Query-parametrit:** Samat kuin `GET /reports/my-work` + `reportId` (valinnainen)
+    *   **Vastaus:** JSON-tiedosto (`Content-Type: application/json`)
 
 ### Discord-tilastot
 

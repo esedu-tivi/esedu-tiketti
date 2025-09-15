@@ -6,7 +6,7 @@ import { authService } from '../../services/authService';
 import UserManagementDialog from '../Admin/UserManagementDialog';
 import { useNavigate } from 'react-router-dom';
 import NotificationBell from '../Notifications/NotificationBell';
-import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon, MessageSquare } from 'lucide-react';
+import { PlusCircle, Settings, Sparkles, Mailbox, X, TicketIcon, MessageSquare, FileText } from 'lucide-react';
 import NewTicketForm from '../Tickets/NewTicketForm';
 import ProfilePicture from '../User/ProfilePicture';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,6 +100,16 @@ export default function Header() {
                     className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
                   >
                     Työnäkymä
+                  </Link>
+                )}
+
+                {isSupportOrAdmin && (
+                  <Link
+                    to="/reports"
+                    className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors flex items-center"
+                  >
+                   
+                    Raportit
                   </Link>
                 )}
 

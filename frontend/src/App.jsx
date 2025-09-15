@@ -13,6 +13,7 @@ import TicketPage from './pages/TicketPage';
 import Layout from './components/Layout/Layout';
 import AITools from './pages/AITools';
 import DiscordSettings from './pages/DiscordSettings';
+import StudentReportView from './pages/StudentReportView';
 
 function App() {
   const { userRole } = useAuth();
@@ -55,6 +56,15 @@ function App() {
             <AuthGuard requiredRole={['SUPPORT', 'ADMIN']}>
               <Layout>
                 <MyWorkView />
+              </Layout>
+            </AuthGuard>
+          } />
+
+          {/* Tukihenkilöiden raportit */}
+          <Route path="/reports" element={
+            <AuthGuard requiredRole={['SUPPORT', 'ADMIN']}>
+              <Layout>
+                <StudentReportView />
               </Layout>
             </AuthGuard>
           } />

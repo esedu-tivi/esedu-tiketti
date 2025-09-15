@@ -44,6 +44,7 @@ router.post('/:id/comments/media',
 router.put('/:id', authMiddleware, requireOwnership, validateTicket, ticketController.updateTicket);
 
 // Only ADMINS can delete tickets
+router.delete('/bulk', authMiddleware, requireRole([UserRole.ADMIN]), ticketController.bulkDeleteTickets);
 router.delete('/:id', authMiddleware, requireRole([UserRole.ADMIN]), ticketController.deleteTicket);
 
 // Management-tason reitit (admin ja tukihenkilöt)

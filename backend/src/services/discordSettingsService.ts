@@ -399,6 +399,11 @@ export const discordSettingsService = {
       where: { userId: userId }
     });
 
+    // Delete notification settings for this user
+    await prisma.notificationSettings.deleteMany({
+      where: { userId: userId }
+    });
+
     // Delete the user
     await prisma.user.delete({
       where: { id: userId }

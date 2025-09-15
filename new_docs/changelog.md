@@ -2,6 +2,100 @@
 
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
+# 15.09.2025 - Bulk Delete ja Opiskelijan Raporttityökalu
+
+## Uusi toiminnallisuus: Tikettien massapoisto adminille
+
+### Frontend
+- **feat:** Bulk delete -toiminnallisuus TicketList-komponenttiin
+  - "Valitse tikettejä" -nappi admin-käyttäjille
+  - Valintaruudut jokaiselle tiketille valinta-tilassa
+  - "Valitse kaikki" -toiminto
+  - Visuaalinen korostus valituille tiketeille (sininen reunus)
+  
+- **feat:** BulkActionToolbar-komponentti
+  - Kelluvat toimintopainikkeet valituille tiketeille
+  - Näyttää valittujen tikettien määrän
+  - "Poista valitut" -painike bulk delete -toiminnolle
+  - "Tyhjennä valinta" -painike
+  - Vahvistus-dialogi ennen poistoa
+  
+### Backend
+- **feat:** Bulk delete API-endpoint
+  - `DELETE /api/tickets/bulk` (vain ADMIN-rooli)
+  - Hyväksyy taulukon tiketti-ID:itä request bodyssä
+  - Maksimiraja: 100 tikettiä kerralla
+  
+- **feat:** BulkDeleteTickets-palvelu (`ticketService.ts`)
+  - Transaktiopohjainen poisto atomiseen toimintaan
+  - Poistaa kaikki liittyvät tiedot:
+    - Liitetiedostot (myös fyysisesti levyltä)
+    - Kommentit
+    - Ilmoitukset
+    - AI-interaktiot ja -keskustelut
+    - KnowledgeArticlet (AI-generoitujen tikettien osalta)
+    - Support Assistant -keskustelut
+  - Discord-kanavien siivous poistetuille tiketeille
+  - WebSocket-ilmoitukset jokaiselle poistetulle tiketille
+
+# 15.09.2025 - Opiskelijan Raporttityökalu
+
+## Uusi toiminnallisuus: Työraporttien generointi tukihenkilöille
+
+### Frontend
+- **feat:** Uusi StudentReportView-komponentti (`/reports` polku)
+  - Tukihenkilöt voivat generoida raportteja käsitellyistään tiketeistä
+  - Suodattimet: aikajakso, kategoria, prioriteetti
+  - Pikavalitsimet: viikko, kuukausi, 3 kuukautta
+  - Tilastot: ratkaistut, suljetut, käsittelyssä olevat tiketit
+  - Keskimääräinen ratkaisuaika minuutteina
+  - Kategorioiden ja prioriteettien jakaumat
+  
+- **feat:** Vientimuodot ESEDU Ossi-oppimisympäristöön
+  - PDF: Virallinen raportti allekirjoitusta varten
+  - CSV: Excel-yhteensopiva muoto taulukkolaskentaan
+  - JSON: Strukturoitu data integraatioita varten
+  
+- **feat:** Navigaatiolinkki raportteihin
+  - Desktop-navigaatiossa "Raportit" linkki (vihreä FileText-ikoni)
+  - Mobiilinavigaatiossa oma välilehti
+  - Näkyy vain SUPPORT ja ADMIN rooleille
+
+### Backend
+- **feat:** ReportService (`reportService.ts`)
+  - `getUserWorkReport`: Hakee käyttäjän työraportit
+  - Sisältää tiketit joissa käyttäjä on assignedTo TAI on kommentoinut
+  - Laskee tilastot: ratkaistut, suljetut, käsittelyssä olevat
+  - Keskimääräiset ratkaisuajat vain tiketeistä joilla processingStartedAt ja processingEndedAt
+  
+- **feat:** ReportController (`reportController.ts`)
+  - PDF-generointi PDFKit-kirjastolla
+  - CSV-vienti json2csv-kirjastolla (UTF-8 BOM Excel-yhteensopivuus)
+  - JSON-vienti rakenteisena datana
+  
+- **feat:** API-reitit `/api/reports/`
+  - `GET /my-work`: Hakee työraportin suodattimilla
+  - `GET /export/pdf`: Vie PDF-muodossa
+  - `GET /export/csv`: Vie CSV-muodossa
+  - `GET /export/json`: Vie JSON-muodossa
+  - `POST /save`: Tallentaa raportin myöhempää käyttöä varten
+  - `GET /saved`: Listaa tallennetut raportit
+  
+### Tietokanta
+- **feat:** StudentReport-malli Prisma-schemaan
+  - Tallentaa generoidut raportit JSON-muodossa
+  - Seuraa vientiajankohtaa (`exportedAt`)
+  - Indeksit userId ja createdAt kentille
+
+### Korjaukset
+- **fix:** Tiketin sulkeminen/ratkaiseminen asettaa nyt processingEndedAt-ajan
+  - Jos processingStartedAt puuttuu, asetetaan molemmat samaan aikaan
+  - Mahdollistaa käsittelyaikojen laskennan raportissa
+  
+- **fix:** Radix UI Select-komponentin empty string value -virhe
+  - Korvattu tyhjät arvot "all"-arvolla
+  - Käsittely onValueChange-funktiossa takaisin tyhjäksi
+
 # 03.09.2025 - EnhancedModernChatAgent with Style Synchronization & Full Ticket Generator Integration
 
 ## Fix: Azure AD token validation in production (v1 vs v2 JWKS)
