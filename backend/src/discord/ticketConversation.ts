@@ -189,6 +189,17 @@ export async function startTicketConversation(
           // Update Discord bot's status immediately
           const { discordBot } = await import('./bot.js');
           await discordBot.onTicketChanged('created', undefined, ticket.status);
+          
+          // Broadcast new ticket to support channel
+          const ticketWithRelations = await prisma.ticket.findUnique({
+            where: { id: ticket.id },
+            include: {
+              createdBy: true,
+              category: true
+            }
+          });
+          await discordBot.broadcastNewTicket(ticketWithRelations);
+          logger.debug('Discord broadcast sent for new Discord ticket');
 
           // Emit WebSocket event for new ticket so it appears in admin/my-work views
           const { getSocketService } = await import('../services/socketService.js');

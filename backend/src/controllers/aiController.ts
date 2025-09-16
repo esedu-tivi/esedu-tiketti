@@ -158,26 +158,25 @@ export const aiController = {
         categoryId: ticketData.categoryId,
         responseFormat: 'TEKSTI',  // Always text-only
         userProfile: ticketData.userProfile,
+        isAiGenerated: true,  // Mark as AI-generated from the start
         attachments: [],
       };
       
       // Create the ticket using the service
-      logger.info('Creating ticket in database with confirmed data:', createTicketData);
+      logger.info('Creating AI-generated ticket in database with confirmed data:', createTicketData);
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
-      logger.info('Ticket created with ID:', ticket.id);
+      logger.info('AI-generated ticket created with ID:', ticket.id);
       
-      // Update ticket with AI-generated flag and metadata if from ModernTicketGenerator
-      const updateData: any = { isAiGenerated: true };
+      // Update ticket with additional metadata if from ModernTicketGenerator
       if (ticketData.metadata && ticketData.metadata.generatorVersion === 'modern') {
-        updateData.generatorMetadata = ticketData.metadata;
-        logger.info('Storing ModernTicketGenerator metadata:', ticketData.metadata);
+        await prisma.ticket.update({
+          where: { id: ticket.id! }, 
+          data: {
+            generatorMetadata: ticketData.metadata
+          },
+        });
+        logger.info('Stored ModernTicketGenerator metadata:', ticketData.metadata);
       }
-      
-      await prisma.ticket.update({
-        where: { id: ticket.id! }, 
-        data: updateData,
-      });
-      logger.info('Marked ticket as AI-generated with metadata');
       
       // Store the PRE-GENERATED solution (received from frontend) in a knowledge base entry
       logger.info('Storing pre-generated solution for ticket ID:', ticket.id);

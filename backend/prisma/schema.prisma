@@ -343,6 +343,8 @@ model DiscordSettings {
   defaultCategoryName String   @default("Discord") // Default category name for Discord tickets
   allowUserClose      Boolean  @default(true)   // Allow users to close their tickets
   enableIntegration   Boolean  @default(true)   // Enable/disable Discord integration
+  broadcastChannelId  String?                   // Discord channel ID for ticket creation broadcasts
+  enableBroadcast     Boolean  @default(false)  // Enable/disable ticket creation broadcasts
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }

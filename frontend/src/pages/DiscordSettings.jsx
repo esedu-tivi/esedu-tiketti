@@ -11,12 +11,14 @@ import {
   Archive,
   Activity,
   Clock,
-  Ticket
+  Ticket,
+  Megaphone
 } from 'lucide-react';
 import DiscordUsersList from '../components/Discord/DiscordUsersList';
 import DiscordBotConfig from '../components/Discord/DiscordBotConfig';
 import DiscordChannelSettings from '../components/Discord/DiscordChannelSettings';
 import DiscordStatistics from '../components/Discord/DiscordStatistics';
+import DiscordBroadcastSettings from '../components/Discord/DiscordBroadcastSettings';
 
 export default function DiscordSettings() {
   const { userRole } = useAuth();
@@ -148,6 +150,12 @@ export default function DiscordSettings() {
       description: 'Määritä Discord-kanavien automaattinen siivous ja elinkaari'
     },
     { 
+      id: 'broadcast', 
+      label: 'Broadcast', 
+      icon: <Megaphone size={16} className="text-purple-500" />,
+      description: 'Määritä uusien tikettien ilmoituskanava tukihenkilöille'
+    },
+    { 
       id: 'statistics', 
       label: 'Tilastot', 
       icon: <BarChart3 size={16} className="text-green-500" />,
@@ -241,6 +249,7 @@ export default function DiscordSettings() {
             {activeTab === 'users' && <DiscordUsersList />}
             {activeTab === 'bot' && <DiscordBotConfig />}
             {activeTab === 'channels' && <DiscordChannelSettings />}
+            {activeTab === 'broadcast' && <DiscordBroadcastSettings />}
             {activeTab === 'statistics' && <DiscordStatistics />}
           </div>
         </div>

@@ -26,4 +26,8 @@ router.post('/users/:id/sync', discordSettingsController.syncDiscordUser);
 // Statistics
 router.get('/statistics', discordSettingsController.getStatistics);
 
+// Channel validation and listing
+router.post('/validate-channel', discordSettingsController.validateChannel);
+router.get('/available-channels', discordSettingsController.getAvailableChannels);
+
 export default router;

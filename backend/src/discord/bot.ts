@@ -782,6 +782,130 @@ class DiscordBot {
       return `🧹 Seuraava siivous: ${minutes}min`;
     }
   }
+
+  /**
+   * Broadcasts a new ticket creation to a configured channel
+   * This notifies support agents about new tickets
+   */
+  public async broadcastNewTicket(ticket: any) {
+    try {
+      logger.debug(`Broadcast check for ticket ${ticket.id}: isAiGenerated=${ticket.isAiGenerated}, title="${ticket.title}"`);
+      
+      // Check if bot is ready and integration is enabled
+      if (!this.isReady || !this.settings?.enableIntegration) {
+        logger.debug('Discord bot not ready or integration disabled, skipping broadcast');
+        return;
+      }
+
+      // Check if broadcast is enabled and channel is configured
+      if (!this.settings?.enableBroadcast || !this.settings?.broadcastChannelId) {
+        logger.debug('Discord broadcast not enabled or channel not configured');
+        return;
+      }
+
+      // Skip AI-generated tickets
+      if (ticket.isAiGenerated === true) {
+        logger.info(`SKIPPING Discord broadcast for AI-generated ticket ${ticket.id} - "${ticket.title}"`);
+        return;
+      }
+      
+      logger.info(`SENDING Discord broadcast for human ticket ${ticket.id} - "${ticket.title}"`);
+
+      // Get the broadcast channel
+      const channel = this.client.channels.cache.get(this.settings.broadcastChannelId);
+      if (!channel || !('send' in channel)) {
+        logger.warn(`Broadcast channel ${this.settings.broadcastChannelId} not found or not a text channel`);
+        return;
+      }
+
+      // Create an embed for the new ticket notification
+      const embed = new EmbedBuilder()
+        .setTitle('🎫 Uusi tukipyyntö luotu')
+        .setDescription(ticket.title)
+        .setColor(0x00ff00) // Green color for new tickets
+        .addFields(
+          { 
+            name: '📝 Kuvaus', 
+            value: ticket.description ? (ticket.description.length > 200 ? ticket.description.substring(0, 200) + '...' : ticket.description) : 'Ei kuvausta',
+            inline: false 
+          },
+          { 
+            name: '👤 Luoja', 
+            value: ticket.createdBy?.name || 'Tuntematon',
+            inline: true 
+          },
+          { 
+            name: '📂 Kategoria', 
+            value: ticket.category?.name || 'Ei kategoriaa',
+            inline: true 
+          },
+          { 
+            name: '⚡ Prioriteetti', 
+            value: this.getPriorityLabel(ticket.priority),
+            inline: true 
+          },
+          { 
+            name: '📌 Tila', 
+            value: this.getStatusLabel(ticket.status),
+            inline: true 
+          },
+          {
+            name: '🔢 Tiketti ID',
+            value: `#${ticket.id.slice(0, 8)}`,
+            inline: true
+          },
+          {
+            name: '🌐 Lähde',
+            value: ticket.sourceType === 'DISCORD' ? '💬 Discord' : '🌐 Web',
+            inline: true
+          }
+        )
+        .setTimestamp(new Date(ticket.createdAt))
+        .setFooter({ text: 'Esedu Tiketti System' });
+
+      // Add device info if available
+      if (ticket.device) {
+        embed.addFields({
+          name: '💻 Laite',
+          value: ticket.device,
+          inline: false
+        });
+      }
+
+      // Send the broadcast message
+      await (channel as TextChannel).send({ embeds: [embed] });
+      
+      logger.info(`Broadcast sent for new ticket ${ticket.id} to channel ${this.settings.broadcastChannelId}`);
+    } catch (error) {
+      logger.error('Error broadcasting new ticket to Discord:', error);
+    }
+  }
+
+  /**
+   * Helper method to get Finnish priority label
+   */
+  private getPriorityLabel(priority: string): string {
+    const labels: { [key: string]: string } = {
+      'LOW': '🟢 Matala',
+      'MEDIUM': '🟡 Keskitaso',
+      'HIGH': '🔴 Korkea',
+      'URGENT': '🚨 Kiireellinen'
+    };
+    return labels[priority] || priority;
+  }
+
+  /**
+   * Helper method to get Finnish status label
+   */
+  private getStatusLabel(status: string): string {
+    const labels: { [key: string]: string } = {
+      'OPEN': '📂 Avoin',
+      'IN_PROGRESS': '⚙️ Käsittelyssä',
+      'RESOLVED': '✅ Ratkaistu',
+      'CLOSED': '🔒 Suljettu'
+    };
+    return labels[status] || status;
+  }
 }
 
 // Export singleton instance

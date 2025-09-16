@@ -51,6 +51,15 @@ The esedu-tiketti system includes Discord integration that allows users to creat
 - **Event-driven**: No database polling, purely event-based updates
 - **Format**: Custom status without "Playing/Watching/Listening" prefixes
 
+### 7. Ticket Broadcast Notifications
+- **Support channel notifications**: Broadcasts new ticket creation to configured Discord channel
+- **Real-time alerts**: Support agents get instant notifications about new tickets
+- **Rich embeds**: Shows ticket details including title, description, priority, category, and creator
+- **Finnish language**: All messages displayed in Finnish
+- **Configurable**: Enable/disable broadcasts and select target channel via admin panel
+- **Human tickets only**: Only broadcasts human-created tickets (excludes AI-generated training tickets)
+- **Works for web and Discord**: Notifies for both web and Discord-created tickets by real users
+
 ## Technical Implementation
 
 ### Database Schema
@@ -76,6 +85,12 @@ discordServerId   String?
 ```prisma
 discordMessageId String?
 isFromDiscord    Boolean @default(false)
+```
+
+#### DiscordSettings Model
+```prisma
+broadcastChannelId  String?  // Discord channel ID for ticket creation broadcasts
+enableBroadcast     Boolean  @default(false)  // Enable/disable ticket creation broadcasts
 ```
 
 ### Discord Bot Architecture
@@ -141,6 +156,12 @@ DISCORD_CLIENT_ID=your_discord_client_id_here
 # Optional: Discord category ID for organizing ticket channels
 # DISCORD_TICKET_CATEGORY_ID=1234567890123456789
 ```
+
+### Broadcast Channel Setup
+1. **Enable broadcast**: Go to Admin → Discord Settings → Broadcast tab
+2. **Select channel**: Choose a Discord channel where support agents can see new ticket notifications
+3. **Configure permissions**: Ensure bot has permission to send messages in the selected channel
+4. **Test**: Create a test ticket to verify broadcasts are working
 
 ### Discord Bot Setup
 

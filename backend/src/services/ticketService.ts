@@ -237,6 +237,7 @@ export const ticketService = {
         ...(data.userProfile && { userProfile: data.userProfile }),
         priority: data.priority,
         responseFormat: data.responseFormat || 'TEKSTI',
+        isAiGenerated: data.isAiGenerated || false,
         createdBy: {
           connect: { id: userId }
         },
@@ -255,6 +256,15 @@ export const ticketService = {
       // Only update for non-Discord tickets (Discord tickets already update)
       await discordBot.onTicketChanged('created', undefined, ticket.status);
       logger.debug('Discord bot status updated for new ticket creation');
+    }
+
+    // Broadcast new ticket to Discord channel for support agents (excluding AI-generated tickets)
+    logger.info(`Ticket created: ID=${ticket.id}, isAiGenerated=${ticket.isAiGenerated}, title="${ticket.title}"`);
+    if (discordBot && !ticket.isAiGenerated) {
+      await discordBot.broadcastNewTicket(ticket);
+      logger.info(`Discord broadcast initiated for human ticket ${ticket.id}`);
+    } else if (discordBot && ticket.isAiGenerated) {
+      logger.info(`SKIPPING Discord broadcast for AI-generated ticket ${ticket.id}`);
     }
 
     // If there are attachments, create them and link to the ticket

@@ -32,6 +32,7 @@ export interface CreateTicketDTO {
   categoryId: string;
   responseFormat?: ResponseFormat;
   userProfile?: string;
+  isAiGenerated?: boolean;
   attachments?: Array<{
     filename: string;
     path: string;

@@ -13,7 +13,9 @@ const updateSettingsSchema = z.object({
   showCleanupTimer: z.boolean().optional(),
   defaultCategoryName: z.string().min(1).max(50).optional(),
   allowUserClose: z.boolean().optional(),
-  enableIntegration: z.boolean().optional()
+  enableIntegration: z.boolean().optional(),
+  broadcastChannelId: z.string().nullable().optional(), // Discord channel ID for broadcasts
+  enableBroadcast: z.boolean().optional() // Enable/disable broadcast feature
 });
 
 export const discordSettingsController = {
@@ -269,6 +271,101 @@ export const discordSettingsController = {
     } catch (error) {
       logger.error('Error syncing Discord user:', error);
       return errorResponse(res, 'Failed to sync Discord user', 500);
+    }
+  },
+
+  /**
+   * Validate Discord channel ID
+   * Checks if the provided channel ID is valid and accessible by the bot
+   */
+  async validateChannel(req: Request, res: Response) {
+    try {
+      const { channelId } = req.body;
+      
+      if (!channelId) {
+        return errorResponse(res, 'Channel ID is required', 400);
+      }
+      
+      // Check if Discord bot is available
+      const discordBot = (global as any).discordBot;
+      if (!discordBot || !discordBot.isRunning()) {
+        return errorResponse(res, 'Discord bot is not running', 503);
+      }
+      
+      try {
+        // Try to fetch the channel
+        const channel = discordBot.getClient().channels.cache.get(channelId);
+        
+        if (!channel) {
+          return errorResponse(res, 'Channel not found or bot does not have access', 404);
+        }
+        
+        // Check if it's a text channel
+        if (!('send' in channel)) {
+          return errorResponse(res, 'Channel is not a text channel', 400);
+        }
+        
+        // Get channel details
+        const channelInfo = {
+          id: channel.id,
+          name: (channel as any).name,
+          type: channel.type,
+          guild: (channel as any).guild?.name || 'Unknown Server'
+        };
+        
+        return successResponse(res, { 
+          valid: true, 
+          channel: channelInfo 
+        }, 'Channel is valid and accessible');
+      } catch (error) {
+        logger.error('Error validating Discord channel:', error);
+        return errorResponse(res, 'Failed to validate channel', 500);
+      }
+    } catch (error) {
+      logger.error('Error in validateChannel:', error);
+      return errorResponse(res, 'Failed to validate channel', 500);
+    }
+  },
+
+  /**
+   * Get list of available Discord channels
+   * Returns all text channels the bot has access to
+   */
+  async getAvailableChannels(req: Request, res: Response) {
+    try {
+      // Check if Discord bot is available
+      const discordBot = (global as any).discordBot;
+      if (!discordBot || !discordBot.isRunning()) {
+        return errorResponse(res, 'Discord bot is not running', 503);
+      }
+      
+      try {
+        // Get all text channels the bot can see
+        const channels = discordBot.getClient().channels.cache
+          .filter((channel: any) => channel.type === 0 && channel.guild) // Type 0 is text channel
+          .map((channel: any) => ({
+            id: channel.id,
+            name: channel.name,
+            guild: channel.guild.name,
+            category: channel.parent?.name || 'No Category'
+          }));
+        
+        // Sort by guild and then channel name
+        channels.sort((a: any, b: any) => {
+          if (a.guild !== b.guild) {
+            return a.guild.localeCompare(b.guild);
+          }
+          return a.name.localeCompare(b.name);
+        });
+        
+        return successResponse(res, { channels }, 'Available channels retrieved');
+      } catch (error) {
+        logger.error('Error getting Discord channels:', error);
+        return errorResponse(res, 'Failed to get channels', 500);
+      }
+    } catch (error) {
+      logger.error('Error in getAvailableChannels:', error);
+      return errorResponse(res, 'Failed to get available channels', 500);
     }
   }
 };

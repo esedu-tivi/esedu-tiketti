@@ -1,5 +1,28 @@
 # Changelog
 
+## 2025-09-16 - Discord Broadcast Feature
+### Added
+- **Discord Broadcast Notifications**: New feature to notify support agents about ticket creation
+  - Broadcasts new tickets to a configured Discord channel
+  - Support agents can see real-time notifications when tickets are created
+  - Rich embed format showing ticket details (title, description, priority, category, creator)
+  - Finnish language interface for all notification messages
+  - Works for both web and Discord-created tickets
+  - Excludes AI-generated training tickets from broadcasts
+  
+### Technical Changes
+- Added `broadcastChannelId` and `enableBroadcast` fields to DiscordSettings model
+- Created `broadcastNewTicket()` method in Discord bot for sending notifications
+- Integrated broadcast calls into ticket creation flow (both web and Discord)
+- Fixed AI-generated ticket filtering by setting `isAiGenerated` flag at creation time
+- Added `isAiGenerated` field to CreateTicketDTO to support proper flagging
+- Added API endpoints for channel validation and listing available channels
+- Created new frontend component `DiscordBroadcastSettings` for configuration
+- Added broadcast tab to Discord settings page in admin panel
+
+### Database
+- Migration: `add_discord_broadcast_settings` - Added broadcast configuration fields
+
 Kaikki merkittävät muutokset tähän projektiin dokumentoidaan tässä tiedostossa.
 
 # 15.09.2025 - Bulk Delete ja Opiskelijan Raporttityökalu
