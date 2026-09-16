@@ -1,7 +1,13 @@
 import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
-import jwt from 'jsonwebtoken';
 import logger from '../utils/logger.js';
+import {
+  verifyAzureToken,
+  extractUser,
+  decodeUnsafe,
+  AUTH_VERIFY_MODE,
+  TokenVerificationError
+} from '../middleware/azureTokenVerifier.js';
 
 interface SocketUser {
   id: string;
@@ -48,41 +54,38 @@ class SocketService {
         }
 
         try {
-          // Simply decode the token without verification (like the working version)
-          // The token comes from Microsoft and has audience for MS Graph, not our app
-          const decoded = jwt.decode(token) as JWTPayload;
-          
-          logger.debug('Decoded token:', {
-            upn: decoded?.upn,
-            unique_name: decoded?.unique_name,
-            preferred_username: decoded?.preferred_username,
-            email: decoded?.email,
-            hasToken: !!token,
-            tokenLength: token.length
-          });
+          // Sama tarkistus kuin HTTP-pyynnöissä (authMiddleware).
+          // Aiemmin tässä vain purettiin token tarkistamatta allekirjoitusta,
+          // jolloin WebSocket-yhteyden sai kenen tahansa nimissä.
+          const payload = await verifyAzureToken(token);
+          const user = extractUser(payload);
 
-          // Extract user email from token (check multiple possible fields)
-          const userEmail = decoded?.preferred_username || decoded?.upn || decoded?.email || decoded?.unique_name;
+          socket.data.user = { email: user.email };
 
-          if (!decoded || !userEmail) {
-            logger.error('Invalid token structure:', decoded);
-            return next(new Error('Invalid token'));
-          }
-
-          // Check token expiration
-          if (decoded.exp && decoded.exp < Date.now() / 1000) {
-            logger.error('Token expired');
-            return next(new Error('Token expired'));
-          }
-
-          socket.data.user = {
-            email: userEmail
-          };
-
-          logger.info('WebSocket authenticated for user:', userEmail);
+          logger.info('WebSocket authenticated for user:', user.email);
           next();
-        } catch (decodeError) {
-          logger.error('Token decode error:', decodeError);
+        } catch (verifyError) {
+          const code = verifyError instanceof TokenVerificationError ? verifyError.code : 'UNKNOWN';
+          const message = verifyError instanceof Error ? verifyError.message : String(verifyError);
+
+          if (AUTH_VERIFY_MODE === 'warn') {
+            const decoded = decodeUnsafe(token);
+            const email =
+              decoded?.preferred_username || decoded?.upn || decoded?.email || decoded?.unique_name;
+
+            logger.warn(
+              `⚠️  WebSocket token verification failed but WARN mode is active: ` +
+                `${code} - ${message} [aud=${decoded?.aud}, iss=${decoded?.iss}, email=${email}]`,
+              { code, reason: message, tokenAudience: decoded?.aud, tokenIssuer: decoded?.iss, email }
+            );
+
+            if (email) {
+              socket.data.user = { email };
+              return next();
+            }
+          }
+
+          logger.warn(`WebSocket token verification failed: ${code} - ${message}`, { code, reason: message });
           return next(new Error('Invalid token'));
         }
       } catch (error) {

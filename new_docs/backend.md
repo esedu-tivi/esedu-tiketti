@@ -105,21 +105,32 @@ Vastaavat JWKS-avaimet sijaitsevat eri discovery-osoitteissa:
 - v2-avaimet: `https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys`
 - v1-avaimet: `https://login.microsoftonline.com/{tenant}/discovery/keys`
 
-Autentikointimiddleware (`src/middleware/authMiddleware.ts`) tunnistaa tokenin issuerin perusteella, käyttää ensisijaisesti oikeaa JWKS-joukkoa (v1 vs v2), ja tekee automaattisen fallbackin vaihtoehtoiseen JWKS-joukkoon, jos allekirjoituksen validointi epäonnistuu ("invalid signature"). Tämä korjaa tuotantoympäristössä esiintyneen virheen, jossa v1-issuerilla (`sts.windows.net/...`) allekirjoitetut tokenit validoitiin vain v2-avaimia vasten.
+Tokenin tarkistus on keskitetty moduuliin `src/middleware/azureTokenVerifier.ts`, jota käyttävät sekä HTTP-pyyntöjen `authMiddleware` että WebSocket-yhteyksien `socketService`. Aiemmin molemmilla oli oma toteutuksensa, ja ne ehtivät ajautua eri tilaan.
+
+Verifioija tunnistaa tokenin issuerin perusteella, käyttää ensisijaisesti oikeaa JWKS-joukkoa (v1 vs v2), ja tekee automaattisen fallbackin vaihtoehtoiseen joukkoon, jos allekirjoituksen validointi epäonnistuu ("invalid signature").
 
 Tärkeää frontendille (MSAL):
 
-- Backend odottaa, että Azure ID-/access tokenin `aud`-claim on oman API-sovelluksen client ID (`AZURE_CLIENT_ID`).
-- Älä lähetä Microsoft Graphin access tokenia backendille (aud: `00000003-0000-0000-c000-000000000000`). Graph-token validoituu nyt allekirjoituksesta oikein, mutta se hylätään yleisön (audience) perusteella turvallisuussyistä.
-- Pyydä tokenit nimenomaan tälle API:lle (Expose an API → scope) ja käytä MSAL:ssa oikeaa scopea (esim. `api://<AZURE_CLIENT_ID>/.default` tai määritelty custom scope).
+- Frontend lähettää **ID-tokenin** (`authService.acquireToken()` → `response.idToken`). Sen `aud`-claim on sovelluksen client ID (`AZURE_CLIENT_ID`) ja `iss` sisältää tenant id:n.
+- Älä lähetä Microsoft Graphin access tokenia backendille (aud: `00000003-0000-0000-c000-000000000000`). Microsoft muokkaa Graph-tokenin allekirjoitusta tarkoituksella, joten mikään muu palvelu ei voi tarkistaa sitä. Verifioija tunnistaa tämän ja palauttaa virhekoodin `GRAPH_TOKEN` selkeällä viestillä.
+- Vaihtoehto ID-tokenille on oma API-scope (Expose an API → scope), jolloin frontend pyytää tokenin nimenomaan tälle API:lle.
 
 Ympäristömuuttujat:
 
-- `AZURE_TENANT_ID` (pakollinen tuotannossa)
-- `AZURE_CLIENT_ID` (pakollinen tuotannossa)
-- Valinnainen: `DEVELOPER_EMAILS` (pilkulla eroteltu lista), joille kehitystarkistukset ovat joustavammat
+- `AZURE_TENANT_ID` (pakollinen) – sama arvo kuin frontendin `VITE_MSAL_TENANT_ID`
+- `AZURE_CLIENT_ID` (pakollinen) – sama arvo kuin frontendin `VITE_MSAL_CLIENT_ID`
+- `AUTH_VERIFY_MODE` (valinnainen): `enforce` (oletus) hylkää kelpaamattomat tokenit, `warn` hyväksyy ne ja lokittaa syyn
 
-Virhetilanteiden diagnostiikka: middleware lokittaa selkeästi issuerin, audin ja käytetyn JWKS-lähteen. Jos saat 401 `Invalid token signature`, kyseessä on yleensä väärä JWKS (korjaantuu fallbackilla) tai väärä tenant. Jos saat 401 `Invalid or expired token` audience-virheen kera, frontend lähettää todennäköisesti Graph-tokenin eikä oman API:n tokenia.
+Jos pakolliset muuttujat puuttuvat, backend lokittaa virheen käynnistyksessä ja vastaa todennettuihin pyyntöihin statuksella 500.
+
+**`AUTH_VERIFY_MODE=warn` on tarkoitettu vain väliaikaiseen diagnosointiin.** Siinä tilassa järjestelmä on käytännössä ilman todennusta, mutta jokaisesta epäonnistuneesta tarkistuksesta lokitetaan tarkka syy (`code`, tokenin `aud` ja `iss`). Käytännön käyttöönotto: ota warn-tila käyttöön, katso lokista mitä oikea liikenne tuottaa, korjaa konfiguraatio ja siirry `enforce`-tilaan.
+
+Virhekoodit: `CONFIG_MISSING`, `MALFORMED`, `GRAPH_TOKEN`, `EXPIRED`, `INVALID_SIGNATURE`, `INVALID_CLAIMS`, `MISSING_USER_INFO`. `INVALID_CLAIMS` sisältää sekä tokenin että odotetut arvot, joten aud/iss-virheen näkee lokista suoraan.
+
+Huomaa myös:
+
+- `optionalAuthMiddleware` EI todenna käyttäjää. Se asettaa vain kentän `req.rateLimitIdentity`, jota käytetään rate limit -avaimena. `req.user` asetetaan vasta tarkistetusta tokenista.
+- `POST /api/auth/login` vaatii tarkistetun tokenin, ja käyttäjän sähköposti ja nimi luetaan tokenista – ei request bodysta.
 
 ## Syötteiden Validointi
 

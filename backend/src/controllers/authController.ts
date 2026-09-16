@@ -12,13 +12,18 @@ interface LoginRequestBody {
 
 export const authController = {
   handleLogin: asyncHandler(async (req: TypedRequest<LoginRequestBody>, res: Response) => {
-      const { email, name, jobTitle } = req.body;
+      // Sähköposti ja nimi luetaan TARKISTETUSTA tokenista, ei request bodysta.
+      // Muuten kuka tahansa voisi luoda tilin millä tahansa osoitteella tai
+      // muuttaa toisen käyttäjän nimeä.
+      const email = req.user?.email;
+      const name = req.user?.name;
+      const { jobTitle } = req.body;
 
       logger.info('Login attempt:', { email, name, jobTitle });
 
       if (!email || !name) {
-        logger.warn('Login failed: Missing email or name', { email, name });
-        throw new ValidationError('Email and name are required');
+        logger.warn('Login failed: token missing email or name', { email, name });
+        throw new ValidationError('Token does not contain required user information');
       }
 
       // Use atomic upsert to avoid race conditions

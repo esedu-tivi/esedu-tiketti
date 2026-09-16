@@ -12,8 +12,11 @@ export interface MSALUser {
 declare global {
   namespace Express {
     interface Request {
+      /** Asetetaan vasta kun token on TARKISTETTU (authMiddleware). */
       user?: MSALUser;
       requestId?: string;
+      /** Tarkistamaton tunniste rate limit -laskentaa varten. Ei todennusta. */
+      rateLimitIdentity?: string;
     }
   }
 }

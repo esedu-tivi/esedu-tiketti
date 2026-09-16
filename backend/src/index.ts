@@ -2,6 +2,7 @@ import { httpServer } from './app.js';
 import { validateEnv, env } from './config/env.js';
 import logger from './utils/logger.js';
 import { discordBot } from './discord/bot.js';
+import { logAuthConfiguration } from './middleware/azureTokenVerifier.js';
 
 // Validate environment variables on startup
 if (!validateEnv()) {
@@ -16,7 +17,7 @@ const port = env.PORT || 3000;
 httpServer.listen(port, async () => {
   logger.info(`🚀 Server is running on port ${port}`);
   logger.info(`📝 Environment: ${env.NODE_ENV}`);
-  logger.info(`🔒 JWT authentication: enabled`);
+  logAuthConfiguration();
   logger.info(`🛡️  Security headers: enabled`);
   logger.info(`⚡ Rate limiting: enabled`);
   

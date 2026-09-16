@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-16 - Todennuksen korjaus (kriittinen)
+
+### Security
+- **Tokenin allekirjoitusta ei tarkistettu lainkaan.** `authMiddleware` käytti `jwt.decode`-kutsua eikä `jwt.verify`-kutsua (commit `07efc46` poisti JWKS-tarkistuksen 3.9.2025). Koska `roleMiddleware` hakee roolin pelkän sähköpostin perusteella, kuka tahansa pystyi luomaan itse tokenin pääkäyttäjän sähköpostilla ja saamaan täydet oikeudet.
+- **`optionalAuthMiddleware` asetti `req.user`-kentän tarkistamattomasta tokenista** ennen reittikohtaista todennusta. Tunniste siirretty kenttään `req.rateLimitIdentity`, jota käytetään vain rate limit -avaimena.
+- **`POST /api/auth/login` oli täysin avoin** ja loi käyttäjätilin request bodyn perusteella. Reitti vaatii nyt tarkistetun tokenin, ja sähköposti ja nimi luetaan tokenista.
+- **WebSocket-yhteydet hyväksyttiin tarkistamattomalla tokenilla** (`socketService`). Nyt sama tarkistus kuin HTTP-pyynnöissä.
+
+### Juurisyy alkuperäiseen ongelmaan
+- Tarkistus poistettiin, koska tuotannossa tuli "invalid signature" -virheitä. Syy oli siinä, että frontend lähetti Microsoft Graphille tarkoitetun access tokenin (`aud` = Graph, `iss` = `sts.windows.net`). Microsoft muokkaa Graph-tokenin allekirjoitusta tarkoituksella, joten mikään JWKS-fallback ei voinut auttaa.
+- Frontend vaihdettiin ID-tokeniin commitissa `f1442e9` klo 11:10, mutta tarkistus revertoitiin silti klo 12:32 samana päivänä. Jäljelle jäänyt epäilys on puuttuva tai väärä `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` tuotannon `.env`-tiedostossa – sama commit poisti ne myös `.env.example`-tiedostosta.
+
+### Added
+- `src/middleware/azureTokenVerifier.ts`: keskitetty tokenin tarkistus, jota käyttävät sekä HTTP että WebSocket
+  - JWKS v1/v2 -valinta issuerin perusteella ja fallback vain allekirjoitusvirheellä
+  - Graph-tokenin tunnistus omalla virhekoodilla ja ohjeella
+  - Virhekoodit, joista näkee suoraan mikä claim ei täsmää
+- `AUTH_VERIFY_MODE=warn`: käyttöönoton diagnostiikkatila, joka lokittaa epäonnistumisen syyn hylkäämättä pyyntöä
+- Käynnistysloki kertoo odotetun audiencen ja issuerit sekä varoittaa, jos konfiguraatio puuttuu
+
+### Removed
+- `DEVELOPER_EMAILS`-ohitus, joka salli tokenin hyväksymisen ilman allekirjoituksen tarkistusta sähköpostilistan perusteella
+
+### Technical Changes
+- Azure-asetukset luetaan `config/env.js`-moduulin kautta, koska moduulitason `process.env`-luku tapahtuisi ennen `dotenv.config()`-kutsua
+- JWKS-clientit luodaan vasta ensimmäisellä käytöllä
+- `.env.example`: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` ja `AUTH_VERIFY_MODE` dokumentoitu
+
 ## 2026-09-16 - Tikettien aihevaihtelu
 
 ### Fixed
