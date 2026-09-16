@@ -11,6 +11,15 @@ VAIKEUSTASO: {complexity} (simple=helppo, moderate=keskitaso, complex=vaativa)
 KATEGORIA: {category} (tekninen ongelma, ohjelmisto-ongelma, jne.)
 KÄYTTÄJÄPROFIILI: {userProfile} (Tämä vaikuttaa tiketin kielenkäyttöön, tekniseen tarkkuuteen ja ongelman luonteeseen)
 
+ONGELMAN AIHE (pakollinen): {topic}
+Tarkennus aiheeseen: {topicHint}
+Tilanne: ongelma ilmenee {situation}
+
+AIHETTA KOSKEVAT SÄÄNNÖT:
+- Tiketin TÄYTYY käsitellä yllä annettua aihetta. Älä kirjoita mistään muusta ongelmasta.
+- Älä muuta tikettiä yleiseksi verkko-, wifi- tai tulostinongelmaksi, ellei se ole annettu aihe.
+- Käytä tilannetta tehdäksesi skenaariosta konkreettisen.
+
 Luotavan tiketin tulee sisältää:
 1. Selkeä ja ytimekäs otsikko, joka kuvaa ongelmaa
 2. Yksityiskohtainen kuvaus ongelmasta käyttäjän näkökulmasta

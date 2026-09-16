@@ -8,6 +8,8 @@ import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { Priority, ResponseFormat } from '@prisma/client';
 import SOLUTION_GENERATOR_PROMPT from "../prompts/solutionGeneratorPrompt.js";
+import { pickTicketTopic, pickDevice, pickSituation, getTopicById, TicketTopic } from "../config/ticketTopics.js";
+import { getRecentTopicIds } from "../config/recentTopics.js";
 
 // Technical level definitions
 type TechnicalLevel = 'beginner' | 'intermediate' | 'advanced';
@@ -43,6 +45,10 @@ interface GeneratedTicket {
     technicalLevel: string;
     technicalAccuracy: number;
     generatorVersion: 'modern' | 'legacy';
+    /** Arvottu aihe. Käytetään myös estämään saman aiheen toistuminen. */
+    topicId?: string;
+    topicName?: string;
+    situation?: string;
   };
 }
 
@@ -119,6 +125,8 @@ export class ModernTicketGeneratorAgent {
     // Optional manual overrides
     manualStyle?: TicketStyle;
     manualTechnicalLevel?: TechnicalLevel;
+    /** Aiheen tunniste, jos halutaan ohittaa satunnainen arvonta. */
+    topicId?: string;
   }): Promise<GeneratedTicket> {
     await this.initializeModel();
     
@@ -147,21 +155,39 @@ export class ModernTicketGeneratorAgent {
       
       // Select style - use manual override if provided, otherwise random
       const style = params.manualStyle || config.styles[Math.floor(Math.random() * config.styles.length)];
-      
+
+      // Valitse aihe koodissa, ei mallissa. Ilman tätä malli päätyy aina
+      // samaan "tyypillisimpään" ongelmaan, koska se ei muista aiempia kutsuja.
+      const recentTopicIds = await getRecentTopicIds();
+      const topic = (params.topicId ? getTopicById(params.topicId) : undefined)
+        || pickTicketTopic({
+          categoryName: categoryRecord.name,
+          complexity,
+          excludeIds: recentTopicIds
+        });
+      const device = pickDevice(topic);
+      const situation = pickSituation();
+
       logger.info('🎨 [ModernTicketGenerator] Using configuration:', {
         technicalLevel,
         style,
+        topic: topic.id,
+        situation,
+        excludedRecentTopics: recentTopicIds.length,
         maxLength: config.maxLength,
         vagueness: config.vagueness
       });
-      
+
       // Build the dynamic prompt
       const systemPrompt = this.buildSystemPrompt(
         technicalLevel,
         style,
         complexity,
         categoryRecord.name,
-        userProfile
+        userProfile,
+        topic,
+        device,
+        situation
       );
       
       // Generate ticket with structured output
@@ -192,6 +218,7 @@ export class ModernTicketGeneratorAgent {
       
       logger.info('✅ [ModernTicketGenerator] Generated ticket:', {
         title: parsed.title,
+        topic: topic.id,
         style: parsed.style,
         technicalAccuracy: parsed.technicalAccuracy,
         descriptionLength: parsed.description.length
@@ -218,7 +245,10 @@ export class ModernTicketGeneratorAgent {
           writingStyle: parsed.style,
           technicalLevel: technicalLevel,
           technicalAccuracy: parsed.technicalAccuracy,
-          generatorVersion: 'modern'
+          generatorVersion: 'modern',
+          topicId: topic.id,
+          topicName: topic.name,
+          situation
         }
       };
       
@@ -236,7 +266,10 @@ export class ModernTicketGeneratorAgent {
     style: TicketStyle,
     complexity: string,
     category: string,
-    userProfile: string
+    userProfile: string,
+    topic: TicketTopic,
+    device: string,
+    situation: string
   ): string {
     const config = TECHNICAL_CONFIGS[technicalLevel];
     
@@ -261,20 +294,22 @@ export class ModernTicketGeneratorAgent {
     
     let technicalInstructions = '';
     if (technicalLevel === 'beginner') {
+      // HUOM: älä anna aihekohtaisia esimerkkejä. Aiemmin tässä oli
+      // verkkoesimerkkejä ("netti ei toimi"), ja malli ajautui niiden
+      // takia generoimaan verkko-ongelmia aiheesta riippumatta.
       technicalInstructions = `
 CRITICAL RULES FOR BEGINNER:
-- DO NOT use technical terms like: IP, DNS, DHCP, ping, IPv4, port, protocol, etc.
-- DO NOT mention specific error codes or technical details
+- DO NOT use technical jargon, abbreviations or error codes of any kind
 - DO NOT list multiple troubleshooting steps (max 1 simple thing like restart)
-- Be VERY vague: "netti ei toimi", "en pääse mihinkään", "kone on rikki"
+- Be VERY vague and describe the problem in everyday words
 - Focus on what they CAN'T DO, not technical symptoms
 - Maximum ${config.maxLength} characters for description
-- Device info should be simple like "läppäri" or "koulun kone" if mentioned at all`;
+- Device info should be simple everyday wording if mentioned at all`;
     } else if (technicalLevel === 'intermediate') {
       technicalInstructions = `
 RULES FOR INTERMEDIATE USER:
 - Can use SOME basic technical terms but often incorrectly
-- Might mention "WiFi", "salasana", "verkko", "yhteys"
+- Uses everyday vocabulary that fits THIS topic, not memorised jargon
 - Can try 1-3 basic troubleshooting steps
 - Still somewhat vague but tries to be helpful
 - Maximum ${config.maxLength} characters for description`;
@@ -300,6 +335,16 @@ CATEGORY: ${category}
 COMPLEXITY: ${complexity}
 TECHNICAL LEVEL: ${technicalLevel}
 WRITING STYLE: ${style}
+
+PROBLEM TOPIC (mandatory): ${topic.name}
+Topic detail: ${topic.hint}
+Situation: the problem comes up ${situation}
+${device ? `Device: ${device}` : 'Device: the user does not mention the device'}
+
+TOPIC RULES:
+- The ticket MUST be about the topic above. Do NOT write about any other problem.
+- Do NOT turn this into a generic network, wifi or printer issue unless that IS the topic.
+- Use the situation and device to make the scenario concrete and specific.
 
 ${technicalInstructions}
 

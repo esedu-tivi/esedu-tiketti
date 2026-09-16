@@ -9,6 +9,8 @@ import { prisma } from '../../lib/prisma.js';
 import { Priority, ResponseFormat } from '@prisma/client';
 import { z } from "zod";
 import { StructuredOutputParser } from "langchain/output_parsers";
+import { pickTicketTopic, pickSituation } from "../config/ticketTopics.js";
+import { getRecentTopicIds } from "../config/recentTopics.js";
 
 // Define the output schema for our ticket generator
 const ticketOutputSchema = z.object({
@@ -41,6 +43,9 @@ interface GeneratedTicket {
     technicalLevel: string;
     technicalAccuracy: number;
     generatorVersion: 'modern' | 'legacy';
+    topicId?: string;
+    topicName?: string;
+    situation?: string;
   };
 }
 
@@ -177,10 +182,23 @@ export class TicketGeneratorAgent {
       logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Translated userProfile for prompt', { original: userProfile, translated: userProfileFinnish }); // DEBUG LOG
       
       // Format the prompt with provided parameters
+      // Aihe arvotaan koodissa myös vanhassa generaattorissa. Ilman tätä
+      // malli valitsee aina saman "tyypillisimmän" ongelman.
+      const recentTopicIds = await getRecentTopicIds();
+      const topic = pickTicketTopic({
+        categoryName,
+        complexity,
+        excludeIds: recentTopicIds
+      });
+      const situation = pickSituation();
+
       const promptParams = { // DEBUG LOG
         complexity: complexity.trim(),
         category: categoryName.trim(), // Use the category name for the prompt
         userProfile: userProfileFinnish.trim(), // Use the translated Finnish profile
+        topic: topic.name,
+        topicHint: topic.hint,
+        situation,
       };
       // logger.info('TicketGeneratorAgent: Formatting prompt with params:', JSON.stringify(promptParams, null, 2)); // DEBUG LOG
       logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Formatting prompt', { promptParams }); // DEBUG LOG
@@ -307,8 +325,17 @@ export class TicketGeneratorAgent {
         categoryId: categoryRecord.id,
         createdById: adminUser.id,
         assignedToId: params.assignToId || null,
-        // Don't include metadata for legacy generator - it doesn't have style/level features
-        metadata: undefined
+        // Vanhalla generaattorilla ei ole tyyli- tai tasotietoja, mutta aihe
+        // tallennetaan sekin, jotta toiston esto toimii myös tällä versiolla.
+        metadata: {
+          writingStyle: '',
+          technicalLevel: '',
+          technicalAccuracy: 0,
+          generatorVersion: 'legacy' as const,
+          topicId: topic.id,
+          topicName: topic.name,
+          situation
+        }
       };
       // logger.info('TicketGeneratorAgent: Returning final ticket data:', JSON.stringify(finalTicketData, null, 2)); // DEBUG LOG
       logger.debug('[DEBUG] TicketGeneratorAgent.generateTicket - Returning final generated ticket data:', { finalTicketData }); // DEBUG LOG
