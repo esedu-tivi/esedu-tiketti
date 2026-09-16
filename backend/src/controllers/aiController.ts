@@ -167,15 +167,17 @@ export const aiController = {
       const ticket = await ticketService.createTicket(createTicketData, ticketData.createdById);
       logger.info('AI-generated ticket created with ID:', ticket.id);
       
-      // Update ticket with additional metadata if from ModernTicketGenerator
-      if (ticketData.metadata && ticketData.metadata.generatorVersion === 'modern') {
+      // Tallenna generointimetadata molemmilta generaattoreilta.
+      // Metadata sisältää mm. arvotun aiheen (topicId), jota käytetään
+      // estämään saman aiheen toistuminen seuraavissa tiketeissä.
+      if (ticketData.metadata) {
         await prisma.ticket.update({
-          where: { id: ticket.id! }, 
+          where: { id: ticket.id! },
           data: {
             generatorMetadata: ticketData.metadata
           },
         });
-        logger.info('Stored ModernTicketGenerator metadata:', ticketData.metadata);
+        logger.info('Stored ticket generator metadata:', ticketData.metadata);
       }
       
       // Store the PRE-GENERATED solution (received from frontend) in a knowledge base entry

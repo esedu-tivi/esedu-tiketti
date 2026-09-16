@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-16 - Tikettien aihevaihtelu
+
+### Fixed
+- **AI-generoitujen tikettien yksipuolisuus**: generoidut tiketit käsittelivät aina samaa aihetta (ensin tulostimet, sitten wifi)
+  - Syy 1: koodi ei valinnut aihetta lainkaan, vaan jätti sen kielimallille. Koska jokainen generointi on erillinen kutsu, malli ei voinut muistaa aiempia tikettejä ja päätyi joka kerta "tyypillisimpään" ongelmaan.
+  - Syy 2: `ModernTicketGeneratorAgent`-promptin esimerkit ohjasivat verkko-ongelmiin ("netti ei toimi", "WiFi", "verkko", "yhteys") ja kielletyt termit olivat pelkkiä verkkotermejä.
+  - Aihe arvotaan nyt koodissa ennen LLM-kutsua ja annetaan promptille valmiina.
+  - Viimeisten 15 tiketin aiheet jätetään arvonnan ulkopuolelle.
+
+### Added
+- Aihekatalogi `ai/config/ticketTopics.ts`: 48 skenaariota (kirjautuminen, Microsoft 365, tulostus, verkko, laitteet, käyttöjärjestelmä, tiedostot, tietoturva, luokkatilat)
+  - Jokaisella aiheella tarkennus, sopivat kategoriat ja vaikeustasot
+  - Myös laite ja tilannekonteksti arvotaan, mikä tuo vaihtelua saman aiheen sisälle
+- `ai/config/recentTopics.ts`: toiston esto, jota molemmat generaattorit käyttävät
+
+### Technical Changes
+- Aihe, laite ja tilanne lisätty sekä `ModernTicketGeneratorAgent`-promptiin että vanhan generaattorin `TICKET_GENERATOR_PROMPT`-templateen
+- Poistettu verkkoaiheiset esimerkit promptin teknisen tason ohjeista
+- `generatorMetadata` sisältää nyt kentät `topicId`, `topicName` ja `situation`
+- Vanha generaattori tallentaa metadatan (aiemmin `undefined`), jotta toiston esto toimii myös sillä
+- `aiController` tallentaa metadatan molemmilta generaattoriversioilta, ei vain modernilta
+- Generaattorille voi antaa `topicId`-parametrin, jos halutaan ohittaa satunnainen arvonta
+
 ## 2025-09-16 - Discord Broadcast Feature
 ### Added
 - **Discord Broadcast Notifications**: New feature to notify support agents about ticket creation
