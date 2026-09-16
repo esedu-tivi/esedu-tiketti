@@ -36,6 +36,11 @@ dotenv.config();
 // Luodaan Express-sovellus
 const app = express();
 
+// Sovellus toimii nginx-reverse proxyn takana (yksi hyppy).
+// Ilman tätä req.ip olisi aina 127.0.0.1 ja rate limit koskisi
+// kaikkia käyttäjiä yhteisesti nginxin osoitteen perusteella.
+app.set('trust proxy', 1);
+
 // Create HTTP server
 const httpServer = createServer(app);
 
