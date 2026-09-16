@@ -5,6 +5,7 @@ import { Request } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { ValidationError } from './errorHandler.js';
 
 // Get current file's directory path in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -33,20 +34,33 @@ const storage = multer.diskStorage({
 const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const allowedMimeTypes = [
     // Images
-    'image/jpeg', 
-    'image/png', 
-    'image/gif', 
+    'image/jpeg',
+    'image/png',
+    'image/gif',
     'image/webp',
+    // HEIC/HEIF (iPhone-kuvat)
+    'image/heic',
+    'image/heif',
+    'image/heic-sequence',
+    'image/heif-sequence',
     // Videos
-    'video/mp4', 
-    'video/webm', 
+    'video/mp4',
+    'video/webm',
     'video/quicktime'
   ];
+  // HUOM: SVG ei ole sallittu tarkoituksella. SVG voi sisältää JavaScriptiä,
+  // ja koska liitteet tarjoillaan samasta origin-osoitteesta kuin sovellus,
+  // se avaisi XSS-reitin tiedoston URL-osoitteen kautta.
 
   if (allowedMimeTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Tiedostomuoto ei ole tuettu. Sallitut muodot: JPEG, PNG, GIF, WEBP, MP4, WebM, MOV.'));
+    // ValidationError tuottaa statuksen 400 ja välittää viestin käyttäjälle asti.
+    // Tavallinen Error päätyisi errorHandlerissa 500-haaraan.
+    cb(new ValidationError(
+      `Tiedostomuoto ${file.mimetype} ei ole tuettu. Sallitut muodot: JPEG, PNG, GIF, WEBP, HEIC, MP4, WebM, MOV.`,
+      'UNSUPPORTED_FILE_TYPE'
+    ));
   }
 };
 

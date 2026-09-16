@@ -7,6 +7,18 @@ const api = axios.create({
   baseURL: API_BASE_URL
 })
 
+// Backend palauttaa virheen kahdessa eri muodossa:
+//   kontrollerit:  { error: 'viesti' }
+//   errorHandler:  { success: false, error: { message, code, ... } }
+// Ilman tätä jälkimmäinen näkyisi käyttäjälle muodossa "[object Object]".
+const errorMessage = (error, fallback) => {
+  const data = error?.response?.data
+  if (typeof data?.error === 'string') return data.error
+  if (typeof data?.error?.message === 'string') return data.error.message
+  if (typeof data?.message === 'string') return data.message
+  return fallback
+}
+
 // Lisätään token jokaiseen pyyntöön
 api.interceptors.request.use(async (config) => {
   try {
@@ -229,10 +241,7 @@ export const addComment = async (ticketId, content) => {
     const { data } = await api.post(`/tickets/${ticketId}/comments`, { content })
     return data
   } catch (error) {
-    if (error.response) {
-      throw new Error(error.response.data.error || 'Kommentin lisääminen epäonnistui')
-    }
-    throw new Error('Kommentin lisääminen epäonnistui')
+    throw new Error(errorMessage(error, 'Kommentin lisääminen epäonnistui'))
   }
 }
 
@@ -252,10 +261,7 @@ export const addMediaComment = async (ticketId, formData) => {
     )
     return data
   } catch (error) {
-    if (error.response) {
-      throw new Error(error.response.data.error || 'Median lisääminen epäonnistui')
-    }
-    throw new Error('Median lisääminen epäonnistui')
+    throw new Error(errorMessage(error, 'Median lisääminen epäonnistui'))
   }
 }
 
