@@ -6,8 +6,9 @@ import {
   successResponse,
   NotFoundError,
   ValidationError,
-  AuthenticationError 
+  AuthenticationError
 } from '../middleware/errorHandler.js';
+import logger from '../utils/logger.js';
 
 /**
  * Updates the user's profile picture from Microsoft Graph API
@@ -57,7 +58,37 @@ export const updateProfilePictureFromMicrosoft = asyncHandler(async (req: Reques
 
     return successResponse(res, { profilePicture: dataUrl }, 'Profiilikuva päivitetty onnistuneesti Microsoft-tililtä');
   } catch (graphError) {
-    // Don't treat this as an error, just don't update the profile picture
+    // Kuvan puuttuminen on normaali tilanne, joten pyyntö ei epäonnistu.
+    // Syy kuitenkin lokitetaan: aiemmin virhe nieltiin täysin hiljaa, eikä
+    // ollut mitään keinoa selvittää miksi kuva ei tule.
+    //
+    // Yleisimmät syyt:
+    //   404 ImageNotFound   - käyttäjällä ei ole kuvaa AD:ssä, tai tilillä ei
+    //                         ole Exchange Online -postilaatikkoa (Graph ei
+    //                         tarjoile kuvaa ilman sitä)
+    //   401 / 403           - Graph-token puuttuu, on vanhentunut tai siltä
+    //                         puuttuu User.Read-oikeus
+    const err = graphError as any;
+    const status = err?.response?.status;
+
+    // responseType on arraybuffer, joten virherunko on Buffer
+    let graphMessage = err?.message;
+    const data = err?.response?.data;
+    if (data) {
+      try {
+        graphMessage = Buffer.from(data).toString('utf8').slice(0, 300);
+      } catch {
+        // pidetään alkuperäinen viesti
+      }
+    }
+
+    logger.warn('Microsoft Graph -profiilikuvan haku epäonnistui', {
+      email: req.user.email,
+      status,
+      graphMessage,
+      requestId: req.requestId
+    });
+
     return successResponse(res, {}, 'Profiilikuvaa ei ole saatavilla Microsoft-tililtä');
   }
 });
