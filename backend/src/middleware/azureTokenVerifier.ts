@@ -133,7 +133,13 @@ const verifyWith = (client: jwksRsa.JwksClient, token: string): Promise<AzureTok
       {
         audience: AZURE_CLIENT_ID,
         issuer: expectedIssuers(),
+        // Vain epäsymmetriset algoritmit. Tämä estää algoritmisekaannuksen,
+        // jossa hyökkääjä allekirjoittaa tokenin HS256:lla käyttäen julkista
+        // avainta salaisuutena.
         algorithms: ['RS256', 'RS384', 'RS512'],
+        // Pieni jousto palvelimen ja Azuren kellojen välillä, jotta
+        // sekuntien heitto ei hylkää kelvollisia tokeneita.
+        clockTolerance: 60,
       },
       (err, payload) => {
         if (err) reject(err);

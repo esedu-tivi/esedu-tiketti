@@ -168,7 +168,11 @@ router.get('/support', authMiddleware, requireRole([UserRole.SUPPORT, UserRole.A
 
 // Profile picture routes - using Microsoft Graph API
 router.post('/profile-picture/microsoft', authMiddleware, updateProfilePictureFromMicrosoft);
-router.get('/profile-picture/:userId', getProfilePicture);
-router.get('/profile-picture/by-email/:email', getProfilePictureByEmail);
+// Nämä olivat aiemmin ilman todennusta. Erityisesti by-email paljasti
+// kenelle tahansa, onko annettu sähköpostiosoite järjestelmässä.
+// Frontend lähettää näihin jo tokenin (userService.js), joten muutos ei
+// riko kuvien näyttämistä.
+router.get('/profile-picture/:userId', authMiddleware, getProfilePicture);
+router.get('/profile-picture/by-email/:email', authMiddleware, getProfilePictureByEmail);
 
 export default router; 
