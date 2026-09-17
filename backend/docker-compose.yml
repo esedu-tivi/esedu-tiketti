@@ -1,6 +1,17 @@
 services:
   postgres:
-    image: postgres:16
+    # Kiinnitetty tarkkaan versioon JA pohjadistroon tarkoituksella.
+    # Liukuva tagi "postgres:16" vaihtoi pohjan Debian 12:sta 13:een, jolloin
+    # glibc vaihtui 2.36 -> 2.41. Tietokannan lajittelusäännöt (collation)
+    # tallennetaan luontihetken glibc-version mukaan, joten muutos aiheutti
+    # varoituksen "collation version mismatch" ja vaati indeksien uudelleen-
+    # rakentamisen (REINDEX DATABASE).
+    #
+    # Version päivitys tehdään tietoisesti. Jos pohjadistro vaihtuu, aja
+    # päivityksen jälkeen:
+    #   REINDEX DATABASE esedu_tiketti_db;
+    #   ALTER DATABASE esedu_tiketti_db REFRESH COLLATION VERSION;
+    image: postgres:16.15-trixie
     container_name: esedu-tiketti-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
