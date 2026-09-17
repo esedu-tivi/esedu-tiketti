@@ -130,9 +130,13 @@ export const getProfilePictureByEmail = asyncHandler(async (req: Request, res: R
     throw new ValidationError('Sähköpostiosoite vaaditaan');
   }
 
-  // Get the user from the database
-  const user = await prisma.user.findUnique({
-    where: { email },
+  // Haku ilman kirjainkoon huomiointia. Postgresin vertailu on
+  // kirjainkokoherkkä, ja Azure AD:n sähköpostiosoite voi tulla eri
+  // kirjainkoossa eri lähteistä (esim. MSAL:n account.username vs. tokenin
+  // preferred_username). Tarkka haku palautti silloin 404:n, vaikka
+  // käyttäjällä oli kuva tallessa.
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
   });
 
   if (!user) {

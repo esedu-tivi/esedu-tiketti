@@ -118,11 +118,14 @@ class UserService {
             }
           );
           
-          // If we successfully got a picture from the backend, use that
-          if (response.data.profilePicture) {
+          // Backend palauttaa muodossa { success, message, data: { profilePicture } },
+          // joten kuva on data.data-kentän alla. Aiemmin luettiin suoraan
+          // response.data.profilePicture, joka oli aina undefined.
+          const cached = response.data.data?.profilePicture || response.data.profilePicture;
+          if (cached) {
             console.log('Using profile picture from backend cache');
-            this.profileCache.set(this.currentUserEmail, response.data.profilePicture);
-            return response.data.profilePicture;
+            this.profileCache.set(this.currentUserEmail, cached);
+            return cached;
           }
         } catch (error) {
           // If we get an error, continue to fetch from Microsoft
@@ -152,10 +155,11 @@ class UserService {
         }
       );
       
-      // If we got a profile picture, cache and return it
-      if (response.data.profilePicture) {
-        this.profileCache.set(this.currentUserEmail, response.data.profilePicture);
-        return response.data.profilePicture;
+      // Sama vastausrakenne kuin yllä: kuva on data.data-kentän alla
+      const fetched = response.data.data?.profilePicture || response.data.profilePicture;
+      if (fetched) {
+        this.profileCache.set(this.currentUserEmail, fetched);
+        return fetched;
       }
       
       // No profile picture available
