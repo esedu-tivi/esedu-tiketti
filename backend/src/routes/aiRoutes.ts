@@ -14,22 +14,42 @@ router.use(authMiddleware);
 router.use(requireRole([UserRole.ADMIN, UserRole.SUPPORT]));
 
 // Check OpenAI configuration status
-router.get('/config-status', aiController.checkConfiguration);
+// Käytetään vain AITools-sivulla, joka on admin-rajattu.
+router.get('/config-status', requireRole([UserRole.ADMIN]), aiController.checkConfiguration);
 
 // Get AI agent configuration (categories, complexity etc.)
-router.get('/config', aiController.getAgentConfig);
+// Käytetään vain tikettigeneraattorissa, joka on admin-rajattu.
+router.get('/config', requireRole([UserRole.ADMIN]), aiController.getAgentConfig);
 
 // Generate training ticket preview (does not save)
-router.post('/generate-ticket-preview', aiController.generateTrainingTicketPreview);
+// HUOM: vain ADMIN. Tässä järjestelmässä SUPPORT-rooli tarkoittaa harjoittelevaa
+// opiskelijaa, joten hänen ei pidä pystyä luomaan itselleen harjoitustikettejä.
+// Esikatselu palauttaa myös ratkaisun.
+router.post(
+  '/generate-ticket-preview',
+  requireRole([UserRole.ADMIN]),
+  aiController.generateTrainingTicketPreview
+);
 
 // Confirm and create the training ticket after preview
-router.post('/confirm-ticket-creation', aiController.confirmTrainingTicketCreation);
+router.post(
+  '/confirm-ticket-creation',
+  requireRole([UserRole.ADMIN]),
+  aiController.confirmTrainingTicketCreation
+);
 
 // Generate simulated user response for an AI ticket
 router.post('/tickets/:id/generate-response', aiController.generateUserResponse);
 
 // Get the solution for an AI-generated ticket
-router.get('/tickets/:ticketId/solution', aiController.getTicketSolution);
+// HUOM: vain ADMIN. Tämä palauttaa tiketin piilotetun ratkaisun, jonka
+// opiskelijan on tarkoitus selvittää itse. Aiemmin reitti oli avoinna myös
+// SUPPORT-roolille eli harjoitteleville opiskelijoille.
+router.get(
+  '/tickets/:ticketId/solution',
+  requireRole([UserRole.ADMIN]),
+  aiController.getTicketSolution
+);
 
 // Summarize a ticket conversation
 router.post('/tickets/:ticketId/summarize', aiController.summarizeConversation);
