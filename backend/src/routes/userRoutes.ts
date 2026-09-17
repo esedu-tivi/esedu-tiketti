@@ -108,8 +108,14 @@ router.put('/:id/role', authMiddleware, requireRole(UserRole.ADMIN), asyncHandle
 
 // Vaihda käyttäjän rooli (vain development-ympäristössä)
 router.put('/role', authMiddleware, asyncHandler(async (req: Request, res: Response) => {
-  // Tarkistetaan että ollaan development-ympäristössä
-  if (process.env.ENVIRONMENT === 'production') {
+  // HUOM: ehto on tarkoituksella "salli vain jos NODE_ENV on nimenomaan
+  // development". Aiempi ehto oli päinvastainen (estä jos ENVIRONMENT ===
+  // 'production'), jolloin puuttuva tai väärin kirjoitettu muuttuja avasi
+  // reitin - ja tämä reitti antaa käyttäjän nostaa oman roolinsa ADMIN-tasolle.
+  //
+  // Luetaan process.env suoraan eikä config/env.js:n kautta, koska siellä
+  // NODE_ENV saa oletusarvon 'development', jos muuttujaa ei ole asetettu.
+  if (process.env.NODE_ENV !== 'development') {
     throw new AuthorizationError('Role switching is only available in development environment');
   }
 
