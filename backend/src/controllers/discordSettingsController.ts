@@ -106,7 +106,7 @@ export const discordSettingsController = {
       return successResponse(res, { settings }, 'Discord settings updated');
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return errorResponse(res, 'Invalid settings data', 400, undefined, { errors: error.errors });
+        return errorResponse(res, 'Invalid settings data', 400, undefined, { errors: error.issues });
       }
       logger.error('Error updating Discord settings:', error);
       return errorResponse(res, 'Failed to update Discord settings', 500);

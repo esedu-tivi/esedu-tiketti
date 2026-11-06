@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { toJsonSchema } from "../utils/jsonSchema.js";
 import logger from '../../utils/logger.js';
 import { AI_CONFIG } from "../config.js";
 import { aiSettingsService } from '../../services/aiSettingsService.js';
@@ -402,7 +402,7 @@ Respond as the ${ticket.userProfile.role} maintaining your ${writingStyle} style
       
       // Call with structured output
       const structuredModel = this.model.withStructuredOutput(
-        zodToJsonSchema(EnhancedChatResponseSchema),
+        toJsonSchema(EnhancedChatResponseSchema),
         { 
           name: "enhanced_chat_response",
           strict: true

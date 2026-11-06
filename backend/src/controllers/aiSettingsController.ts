@@ -125,7 +125,7 @@ export const aiSettingsController = {
         return res.status(400).json({
           success: false,
           error: 'Invalid settings data',
-          details: error.errors
+          details: error.issues
         });
       }
       

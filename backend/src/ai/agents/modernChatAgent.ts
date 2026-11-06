@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { toJsonSchema } from "../utils/jsonSchema.js";
 import logger from '../../utils/logger.js';
 import { AI_CONFIG } from "../config.js";
 import { aiSettingsService } from '../../services/aiSettingsService.js';
@@ -166,7 +166,7 @@ ${hintInstruction?.giveHint ? this.buildHintDirective(hintInstruction) : ''}
             type: "json_schema",
             json_schema: {
               name: "chat_response",
-              schema: zodToJsonSchema(ChatResponseSchema),
+              schema: toJsonSchema(ChatResponseSchema),
               strict: true
             }
           },

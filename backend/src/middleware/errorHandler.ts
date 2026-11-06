@@ -137,7 +137,7 @@ export const errorHandler = (
     statusCode = 400;
     errorCode = 'VALIDATION_ERROR';
     message = 'Validointivirhe';
-    details = error.errors.map(err => ({
+    details = error.issues.map(err => ({
       field: err.path.join('.'),
       message: err.message,
     }));

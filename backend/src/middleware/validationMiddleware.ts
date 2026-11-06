@@ -59,7 +59,7 @@ export const validateComment = (req: Request, res: Response, next: NextFunction)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
-        error: error.errors[0].message 
+        error: error.issues[0].message 
       });
     }
     next(error);
