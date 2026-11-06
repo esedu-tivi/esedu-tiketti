@@ -8,7 +8,7 @@ import { createTokenCallback } from '../../utils/tokenCallbackHandler.js';
 import { prisma } from '../../lib/prisma.js';
 import { Priority, ResponseFormat } from '@prisma/client';
 import { z } from "zod";
-import { StructuredOutputParser } from "langchain/output_parsers";
+import { StructuredOutputParser } from "@langchain/core/output_parsers";
 import { pickTicketTopic, pickSituation } from "../config/ticketTopics.js";
 import { getRecentTopicIds } from "../config/recentTopics.js";
 
